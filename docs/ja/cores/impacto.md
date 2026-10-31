@@ -13,6 +13,8 @@ description: impacto のフォーマット、ネイティブ動作、制約。
 
 impacto は MAGES の SC3 VM、ネイティブのリソースリーダー、ゲーム固有の設定を保持しています。C++ の接続部分は引き続き `src/shinki` にあり、Cargo/CMake のビルドの入口は `shinki` にあります。OpenGL の合成、OpenAL の音声、FFmpeg の動画、ゲーム UI、セーブは、これまでどおりネイティブエンジンが実行します。
 
+同梱リソースはアプリ専用領域へストリームで書き出し、1 ファイルの上限は 32 MiB です。上流の Noto CJK 太字フォント（17,032,620 バイト）を扱え、フォント全体と同じサイズのバッファは確保しません。
+
 ## ストレージ
 
 `userconfig.toml` は Impacto のプラットフォーム設定ディレクトリに置かれます。Windows では `%APPDATA%/Committee of Zero/Impacto` です。現在の CC profile は `SaveDataType.None` を指定しているため、profile のセーブ形式やセーブファイルはありません。ネイティブセーブに対応する profile は、上流が定義する場所をそのまま使います。

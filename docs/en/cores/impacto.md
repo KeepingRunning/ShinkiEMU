@@ -13,6 +13,8 @@ Upstream: [CommitteeOfZero/impacto](https://github.com/CommitteeOfZero/impacto).
 
 impacto retains its MAGES SC3 VM, native resource readers and game-specific configuration. The C++ integration remains under `src/shinki`, with Cargo/CMake build entry under `shinki`. Original OpenGL composition, OpenAL audio, FFmpeg movies, game UI and save behavior remain in the native engine.
 
+Bundled assets stream to app-private storage with a 32 MiB per-file limit, accommodating the upstream Noto CJK bold font (17,032,620 bytes) without allocating a full font-sized buffer.
+
 ## Storage
 
 `userconfig.toml` stays in Impacto's platform preference directory, which is

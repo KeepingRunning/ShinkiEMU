@@ -1388,7 +1388,7 @@ fn verify_android_apk(apk: &Path, staged: &Path) -> Result<()> {
         let mut asset = archive
             .by_name(&name)
             .with_context(|| format!("APK bundled resource missing: {relative}"))?;
-        if asset.is_dir() || asset.size() > 16 * 1024 * 1024 {
+        if asset.is_dir() || asset.size() > 32 * 1024 * 1024 {
             bail!("APK bundled resource exceeds the host file contract: {relative}");
         }
         let mut hash = Sha256::new();
