@@ -674,6 +674,7 @@ fn prepare_renpy_android(inv: &Inventory, target: &str) -> Result<()> {
     )?;
     let python = executable("python3").context("official Ren'Py Android builds require Python 3 with Jinja2 and the upstream Ubuntu build prerequisites")?;
     run(Command::new(python)
+        .env("PYTHONDONTWRITEBYTECODE", "1")
         .arg(recipe.join("android_runtime.py"))
         .arg("--build-root")
         .arg(build)
