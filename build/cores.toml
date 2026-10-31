@@ -19,7 +19,7 @@ publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/rfvp"
 branch = "shinki-sakura-native"
-rev = "73f7e41642c3f4e9f8c429a5f284803c612daa7c"
+rev = "f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03"
 upstream = "https://github.com/xmoezzz/rfvp"
 release_sequence = 1
 upstream_identity = { repo = "https://github.com/xmoezzz/rfvp", ref_kind = "tag", ref_name = "0.7.0", commit = "99435f22e94eaec27c0c1b9f22cc2a6b1910d7d1" }
