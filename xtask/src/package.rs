@@ -999,19 +999,23 @@ pub(crate) fn static_core_entries(
         }
         for license in &core.licenses {
             let path = Path::new(license);
-            if let Ok(relative) = path.strip_prefix(checkout_relative) {
-                entries.push((
-                    source_root.join(relative),
-                    format!(
+            let asset = if let Ok(relative) = path.strip_prefix(checkout_relative) {
+                BuildAsset {
+                    source: source_root.join(relative),
+                    dest: format!(
                         "licenses/{}/{}",
                         core.id,
                         relative.to_string_lossy().replace('\\', "/")
                     ),
-                ));
+                }
             } else {
                 // Some inventory assets belong to the product, not the fork.
-                entries.push((inv.root.join(path), license.clone()));
-            }
+                BuildAsset {
+                    source: inv.root.join(path),
+                    dest: license.clone(),
+                }
+            };
+            entries.extend(asset_entries(&asset)?);
         }
         let native = result
             .embedded_core_builds
