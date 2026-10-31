@@ -751,13 +751,18 @@ pub fn publish(inv: &Inventory, component: &str, version: &str) -> Result<()> {
         "{component} {label}\n\nArtifacts:\n{artifacts}\n\nBlocked platforms:\n{}\n\nEach `-sources.zip` holds the exact product/fork revisions, the copyleft Rust crate sources, and the native library source archives and recipes needed to modify and relink. The universal Android Release APK is uploaded once; matching Actions matrix rows do not duplicate it.{ci}",
         blocked.join("\n")
     );
-    let notes = if local_manager {
+    let mut notes = if local_manager {
         format!(
             "{notes}\nThe OHOS HAP is experimental, signed with the OpenHarmony SDK test PKI. Its signature and native dependency closure were verified by the local DevEco packager. Device/emulator launch and retail installability were not verified.\n"
         )
     } else {
         notes
     };
+    if id.identity.is_some() {
+        notes.push_str(
+            "\nCompatibility: these upstream-identity packages require ShinkiEMU Manager 0.1.0-beta.6 or a later compatible Manager. Manager 0.1.0-beta.5 and earlier reject this package format. Until a compatible Manager release is available, use the existing legacy packages. The legacy core v1 and compatibility v4 catalogs remain available. Device/game/account launch checks were waived, not verified.\n\n兼容性：这些上游身份核心包需要 ShinkiEMU Manager 0.1.0-beta.6 或后续兼容版本。beta.5 及更早版本会拒绝此格式；兼容的 Manager 尚未发布时，请继续使用旧核心包。旧版核心 v1 与兼容性 v4 目录继续提供。设备、游戏和账号启动检查已豁免，未作验证。\n\n互換性：この upstream 識別子付きコアパッケージには ShinkiEMU Manager 0.1.0-beta.6 以降の対応版が必要です。beta.5 以前ではこの形式をインストールできません。対応 Manager が公開されるまでは既存の旧パッケージを使用してください。旧 core v1 と compatibility v4 のカタログは維持します。端末・ゲーム・アカウントの起動確認は免除されており、検証済みではありません。\n",
+        );
+    }
     let existing = release_target(
         &gh.releases_for_tag(tag)?,
         gh.tag_commit(tag)?.as_deref(),
