@@ -138,7 +138,9 @@ pub struct CompatibilityDatabase {
 
 impl CompatibilityDatabase {
     pub fn validate(&self) -> Result<(), CompatibilityError> {
-        if self.schema != COMPATIBILITY_SCHEMA_VERSION && self.schema != LEGACY_COMPATIBILITY_SCHEMA_VERSION {
+        if self.schema != COMPATIBILITY_SCHEMA_VERSION
+            && self.schema != LEGACY_COMPATIBILITY_SCHEMA_VERSION
+        {
             return Err(CompatibilityError::SchemaMismatch("schema"));
         }
         if self.generated_at_unix_ms < 0 {
@@ -151,7 +153,11 @@ impl CompatibilityDatabase {
         for entry in &self.entries {
             entry.validate()?;
             if self.schema == LEGACY_COMPATIBILITY_SCHEMA_VERSION
-                && entry.emulator_version.as_deref().is_some_and(|version| version.chars().count() > MAX_VERSION_CHARS) {
+                && entry
+                    .emulator_version
+                    .as_deref()
+                    .is_some_and(|version| version.chars().count() > MAX_VERSION_CHARS)
+            {
                 return Err(CompatibilityError::ResponseBounds("emulator_version"));
             }
             if !keys.insert((
@@ -253,7 +259,8 @@ mod tests {
     #[test]
     fn complete_external_versions_require_v5_and_legacy_v4_stays_readable() {
         let mut database = sample_database();
-        database.entries[0].emulator_version = Some(format!("branch-{}-{}", "x".repeat(16), "a".repeat(64)));
+        database.entries[0].emulator_version =
+            Some(format!("branch-{}-{}", "x".repeat(16), "a".repeat(64)));
         let bytes = serde_json::to_vec(&database).unwrap();
         assert_eq!(parse_compatibility_database(&bytes).unwrap(), database);
         database.schema = LEGACY_COMPATIBILITY_SCHEMA_VERSION.into();

@@ -337,38 +337,63 @@ struct Identity {
 }
 
 pub fn resolve_version(inv: &Inventory, component: &str, supplied: &str) -> Result<String> {
-    if component != "manager" && let Some(source) = &inv.core(component)?.source {
+    if component != "manager"
+        && let Some(source) = &inv.core(component)?.source
+    {
         let identity = source.identity();
         let version = identity.version();
-        crate::metadata::require_release_sequence(&inv.root.join("Metadata"), component, &identity)?;
+        crate::metadata::require_release_sequence(
+            &inv.root.join("Metadata"),
+            component,
+            &identity,
+        )?;
         if !supplied.is_empty() && supplied != version {
-            bail!("external core version is derived from its verified upstream/adapter pins; omit --version or use {version}");
+            bail!(
+                "external core version is derived from its verified upstream/adapter pins; omit --version or use {version}"
+            );
         }
         return Ok(version);
     }
-    semver::Version::parse(supplied).context("Manager/self-owned cores require --version with their own SemVer")?;
+    semver::Version::parse(supplied)
+        .context("Manager/self-owned cores require --version with their own SemVer")?;
     Ok(supplied.to_owned())
 }
 
 pub fn dry_run(inv: &Inventory, component: &str, version: &str) -> Result<()> {
-    if component != "manager" { crate::sources::verify_provenance(inv, inv.core(component)?)?; }
+    if component != "manager" {
+        crate::sources::verify_provenance(inv, inv.core(component)?)?;
+    }
     let id = identity(inv, component, version)?;
-    println!("{}", serde_json::to_string(&json!({
-        "component":component, "version":id.version, "release_tag":id.tag,
-        "source_commit":id.commit, "core_source":id.core_source, "identity":id.identity,
-    }))?);
+    println!(
+        "{}",
+        serde_json::to_string(&json!({
+            "component":component, "version":id.version, "release_tag":id.tag,
+            "source_commit":id.commit, "core_source":id.core_source, "identity":id.identity,
+        }))?
+    );
     Ok(())
 }
 
 fn identity(inv: &Inventory, component: &str, version: &str) -> Result<Identity> {
     let version = resolve_version(inv, component, version)?;
-    let external = if component == "manager" { None } else { inv.core(component)?.source.as_ref().map(crate::cores::CoreSource::identity) };
+    let external = if component == "manager" {
+        None
+    } else {
+        inv.core(component)?
+            .source
+            .as_ref()
+            .map(crate::cores::CoreSource::identity)
+    };
     let (tag, core_source) = if component == "manager" {
         (format!("manager-v{version}"), Value::Null)
     } else {
         let core = inv.core(component)?;
         (
-            if external.is_some() { format!("core-{}-{version}", slug(component)) } else { format!("core-{}-v{version}", slug(component)) },
+            if external.is_some() {
+                format!("core-{}-{version}", slug(component))
+            } else {
+                format!("core-{}-v{version}", slug(component))
+            },
             serde_json::to_value(&core.source)?,
         )
     };
@@ -431,7 +456,9 @@ pub fn prepare(inv: &Inventory, target: &str, component: &str, version: &str) ->
             return Ok(());
         }
     }
-    if component != "manager" { crate::sources::verify_provenance(inv, inv.core(component)?)?; }
+    if component != "manager" {
+        crate::sources::verify_provenance(inv, inv.core(component)?)?;
+    }
     let dirty = dependencies::capture(
         std::process::Command::new("git")
             .arg("-C")
@@ -623,8 +650,13 @@ pub fn verify_ohos_handoff(inv: &Inventory, component: &str, version: &str) -> R
 pub fn publish(inv: &Inventory, component: &str, version: &str) -> Result<()> {
     let id = identity(inv, component, version)?;
     let version = id.version.as_str();
-    let label = id.identity.as_ref().map_or_else(|| version.to_owned(), shinki_emu_metadata::CoreIdentity::display_version);
-    if component != "manager" { crate::sources::verify_provenance(inv, inv.core(component)?)?; }
+    let label = id.identity.as_ref().map_or_else(
+        || version.to_owned(),
+        shinki_emu_metadata::CoreIdentity::display_version,
+    );
+    if component != "manager" {
+        crate::sources::verify_provenance(inv, inv.core(component)?)?;
+    }
     let tag = id.tag.as_str();
     if env::var("GITHUB_EVENT_NAME").ok().as_deref() == Some("push")
         && env::var("GITHUB_REF_TYPE").ok().as_deref() == Some("tag")
@@ -774,7 +806,9 @@ pub fn publish(inv: &Inventory, component: &str, version: &str) -> Result<()> {
             let size = record["archive"]["size"].as_u64().context("archive size")?;
             let platform = record["platform"].as_str().context("release platform")?;
             let mut entry = json!({"plugin_id":component,"display_name":c.display_name,"family_name":c.family_name,"version":version,"abi":"shinki.emu.native.c.v3","platform":platform,"url":url,"sha256":hash,"size":size,"license":c.license,"release_tag":tag});
-            if let Some(identity) = &id.identity { entry["identity"] = serde_json::to_value(identity)?; }
+            if let Some(identity) = &id.identity {
+                entry["identity"] = serde_json::to_value(identity)?;
+            }
             let dto: shinki_emu_metadata::CoreCatalogEntry = serde_json::from_value(entry.clone())?;
             dto.validate()?;
             gh.catalog_put(
@@ -836,8 +870,14 @@ mod tests {
         let inv = Inventory::load(root).unwrap();
         let id = identity(&inv, "rfvp", "").unwrap();
         assert!(resolve_version(&inv, "rfvp", "0.1.0-beta.5").is_err());
-        assert_eq!(resolve_version(&inv, "manager", "0.1.0-beta.6").unwrap(), "0.1.0-beta.6");
-        assert_eq!(resolve_version(&inv, "shinki.emu.musica", "0.1.0-beta.5").unwrap(), "0.1.0-beta.5");
+        assert_eq!(
+            resolve_version(&inv, "manager", "0.1.0-beta.6").unwrap(),
+            "0.1.0-beta.6"
+        );
+        assert_eq!(
+            resolve_version(&inv, "shinki.emu.musica", "0.1.0-beta.5").unwrap(),
+            "0.1.0-beta.5"
+        );
         let record = json!({
             "schema":"shinki.emu.release.v1","component":"rfvp","version":id.version,
             "source_commit":id.commit,"core_source":id.core_source,"identity":id.identity,
@@ -845,9 +885,19 @@ mod tests {
         require_same_release(&record, &id, "rfvp", &id.version, Path::new("release.json")).unwrap();
         let mut other = record.clone();
         other["identity"]["adapter"]["commit"] = "f".repeat(40).into();
-        assert!(require_same_release(&other, &id, "rfvp", &id.version, Path::new("release.json")).is_err());
+        assert!(
+            require_same_release(&other, &id, "rfvp", &id.version, Path::new("release.json"))
+                .is_err()
+        );
         let mut changed = inv.clone();
-        let source = changed.cores.iter_mut().find(|core| core.id == "rfvp").unwrap().source.as_mut().unwrap();
+        let source = changed
+            .cores
+            .iter_mut()
+            .find(|core| core.id == "rfvp")
+            .unwrap()
+            .source
+            .as_mut()
+            .unwrap();
         source.rev = "f".repeat(40);
         source.release_sequence += 1;
         let updated = identity(&changed, "rfvp", "").unwrap();

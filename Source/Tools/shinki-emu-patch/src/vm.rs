@@ -437,8 +437,7 @@ fn profile(value: Value) -> mlua::Result<OutputProfile> {
 fn validate_profile(profile: &OutputProfile) -> Result<(), PatchError> {
     if profile.plugin_id.trim().is_empty()
         || profile.plugin_id.contains('\0')
-        || profile.required_capabilities & !crate::PROFILE_CAPABILITIES
-            != 0
+        || profile.required_capabilities & !crate::PROFILE_CAPABILITIES != 0
         || profile
             .configuration
             .keys()

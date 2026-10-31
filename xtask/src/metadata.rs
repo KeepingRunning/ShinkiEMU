@@ -66,10 +66,17 @@ pub fn run(cmd: MetadataCommand) -> Result<()> {
             collect(&root, 0, true)?;
             Ok(())
         }
-        MetadataCommand::ResolveCore { plugin_id, platform, abi, root } => {
+        MetadataCommand::ResolveCore {
+            plugin_id,
+            platform,
+            abi,
+            root,
+        } => {
             let files = collect(&root, 0, true)?;
             let catalog = parse_core_catalog(&files["cores-v2.json"])?;
-            let entry = catalog.latest(&plugin_id, &platform, &abi).context("no published core matches plugin/platform/ABI")?;
+            let entry = catalog
+                .latest(&plugin_id, &platform, &abi)
+                .context("no published core matches plugin/platform/ABI")?;
             println!("{}", serde_json::to_string(entry)?);
             Ok(())
         }
@@ -190,14 +197,22 @@ fn entries<T: DeserializeOwned>(root: &Path, dir: &str) -> Result<Vec<(String, T
         .collect()
 }
 /// Reject counter reuse/rollback before producing a new external release.
-pub(crate) fn require_release_sequence(root: &Path, component: &str, identity: &CoreIdentity) -> Result<()> {
+pub(crate) fn require_release_sequence(
+    root: &Path,
+    component: &str,
+    identity: &CoreIdentity,
+) -> Result<()> {
     let version = identity.version();
     for (_, entry) in entries::<CoreCatalogEntry>(root, "engines/cores")? {
         entry.validate()?;
-        if entry.plugin_id != component { continue; }
+        if entry.plugin_id != component {
+            continue;
+        }
         if let Some(previous) = &entry.identity {
-            ensure!(entry.version == version || identity.release_sequence > previous.release_sequence,
-                "external release_sequence must increase beyond every previously published identity for {component}");
+            ensure!(
+                entry.version == version || identity.release_sequence > previous.release_sequence,
+                "external release_sequence must increase beyond every previously published identity for {component}"
+            );
         }
     }
     Ok(())
@@ -248,7 +263,17 @@ fn collect(root: &Path, timestamp: i64, schemas: bool) -> Result<BTreeMap<String
     let legacy_compatibility = CompatibilityDatabase {
         schema: LEGACY_COMPATIBILITY_SCHEMA_VERSION.into(),
         generated_at_unix_ms: timestamp,
-        entries: compatibility.entries.iter().filter(|entry| entry.emulator_version.as_deref().is_none_or(|version| version.chars().count() <= 64)).cloned().collect(),
+        entries: compatibility
+            .entries
+            .iter()
+            .filter(|entry| {
+                entry
+                    .emulator_version
+                    .as_deref()
+                    .is_none_or(|version| version.chars().count() <= 64)
+            })
+            .cloned()
+            .collect(),
     };
     legacy_compatibility.validate()?;
     let mut presets = PresetDatabase {
@@ -296,7 +321,12 @@ fn collect(root: &Path, timestamp: i64, schemas: bool) -> Result<BTreeMap<String
     cores.validate()?;
     let legacy_cores = CoreCatalog {
         schema: LEGACY_CORE_CATALOG_SCHEMA_VERSION.into(),
-        entries: cores.entries.iter().filter(|entry| entry.identity.is_none()).cloned().collect(),
+        entries: cores
+            .entries
+            .iter()
+            .filter(|entry| entry.identity.is_none())
+            .cloned()
+            .collect(),
     };
     legacy_cores.validate()?;
     let mut patches = PatchCatalog {
@@ -623,9 +653,20 @@ mod tests {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let published = collect(&repository.join("Metadata"), 0, false).unwrap();
         let existing = parse_core_catalog(&published["cores.json"]).unwrap();
-        let old = existing.entries.iter().find(|entry| entry.plugin_id == "rfvp").expect("published RFVP").clone();
+        let old = existing
+            .entries
+            .iter()
+            .find(|entry| entry.plugin_id == "rfvp")
+            .expect("published RFVP")
+            .clone();
         let inventory = crate::cores::Inventory::load(repository).unwrap();
-        let identity = inventory.core("rfvp").unwrap().source.as_ref().unwrap().identity();
+        let identity = inventory
+            .core("rfvp")
+            .unwrap()
+            .source
+            .as_ref()
+            .unwrap()
+            .identity();
         let mut new = old.clone();
         new.version = identity.version();
         new.release_tag = format!("core-rfvp-{}", new.version);
@@ -634,7 +675,10 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         root(temp.path());
         for entry in [&old, &new] {
-            let path = temp.path().join(format!("engines/cores/{}/{}/{}.json", entry.plugin_id, entry.platform, entry.version));
+            let path = temp.path().join(format!(
+                "engines/cores/{}/{}/{}.json",
+                entry.plugin_id, entry.platform, entry.version
+            ));
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(path, pretty(entry).unwrap()).unwrap();
         }
@@ -642,7 +686,8 @@ mod tests {
             "vn_id":"v1","release_id":"r1","emulator":"rfvp","status":"boot_only",
             "emulator_version":new.version,"platform":"windows","architecture":"x86_64",
             "variant":"desktop","updated_at_unix_ms":0
-        })).unwrap();
+        }))
+        .unwrap();
         let report_path = temp.path().join(compat_path(&report));
         fs::create_dir_all(report_path.parent().unwrap()).unwrap();
         fs::write(report_path, pretty(&report).unwrap()).unwrap();

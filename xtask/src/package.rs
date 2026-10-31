@@ -946,7 +946,13 @@ pub fn package(
                 .push(BuildAsset { source, dest });
         }
         let identity = c.source.as_ref().map(crate::cores::CoreSource::identity);
-        stage_core(&result, version, identity.as_ref(), out, &search_dirs(inv, &result)?)
+        stage_core(
+            &result,
+            version,
+            identity.as_ref(),
+            out,
+            &search_dirs(inv, &result)?,
+        )
     }
 }
 /// Resolve license inputs from the actual Cargo checkouts used for embedding.

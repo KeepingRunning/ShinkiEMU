@@ -71,7 +71,9 @@ fn no_required_capabilities(required: &u64) -> bool {
     *required == 0
 }
 
-fn required_capabilities<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<u64, D::Error> {
+fn required_capabilities<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<u64, D::Error> {
     let required = u64::deserialize(deserializer)?;
     if required & !PROFILE_CAPABILITIES != 0 {
         return Err(serde::de::Error::custom("unknown required core capability"));

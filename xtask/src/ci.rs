@@ -46,7 +46,8 @@ pub fn run(inv: &Inventory, target: &str, component: &str, path: &Path) -> Resul
             let version = if component != "manager" && inv.core(component)?.source.is_some() {
                 crate::release::resolve_version(inv, component, "")?
             } else {
-                std::env::var("SHINKI_EMU_CI_VERSION").context("SHINKI_EMU_CI_VERSION required for Manager/self-owned CI package")?
+                std::env::var("SHINKI_EMU_CI_VERSION")
+                    .context("SHINKI_EMU_CI_VERSION required for Manager/self-owned CI package")?
             };
             // Restricted binaries are not uploaded, even as Actions artifacts.
             if component != "manager" && !inv.core(component)?.publish_blocked.is_empty() {

@@ -485,8 +485,10 @@ fn recipe_cannot_write_game_state_namespace() {
 
 #[test]
 fn native_capability_requirements_survive_real_conversion_and_receipt_loading() {
-    for required in [0, shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY
-        | shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY] {
+    for required in [
+        0,
+        shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY | shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY,
+    ] {
         let fixture = Fixture::new();
         fixture.recipe(&format!(
             r#"ctx.copy("source","assets.bin","assets.bin"); return {{
@@ -495,11 +497,13 @@ fn native_capability_requirements_survive_real_conversion_and_receipt_loading() 
             }}"#
         ));
         let result = apply(fixture.request(), Arc::new(AtomicBool::new(false)), |_| {}).unwrap();
-        assert_eq!(fs::read(result.output.join("assets.bin")).unwrap(), b"alpha|beta");
-        let loaded = shinki_emu_patch::read_output_profile(
-            &result.output,
-            &AtomicBool::new(false),
-        ).unwrap().unwrap();
+        assert_eq!(
+            fs::read(result.output.join("assets.bin")).unwrap(),
+            b"alpha|beta"
+        );
+        let loaded = shinki_emu_patch::read_output_profile(&result.output, &AtomicBool::new(false))
+            .unwrap()
+            .unwrap();
         assert_eq!(loaded.required_capabilities, required);
         let receipt_path = result.output.join("shinki-patch-result.json");
         let mut receipt: serde_json::Value =
@@ -517,11 +521,14 @@ fn native_capability_requirements_survive_real_conversion_and_receipt_loading() 
         }
         receipt["profile"]["required_capabilities"] = serde_json::json!(required | 2);
         fs::write(receipt_path, serde_json::to_vec(&receipt).unwrap()).unwrap();
-        assert!(shinki_emu_patch::read_output_profile(
-            &result.output,
-            &AtomicBool::new(false),
-        ).is_err());
-        assert_eq!(fs::read(result.output.join("assets.bin")).unwrap(), b"alpha|beta");
+        assert!(
+            shinki_emu_patch::read_output_profile(&result.output, &AtomicBool::new(false),)
+                .is_err()
+        );
+        assert_eq!(
+            fs::read(result.output.join("assets.bin")).unwrap(),
+            b"alpha|beta"
+        );
         fixture.unchanged();
     }
 }
@@ -537,7 +544,8 @@ fn unsupported_or_invalid_required_capabilities_never_publish_partial_output() {
             }}"#
         ));
         let error = apply(fixture.request(), Arc::new(AtomicBool::new(false)), |_| {})
-            .err().unwrap();
+            .err()
+            .unwrap();
         assert_eq!(error.kind(), PatchErrorKind::Script);
         assert!(!fixture.output.exists());
         fixture.unchanged();

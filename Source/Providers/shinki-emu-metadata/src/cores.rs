@@ -94,7 +94,10 @@ impl CoreCatalogEntry {
     }
 
     pub fn display_version(&self) -> String {
-        self.identity.as_ref().map_or_else(|| self.version.clone(), crate::CoreIdentity::display_version)
+        self.identity.as_ref().map_or_else(
+            || self.version.clone(),
+            crate::CoreIdentity::display_version,
+        )
     }
 
     pub fn release_cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -102,18 +105,27 @@ impl CoreCatalogEntry {
             (Some(a), Some(b)) => a.release_sequence.cmp(&b.release_sequence),
             (Some(_), None) => std::cmp::Ordering::Greater,
             (None, Some(_)) => std::cmp::Ordering::Less,
-            (None, None) => semver::Version::parse(&self.version).ok().cmp(&semver::Version::parse(&other.version).ok()),
+            (None, None) => semver::Version::parse(&self.version)
+                .ok()
+                .cmp(&semver::Version::parse(&other.version).ok()),
         }
     }
 
     /// Compare installation identity, never the plugin's independent crate version.
     pub fn is_update_for(&self, version: &str, identity: Option<&crate::CoreIdentity>) -> bool {
-        if self.version == version { return false; }
+        if self.version == version {
+            return false;
+        }
         match (&self.identity, identity) {
-            (Some(candidate), Some(installed)) => candidate.release_sequence > installed.release_sequence,
+            (Some(candidate), Some(installed)) => {
+                candidate.release_sequence > installed.release_sequence
+            }
             (Some(_), None) => true,
             (None, Some(_)) => false,
-            (None, None) => match (semver::Version::parse(&self.version), semver::Version::parse(version)) {
+            (None, None) => match (
+                semver::Version::parse(&self.version),
+                semver::Version::parse(version),
+            ) {
                 (Ok(candidate), Ok(installed)) => candidate > installed,
                 _ => false,
             },
@@ -123,7 +135,9 @@ impl CoreCatalogEntry {
 
 impl CoreCatalog {
     pub fn validate(&self) -> Result<(), MetadataError> {
-        if self.schema != CORE_CATALOG_SCHEMA_VERSION && self.schema != LEGACY_CORE_CATALOG_SCHEMA_VERSION {
+        if self.schema != CORE_CATALOG_SCHEMA_VERSION
+            && self.schema != LEGACY_CORE_CATALOG_SCHEMA_VERSION
+        {
             return Err(MetadataError::SchemaMismatch("cores.schema"));
         }
         if self.entries.len() > MAX_ENTRIES {
@@ -138,7 +152,10 @@ impl CoreCatalog {
             }
             if let Some(identity) = &entry.identity {
                 let key = (&entry.plugin_id, identity.release_sequence);
-                if sequences.insert(key, &entry.version).is_some_and(|old| old != &entry.version) {
+                if sequences
+                    .insert(key, &entry.version)
+                    .is_some_and(|old| old != &entry.version)
+                {
                     return Err(MetadataError::SchemaMismatch("cores.release_sequence"));
                 }
             }
@@ -312,15 +329,23 @@ mod tests {
         assert!(catalog(vec![oversized]).validate().is_err());
     }
 
-    fn external(kind: crate::UpstreamRefKind, reference: &str, sequence: u64, adapter: char) -> CoreCatalogEntry {
+    fn external(
+        kind: crate::UpstreamRefKind,
+        reference: &str,
+        sequence: u64,
+        adapter: char,
+    ) -> CoreCatalogEntry {
         let identity = crate::CoreIdentity {
             upstream: crate::UpstreamIdentity {
-                repo: "https://github.com/example/engine".into(), ref_kind: kind,
-                ref_name: reference.into(), commit: "a".repeat(40),
+                repo: "https://github.com/example/engine".into(),
+                ref_kind: kind,
+                ref_name: reference.into(),
+                commit: "a".repeat(40),
             },
             adapter: crate::AdapterIdentity {
                 repo: "https://github.com/Project-Shinkirou/engine".into(),
-                branch: "shinki/integration".into(), commit: adapter.to_string().repeat(40),
+                branch: "shinki/integration".into(),
+                commit: adapter.to_string().repeat(40),
             },
             release_sequence: sequence,
         };
@@ -335,7 +360,7 @@ mod tests {
 
     #[test]
     fn tagged_and_slash_branch_consumers_use_provenance_not_semver_or_hash_order() {
-        use crate::UpstreamRefKind::{Tag, Branch};
+        use crate::UpstreamRefKind::{Branch, Tag};
         let tagged = external(Tag, "v1.2.3", 1, 'f');
         let branch = external(Branch, "release/next", 2, '1');
         let revision = external(Tag, "v1.2.3", 3, '2');
@@ -345,25 +370,46 @@ mod tests {
         let same_slug = external(Branch, "release-next", 2, '1');
         assert_ne!(same_slug.version, branch.version);
         assert_eq!(branch.identity.as_ref().unwrap().version(), branch.version);
-        for entries in [vec![tagged.clone(), revision.clone(), branch.clone()], vec![branch.clone(), tagged.clone(), revision.clone()]] {
-            let parsed = parse_core_catalog(&serde_json::to_vec(&catalog(entries)).unwrap()).unwrap();
-            assert_eq!(parsed.latest("engine", "windows-x86_64", "shinki.emu.native.c.v3"), Some(&revision));
+        for entries in [
+            vec![tagged.clone(), revision.clone(), branch.clone()],
+            vec![branch.clone(), tagged.clone(), revision.clone()],
+        ] {
+            let parsed =
+                parse_core_catalog(&serde_json::to_vec(&catalog(entries)).unwrap()).unwrap();
+            assert_eq!(
+                parsed.latest("engine", "windows-x86_64", "shinki.emu.native.c.v3"),
+                Some(&revision)
+            );
         }
         assert!(revision.is_update_for(&tagged.version, tagged.identity.as_ref()));
         assert!(!tagged.is_update_for(&revision.version, revision.identity.as_ref()));
-        assert_eq!(branch.display_version(), "release/next@aaaaaaaaaaaa (adapter 111111111111)");
+        assert_eq!(
+            branch.display_version(),
+            "release/next@aaaaaaaaaaaa (adapter 111111111111)"
+        );
     }
 
     #[test]
     fn legacy_published_entries_survive_and_new_identity_wins_without_relabeling() {
         let mut old = entry("0.1.0-beta.3");
         old.plugin_id = "engine".into();
-        let legacy = CoreCatalog { schema: LEGACY_CORE_CATALOG_SCHEMA_VERSION.into(), entries: vec![old.clone()] };
-        assert_eq!(parse_core_catalog(&serde_json::to_vec(&legacy).unwrap()).unwrap().entries, vec![old.clone()]);
+        let legacy = CoreCatalog {
+            schema: LEGACY_CORE_CATALOG_SCHEMA_VERSION.into(),
+            entries: vec![old.clone()],
+        };
+        assert_eq!(
+            parse_core_catalog(&serde_json::to_vec(&legacy).unwrap())
+                .unwrap()
+                .entries,
+            vec![old.clone()]
+        );
         let new = external(crate::UpstreamRefKind::Branch, "main", 1, '1');
         let parsed = catalog(vec![new.clone(), old.clone()]);
         parsed.validate().unwrap();
-        assert_eq!(parsed.latest("engine", "windows-x86_64", "shinki.emu.native.c.v3"), Some(&new));
+        assert_eq!(
+            parsed.latest("engine", "windows-x86_64", "shinki.emu.native.c.v3"),
+            Some(&new)
+        );
         assert!(new.is_update_for(&old.version, None));
         assert_eq!(parsed.entries[1], old);
     }
@@ -371,7 +417,15 @@ mod tests {
     #[test]
     fn rejects_forged_versions_traversal_provenance_and_ambiguous_sequence() {
         let valid = external(crate::UpstreamRefKind::Branch, "feature/next", 1, 'b');
-        for bad_ref in ["../next", "main/../../other", "/main", "main.lock", "main\\\\next", "main@{1}", "main\\nnext"] {
+        for bad_ref in [
+            "../next",
+            "main/../../other",
+            "/main",
+            "main.lock",
+            "main\\\\next",
+            "main@{1}",
+            "main\\nnext",
+        ] {
             let bad = external(crate::UpstreamRefKind::Branch, bad_ref, 1, 'b');
             assert!(bad.validate().is_err(), "{bad_ref}");
         }
@@ -381,17 +435,30 @@ mod tests {
         let mut reused = external(crate::UpstreamRefKind::Tag, "v1.0", 1, 'c');
         reused.platform = "linux-x86_64".into();
         assert!(catalog(vec![valid.clone(), reused]).validate().is_err());
-        for repository in ["https://github.com/project-shinkirou/engine", "https://github.com/./engine", "https://github.com/example/..", "https://github.com/example/engine.git", "https://github.com/example/engine.GIT"] {
+        for repository in [
+            "https://github.com/project-shinkirou/engine",
+            "https://github.com/./engine",
+            "https://github.com/example/..",
+            "https://github.com/example/engine.git",
+            "https://github.com/example/engine.GIT",
+        ] {
             let mut wrong_upstream = valid.clone();
             wrong_upstream.identity.as_mut().unwrap().upstream.repo = repository.into();
             wrong_upstream.version = wrong_upstream.identity.as_ref().unwrap().version();
             wrong_upstream.release_tag = format!("core-engine-{}", wrong_upstream.version);
-            wrong_upstream.url = format!("{CORE_RELEASE_URL_PREFIX}{}/engine.zip", wrong_upstream.release_tag);
+            wrong_upstream.url = format!(
+                "{CORE_RELEASE_URL_PREFIX}{}/engine.zip",
+                wrong_upstream.release_tag
+            );
             assert!(wrong_upstream.validate().is_err(), "{repository}");
         }
         let boundary = external(crate::UpstreamRefKind::Branch, &"x".repeat(256), 2, 'b');
         boundary.validate().unwrap();
         assert!(boundary.version.len() <= 88);
-        assert!(external(crate::UpstreamRefKind::Branch, &"x".repeat(257), 2, 'b').validate().is_err());
+        assert!(
+            external(crate::UpstreamRefKind::Branch, &"x".repeat(257), 2, 'b')
+                .validate()
+                .is_err()
+        );
     }
 }

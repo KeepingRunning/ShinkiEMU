@@ -63,7 +63,9 @@ impl CoreSource {
         shinki_emu_metadata::CoreIdentity {
             upstream: self.upstream_identity.clone(),
             adapter: shinki_emu_metadata::AdapterIdentity {
-                repo: self.repo.clone(), branch: self.branch.clone(), commit: self.rev.clone(),
+                repo: self.repo.clone(),
+                branch: self.branch.clone(),
+                commit: self.rev.clone(),
             },
             release_sequence: self.release_sequence,
         }
