@@ -367,14 +367,15 @@ features = []
 dependencies = ["native-vcpkg", "impacto-sources"]
 artifact_kind = "native-shared"
 resources = []
+static_manager_targets = ["aarch64-linux-android", "x86_64-linux-android"]
 static_features = ["static"]
 licenses = ["ThirdParty/impacto/LICENSE", "ThirdParty/impacto/THIRDPARTY.md", "ThirdParty/impacto/README.md", "ThirdParty/impacto/licenses/NotoSansCJK-OFL.txt"]
 supported_targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]
 publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/impacto"
-branch = "shinki-linux61"
-rev = "1d2662a685148a61d466f4728bcff86d38fa6e02"
+branch = "shinki-android-ports"
+rev = "910a820ba3ea8d4dd8d6e19c560df1d5a3bc5157"
 upstream = "https://github.com/CommitteeOfZero/impacto"
 release_sequence = 1
 upstream_identity = { repo = "https://github.com/CommitteeOfZero/impacto", ref_kind = "tag", ref_name = "0.10.8.930", commit = "3706ddd89d4ad4aed0e32e127355c4251f22e574" }
@@ -386,10 +387,10 @@ target = "aarch64-apple-darwin"
 reason = "ThirdParty/impacto/shinki/build.rs accepts no Apple host/target build; its native dependency and install paths have no verified Apple implementation."
 [[cores.blocked]]
 target = "aarch64-linux-android"
-reason = "Android static Manager packaging still lacks the native-vcpkg triplets and static CMake dependency closure required by Impacto."
+reason = "Statically embedded in the Android Manager; standalone dynamic-core installation is not supported."
 [[cores.blocked]]
 target = "x86_64-linux-android"
-reason = "Android static Manager packaging still lacks the native-vcpkg triplets and static CMake dependency closure required by Impacto."
+reason = "Statically embedded in the Android Manager; standalone dynamic-core installation is not supported."
 [[cores.blocked]]
 target = "aarch64-apple-ios"
 reason = "Impacto's static CMake adapter has no verified iOS native dependency and package path."
@@ -414,13 +415,15 @@ features = []
 dependencies = ["renpy"]
 artifact_kind = "native-shared"
 resources = []
+static_manager_targets = ["aarch64-linux-android", "x86_64-linux-android"]
+static_features = ["static"]
 licenses = ["ThirdParty/renpy/shinki/LICENSE", "ThirdParty/renpy/licenses/renpy/README.txt", "ThirdParty/renpy/licenses/renpy/python", "ThirdParty/renpy/licenses/renpy/python-sources.json", "ThirdParty/renpy/licenses/renpy/native-sources.json"]
 supported_targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]
 publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/renpy"
-branch = "shinki"
-rev = "6dc272ff4def04e4e705906fd15ab5db7e75fe66"
+branch = "shinki-android-ports"
+rev = "a52d9d9c006223c2b5a276c05e1b97ffeecbe66f"
 upstream = "https://github.com/renpy/renpy"
 release_sequence = 1
 upstream_identity = { repo = "https://github.com/renpy/renpy", ref_kind = "tag", ref_name = "8.5.3.26051504", commit = "39895c1e017f0b36ffea2447d97eccd69d76ee1c" }
@@ -432,10 +435,10 @@ target = "aarch64-apple-darwin"
 reason = "AppleNative build has not run for the generalized Ren'Py SDK adapter; macOS SDK/runtime and Cython inputs require Apple verification."
 [[cores.blocked]]
 target = "aarch64-linux-android"
-reason = "Android native embedding is not implemented: the fork's static feature does not build a static adapter, runtime selection still resolves the desktop SDK, and Manager packaging discards embedded runtime resources. Official RAPT supplies librenpython.so but no static archives or Android pyconfig.h; target headers, native linking and extracted asset-root initialization must be implemented before restoring Manager integration."
+reason = "Statically embedded in the Android Manager; standalone dynamic-core installation is not supported."
 [[cores.blocked]]
 target = "x86_64-linux-android"
-reason = "Android native embedding is not implemented: the fork's static feature does not build a static adapter, runtime selection still resolves the desktop SDK, and Manager packaging discards embedded runtime resources. Official RAPT supplies librenpython.so but no static archives or Android pyconfig.h; target headers, native linking and extracted asset-root initialization must be implemented before restoring Manager integration."
+reason = "Statically embedded in the Android Manager; standalone dynamic-core installation is not supported."
 [[cores.blocked]]
 target = "aarch64-apple-ios"
 reason = "AppleNative iOS static Ren'Py runtime build has not run."

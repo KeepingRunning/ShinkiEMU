@@ -13,6 +13,12 @@ Upstream: [renpy/renpy](https://github.com/renpy/renpy). Adaptation fork: [Proje
 
 This core embeds the official Ren’Py runtime rather than translating its scripts to a new VM. Script execution, Screen Language, ATL, GL2 composition, media and saves keep their official behavior. The integration pins the official SDK, CPython 3.12.7, Cython 3.2.4 and SDL 2.0.20; runtime checksums and sources are recorded in `shinki/sdk.json`.
 
+### Android Manager embedding
+
+Android uses a static adapter for `arm64-v8a` and `x86_64`. The pinned official source recipes build CPython 3.12.8, Ren’Py, SDL2 and codecs; desktop SDK binaries and RAPT shared libraries are not target inputs. `shinki/android_runtime.py` requires Ubuntu 24.04, the NDK r29 Linux archive and the Cubism 4-r.6.2 header SDK listed in `shinki/sdk.json`. Cubism Core is game-supplied and is not bundled.
+
+Manager sets the extracted `cores/renpy/Resources` path before registering the provider. The compiled display module remains a builtin, rendering through a private SDL2 EGL pbuffer and GLES while Manager owns presentation. C/C++ dependency symbols are isolated from other cores. Python resources use the inventoried pure Python artifacts, not host-native wheels. Source packages preserve native recipes, patches, Python sources and full Manager/fork sources for LGPL relinking. APK build, resource, native-closure and signature gates are separate from device/game acceptance.
+
 ## Storage
 
 The adapter preserves Ren’Py 8.5.3 save-location behavior. With a

@@ -594,10 +594,7 @@ pub(crate) fn search_dirs(inv: &Inventory, result: &BuildResult) -> Result<Vec<P
         dirs.push(if result.target == "x86_64-unknown-linux-gnu" {
             dependencies::linux_runtime(inv, &result.target, &native.id)
         } else {
-            inv.root
-                .join(".work/native-vcpkg")
-                .join(&native.id)
-                .join("installed")
+            dependencies::native_install(inv, &result.target, &native.id)?
                 .join(dependencies::native_triplet(inv, &result.target)?)
                 .join(if result.target.contains("windows") {
                     "bin"
@@ -705,11 +702,7 @@ pub(crate) fn licenses(
         }
     }
     for native in dependencies::native_cores(inv, &result.target, &result.component) {
-        let native_share = inv
-            .root
-            .join(".work/native-vcpkg")
-            .join(&native.id)
-            .join("installed")
+        let native_share = dependencies::native_install(inv, &result.target, &native.id)?
             .join(dependencies::native_triplet(inv, &result.target)?)
             .join("share");
         for item in fs::read_dir(native_share)? {

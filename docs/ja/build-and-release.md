@@ -165,6 +165,8 @@ FFmpeg を組み込む Manager には、対象の専用インストールツリ�
 
 ネイティブ静的コアは Cargo のビルドマニフェストに `native-static` アーカイブと実行時リソースを記録します。Manager のビルド記録は依存コアのマニフェストを保持し、パッケージではリソースを `cores/<id>/Resources` に配置します。依存関係の準備は組み込むコアごとに行い、`SHINKI_EMU_NATIVE_VCPKG_ROOT` に個別のインストールツリーを置きます。Apple の静的リンクではネイティブのアーカイブを結合し、対象 port のライブラリとシステム framework を Cargo に渡します。
 
+ネイティブ vcpkg のインストール先は `.work/native-vcpkg/<core>/installed-<triplet>/<triplet>` です。別の ABI の依存関係が削除されないよう、ビルド補助ライブラリと xtask が同じパスマッピングを使います。Android の静的リンクにはコア内部のネイティブライブラリ、ターゲットの vcpkg アーカイブ、pkg-config の private 依存関係を含め、APK には NDK の C++ 共有ランタイムを同梱します。Windows ホストでは vcpkg のビルドロックを共有するため、作業ツリーをまたぐ依存関係のインストールも直列に実行してください。
+
 ## OpenHarmony Manager
 
 ローカルビルドには DevEco Studio 付属の OpenHarmony Native SDK 5.0.5（API 17。HAP は API 12 以降が対象）と Rust 1.99.1 が必要です。`OHOS_SDK_NATIVE` を `sdk/default/openharmony/native` に設定すると、xtask は同じ DevEco インストールから Node、hvigor、ohpm、CMake/Ninja、`hap-sign-tool.jar`、`llvm-readelf` を見つけます。`SHINKI_EMU_OHOS_SIGNING_DIR` は checkout 外のディレクトリ（例：`.shinki-secrets/ohos-debug`）に設定します。

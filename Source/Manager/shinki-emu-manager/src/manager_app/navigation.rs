@@ -125,7 +125,23 @@ impl ShinkiEmuManagerController {
             .family_configuration(&candidate.descriptor.plugin_id, case_id, &schema)
             .map_err(|error| error.to_string())?;
         let retired_path_reported = self.report_retired_configuration(&configuration.retired);
-        let configuration = configuration.values;
+        #[cfg_attr(not(target_os = "android"), allow(unused_mut))]
+        let mut configuration = configuration.values;
+        #[cfg(target_os = "android")]
+        if candidate.descriptor.plugin_id == "impacto" {
+            use shinki_emu_manager_core::model::ConfigValue;
+            let resources = crate::platform::bundled_resource_dir()
+                .ok_or("SHINKI_EMU_DATA_DIRECTORY_UNAVAILABLE")?
+                .join("cores/impacto/Resources");
+            for entry in &mut configuration {
+                if entry.id == "resources_root"
+                    && let ConfigValue::String(value) = &mut entry.value
+                    && value.is_empty()
+                {
+                    *value = resources.to_str().ok_or("SHINKI_EMU_RESOURCE_PATH_UTF8")?.into();
+                }
+            }
+        }
         let window = self.window_state.ok_or("SHINKI_EMU_WINDOW_STATE_REQUIRED")?;
         let settings = self
             .library

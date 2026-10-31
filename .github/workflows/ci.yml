@@ -121,7 +121,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends nasm pkg-config
+          sudo apt-get install -y --no-install-recommends nasm pkg-config build-essential cmake ninja-build ccache clang-18 llvm-18 lld-18 autoconf autoconf-archive automake libtool-bin python3-jinja2 patch unzip zip bc libssl-dev libbz2-dev liblzma-dev libavcodec-dev libavformat-dev libswresample-dev libswscale-dev libfreetype6-dev libfribidi-dev libsdl2-dev libsdl2-image-dev libsdl2-gfx-dev libsdl2-mixer-dev libsdl2-ttf-dev libjpeg-dev libharfbuzz-dev libassimp-dev
       - name: Select Android SDK
         if: contains(matrix.target, 'android')
         shell: bash
@@ -155,6 +155,17 @@ jobs:
           TARGET: ${{ matrix.target }}
           COMPONENT: ${{ matrix.component }}
         run: cargo xtask ci --target $env:TARGET --component $env:COMPONENT --report .work/ci-report.json
+      - name: Prepare Android corresponding source
+        if: matrix.component == 'manager' && contains(matrix.target, 'android')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: cargo xtask release --component manager --target $env:TARGET --version $env:SHINKI_EMU_CI_VERSION
+      - uses: actions/upload-artifact@v7
+        if: matrix.component == 'manager' && contains(matrix.target, 'android')
+        with:
+          name: source-closure-manager-${{ matrix.target }}
+          path: .work/release/manager-v${{ env.SHINKI_EMU_CI_VERSION }}/${{ matrix.target }}/
+          if-no-files-found: error
       - name: Smoke packaged Linux Manager
         if: matrix.target == 'x86_64-unknown-linux-gnu' && matrix.component == 'manager'
         shell: bash

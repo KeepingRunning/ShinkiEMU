@@ -168,6 +168,10 @@ Shinki Musica 已加入 iOS Manager 的静态注册表和核心清单，FFmpeg �
 
 原生静态核心通过 Cargo 构建清单记录 `native-static` 归档和运行资源。Manager 的构建记录会保留这些依赖清单，打包时将资源放入 `cores/<id>/Resources`。依赖准备按嵌入核心分别选择，`SHINKI_EMU_NATIVE_VCPKG_ROOT` 下保存各核心的安装树。Apple 静态链接会合并原生构建归档，并向 Cargo 提供目标安装树中的库及系统 framework。
 
+原生 vcpkg 清单按 `.work/native-vcpkg/<core>/installed-<triplet>/<triplet>` 隔离安装树，准备一个 ABI 时不会删掉另一个 ABI 的依赖。构建辅助库和 xtask 共用路径映射。Android 静态链接包含核心自带的原生库、目标 vcpkg 归档及 pkg-config 的私有依赖，APK 保留 NDK 的 C++ 共享运行库。Windows 构建机上的依赖安装必须跨工作树串行执行，避免争用 vcpkg 工具目录的构建锁。
+
+`feat/apple-musica` 候选分支将 Shinki Musica 加入 iOS Manager 的静态注册表和核心清单，复用 `cc34d86` 的按目标隔离的静态 FFmpeg 构建路径。三条 iOS 核心记录保留阻塞状态，直到模拟器、真机打包和筛选后的远程 CI 通过；加入静态依赖不代表平台验收通过。
+
 RFVP 的 Apple 字幕依赖在原生 macOS/Xcode 上按固定 vcpkg 清单构建 libass 0.17.5。每个目标单独安装静态库，triplet 分别为 `arm64-osx`、`x64-osx`、`arm64-ios`、`arm64-ios-simulator`、`x64-ios`。`build/vcpkg/apple-triplets/` 中的 overlay triplet 固定部署目标（macOS 13.0、iOS 16.0），并让 libass 用 CoreText 代替 fontconfig；`deps` 会清掉 `*_DEPLOYMENT_TARGET` 环境变量，避免 macOS 构建机工具被编成 iOS 目标。pkg-config 将私有静态依赖和 Apple framework 传给 Rust。RFVP 的 Apple WMV/MPEG 解码使用原生 Rust 实现，不依赖 GStreamer；CoreAudio 由系统提供。FFmpeg、C++ 原生核心和 CMVS 在 Apple 上的阻塞原因保持不变。
 
 模拟器包包含 `simulator-test.app`；设备打包生成带 `Payload/*.app` 的 `device-test.ipa`，`ci` 报告该 IPA 的真实路径。打包先校验单架构 Mach-O、设备/模拟器平台以及系统/随包依赖闭包，再签署副本。Linux 使用 `rcodesign sign` 并逐个验证 Mach-O，原生 macOS 使用 `codesign`。ad-hoc 签名是真实签名，但不提供 Apple provisioning、公证或 App Store 身份。设备安装仍需有效的 Apple 签名及 provisioning，这些产物用于测试与集成，不是正式安装包。Release 名称包含 iOS 的设备/模拟器 variant，避免同架构附件重名。

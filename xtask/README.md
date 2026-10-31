@@ -40,6 +40,8 @@ Linux SDL headers come from the pinned source archive and run its configure
 step to generate the native `SDL_config.h`; the Visual C++ archive contains
 Windows-only configuration headers and is used only on Windows.
 
+`deps --core <id>` also prepares a core listed in the target's `static_manager_targets`; this does not enable standalone dynamic-core installation. Linux's SDL source archive supplies `LICENSE.txt`, while the pinned Windows VC header archive supplies `COPYING.txt`. Android Renpy uses the official target CPython 3.12.8 source/runtime stage documented by its fork, separately from the host Cython interpreter.
+
 Every native download is SHA256-pinned in `build/dependencies.toml`. Extraction is staged, rejects unsafe paths/links/collisions, and publishes only a complete tree. A local verification record binds every file to the archive recipe. A verified existing tree is reused without downloading; modified trees fail without overwriting their files. Bytecode writes are disabled for the task-owned build interpreter so builds do not mutate the verified installation.
 
 Native subprocesses use `.work/vcpkg-binary-cache`, `.work/vcpkg-downloads` and `.work/tmp` rather than profile caches, with vcpkg concurrency capped at 4 and install operations waiting for the shared lock. The vcpkg registry checkout has complete history: historical port trees must be available locally, so registry acquisition never uses a partial or shallow clone. CMake respects an explicit `CMAKE_GENERATOR`; otherwise it prefers Ninja when available inside an MSVC developer environment.

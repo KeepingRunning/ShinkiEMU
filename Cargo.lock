@@ -11096,6 +11096,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "shinki-emu-impacto"
+version = "0.1.0"
+source = "git+https://github.com/Project-Shinkirou/impacto?rev=910a820ba3ea8d4dd8d6e19c560df1d5a3bc5157#910a820ba3ea8d4dd8d6e19c560df1d5a3bc5157"
+dependencies = [
+ "shinki-emu-abi",
+ "shinki-emu-build",
+]
+
+[[package]]
 name = "shinki-emu-manager"
 version = "0.1.0-beta.6"
 dependencies = [
@@ -11145,12 +11154,14 @@ dependencies = [
  "shinki-emu-dlsite",
  "shinki-emu-dmm",
  "shinki-emu-ethornell-rs",
+ "shinki-emu-impacto",
  "shinki-emu-manager-core",
  "shinki-emu-manager-ui-slint",
  "shinki-emu-metadata",
  "shinki-emu-musica",
  "shinki-emu-musica-keys",
  "shinki-emu-patch",
+ "shinki-emu-renpy",
  "shinki-emu-rfvp",
  "shinki-emu-sdk",
  "shinki-emu-sena-rs",
@@ -11337,6 +11348,18 @@ dependencies = [
  "toml 1.1.8+spec-1.1.0",
  "toml_parser",
  "windows 0.62.2",
+]
+
+[[package]]
+name = "shinki-emu-renpy"
+version = "0.1.0"
+source = "git+https://github.com/Project-Shinkirou/renpy?rev=a52d9d9c006223c2b5a276c05e1b97ffeecbe66f#a52d9d9c006223c2b5a276c05e1b97ffeecbe66f"
+dependencies = [
+ "anyhow",
+ "serde_json",
+ "sha2 0.10.9",
+ "shinki-emu-abi",
+ "shinki-emu-build",
 ]
 
 [[package]]

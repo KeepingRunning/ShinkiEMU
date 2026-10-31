@@ -626,10 +626,7 @@ fn native_sources(
     for native in dependencies::native_cores(inv, target, component) {
         installations.push((
             native.id.as_str(),
-            inv.root
-                .join(".work/native-vcpkg")
-                .join(&native.id)
-                .join("installed")
+            dependencies::native_install(inv, target, &native.id)?
                 .join(dependencies::native_triplet(inv, target)?),
         ));
     }
@@ -930,6 +927,25 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
         "core": null, "target": target
     });
     let (manifest, package, features) = if component == "manager" {
+        let mut embedded = Vec::new();
+        for core in &inv.cores {
+            if core
+                .static_manager_targets
+                .iter()
+                .any(|triple| triple == target)
+                && let Some(source) = &core.source
+            {
+                let repo = core.source_directory(&inv.root)?;
+                append_revision(
+                    &mut builder,
+                    &repo,
+                    &source.rev,
+                    repo.strip_prefix(&inv.root)?,
+                )?;
+                embedded.push(serde_json::json!({"id": core.id, "source": source}));
+            }
+        }
+        references["embedded_cores"] = serde_json::Value::Array(embedded);
         (
             inv.root.join("Cargo.toml"),
             "shinki-emu-manager".to_owned(),
@@ -1024,8 +1040,12 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
             dependencies::native_triplet(inv, target)?
         ));
         if component != "manager" {
+            let relative = dependencies::native_install(inv, target, component)?
+                .strip_prefix(&inv.root)?
+                .to_string_lossy()
+                .replace('\\', "/");
             instructions.push_str(&format!(
-                "$env:SHINKI_EMU_VCPKG_INSTALLED = \"$PWD/.work/native-vcpkg/{component}/installed\"\n"
+                "$env:SHINKI_EMU_VCPKG_INSTALLED = \"$PWD/{relative}\"\n"
             ));
         }
     }
@@ -1080,7 +1100,30 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
              Compatible replacement and reverse engineering for debugging modifications to LGPL components are permitted.\n",
         );
     }
-    if selected.renpy {
+    if selected.renpy && target.ends_with("-linux-android") {
+        instructions.push_str(
+            "\n## Ren'Py Android runtime rebuild and relink\n\n\
+             Manager statically links the target CPython 3.12.8, SDL2, Ren'Py and codec archives. \
+             The complete fork, its Android SDL patch and private-symbol builder are under ThirdParty/renpy; \
+             native/renpy-build.tar contains the exact official recipes and tracked source archives. \
+             native/renpy-sources and native/python-sources contain the additional native inputs and \
+             the exact Python source/wheel inventory used by the target stage, not host-native wheels.\n\n\
+             On Ubuntu 24.04 install the build prerequisites listed in the pinned recipe README. \
+             Clone renpy/renpy-build at 7bfab40c1174f622f644b24669afd5fb167fbb79 and renpy/renpy at \
+             39895c1e017f0b36ffea2447d97eccd69d76ee1c into its renpy/ subdirectory, then copy \
+             the supplied source archives into that build root. Place the NDK r29 Linux archive and \
+             Cubism 4-r.6.2 header SDK in tars/ using the URLs and checksums in ThirdParty/renpy/shinki/sdk.json. \
+             Cubism Core is not part of Manager; its proprietary implementation is game-supplied.\n\n\
+             Run ThirdParty/renpy/shinki/android_runtime.py with --build-root <recipe-root>, \
+             --target aarch64-linux-android or x86_64-linux-android, and a new --output directory. \
+             It stages target headers/archives, standard library, private symbols and exact Python artifacts. \
+             Modify the LGPL sources or supplied patches before rebuilding; preserve modified sources. \
+             Point RENPY_STATIC_ROOT at the rebuilt stage, then rebuild the full Manager from these sources \
+             to relink every static dependency. The complete Manager and Rust dependency source is supplied \
+             so no proprietary Manager object is required for relinking. Android packaging/signing tools \
+             remain external build tools; use your own signing key for an installable modified APK.\n",
+        );
+    } else if selected.renpy {
         instructions.push_str(
             "\n## Ren'Py combined-runtime rebuild and relink\n\n\
              The shipped SDK is 8.5.3.26051504, SHA256 ff57648f9c04f27e381c48af6d8e3ee3cdec296bed4d3831f47f09b0a71b505e. \
