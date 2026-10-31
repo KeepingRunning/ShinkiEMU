@@ -1147,6 +1147,8 @@ pub fn doctor(inv: &Inventory, target: &str, core: Option<&str>) -> Result<()> {
                 "RENPY_SDK_ROOT",
                 base.join(if cfg!(windows) {
                     "renpy-sdk/lib/py3-windows-x86_64/libpython3.12.dll"
+                } else if cfg!(target_os = "macos") {
+                    "renpy-sdk/lib/py3-mac-universal/librenpython.dylib"
                 } else {
                     "renpy-sdk/lib/py3-linux-x86_64/librenpython.so"
                 }),
@@ -2045,7 +2047,7 @@ pub fn prepare(
     let selected = needs(inv, target, core.unwrap_or("manager"))?;
     if crate::apple::supported(target) {
         crate::apple::preflight(target)?;
-        if (selected.subtitle || selected.ffmpeg || selected.native_vcpkg)
+        if (selected.subtitle || selected.ffmpeg || selected.native_vcpkg || selected.renpy)
             && !cfg!(target_os = "macos")
         {
             bail!("Apple native dependency preparation requires a native macOS host with Xcode");
@@ -2072,7 +2074,7 @@ pub fn prepare(
         }
     }
     if crate::apple::supported(target)
-        && !(selected.subtitle || selected.ffmpeg || selected.native_vcpkg)
+        && !(selected.subtitle || selected.ffmpeg || selected.native_vcpkg || selected.renpy)
     {
         return doctor(inv, target, core);
     }
