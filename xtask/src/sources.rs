@@ -869,6 +869,25 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
         "core": null, "target": target
     });
     let (manifest, package, features) = if component == "manager" {
+        let mut embedded = Vec::new();
+        for core in &inv.cores {
+            if core
+                .static_manager_targets
+                .iter()
+                .any(|triple| triple == target)
+                && let Some(source) = &core.source
+            {
+                let repo = core.source_directory(&inv.root)?;
+                append_revision(
+                    &mut builder,
+                    &repo,
+                    &source.rev,
+                    repo.strip_prefix(&inv.root)?,
+                )?;
+                embedded.push(serde_json::json!({"id": core.id, "source": source}));
+            }
+        }
+        references["embedded_cores"] = serde_json::Value::Array(embedded);
         (
             inv.root.join("Cargo.toml"),
             "shinki-emu-manager".to_owned(),
@@ -1380,7 +1399,18 @@ mod tests {
 
     #[test]
     fn source_bundle_ships_snapshot_and_only_obligated_crate_sources() {
-        let temp = tempfile::tempdir().unwrap();
+        let (temp, _, mut embedded, upstream, _, _) = fixture();
+        fs::write(
+            upstream.join("runtime.cpp"),
+            "int native_runtime() { return 7; }\n",
+        )
+        .unwrap();
+        dependencies::run(git(&upstream).args(["add", "runtime.cpp"])).unwrap();
+        let embedded_pin = commit(&upstream, "embedded pinned source\n");
+        commit(&upstream, "later upstream source\n");
+        embedded.source.as_mut().unwrap().rev = embedded_pin.clone();
+        embedded.dependencies.clear();
+        embedded.static_manager_targets = vec!["x86_64-pc-windows-msvc".into()];
         let mut dependencies_table = toml::Table::new();
         for (name, license) in [("weak-copyleft", "MPL-2.0"), ("permissive", "MIT")] {
             let repo = temp.path().join(name);
@@ -1447,6 +1477,9 @@ mod tests {
         dependencies::run(Command::new("git").args(["init"]).arg(&inv.root)).unwrap();
         dependencies::run(git(&inv.root).args(["add", "Cargo.lock", ".gitignore", "src"])).unwrap();
         commit(&inv.root, "product source\n");
+        inv.cores.retain(|core| core.id != embedded.id);
+        inv.cores.push(embedded.clone());
+        prepare(&inv, &embedded, false).unwrap();
         let output = temp.path().join("source.zip");
         bundle(&inv, "manager", "x86_64-pc-windows-msvc", &output).unwrap();
         let mut zip = zip::ZipArchive::new(fs::File::open(output).unwrap()).unwrap();
@@ -1459,6 +1492,21 @@ mod tests {
             "product source\n"
         );
         assert!(extracted.join("BUILD-FROM-SOURCE.md").is_file());
+        assert_eq!(
+            fs::read(extracted.join("ThirdParty/fixture/runtime.cpp")).unwrap(),
+            fs::read(upstream.join("runtime.cpp")).unwrap()
+        );
+        assert_eq!(
+            fs::read_to_string(extracted.join("ThirdParty/fixture/payload.txt")).unwrap(),
+            "embedded pinned source\n"
+        );
+        let references: Value =
+            serde_json::from_slice(&fs::read(extracted.join("source-references.json")).unwrap())
+                .unwrap();
+        assert_eq!(
+            references["embedded_cores"][0]["source"]["rev"],
+            embedded_pin
+        );
         let crates: Vec<_> = fs::read_dir(extracted.join("rust-sources"))
             .unwrap()
             .map(|entry| entry.unwrap().file_name().into_string().unwrap())

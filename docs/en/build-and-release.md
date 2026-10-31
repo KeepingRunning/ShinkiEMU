@@ -101,6 +101,12 @@ cargo xtask package --target aarch64-linux-android --manager --version 0.1.0-bet
 
 Each build uses `cargo ndk` with `--locked`, statically links the cores whose `static_manager_targets` include the triple (RFVP, Siglus, Shinki Musica, Artemis) and stages the JNI runtime closure, metadata and licenses under its recorded target directory's `android-inputs/`. Packaging requires release receipts for **both** triples from the same source commit. Gradle then creates a universal APK containing `arm64-v8a`, `x86_64` and `assets/metadata/`; xtask checks its signature and every native library's dependency closure. Without signing secrets the output is `ShinkiEMU-<version>-android-universal-debug-signed.apk`: a debug-signed CI test APK, not a release installer. The test key is generated inside `GRADLE_USER_HOME`. The Kotlin verifier component is resolved from the official Maven archive using the Android shim version in `Cargo.lock`, not copied from Cargo's source directory.
 
+Manager corresponding-source archives include the full Git snapshot of every
+selected external static core under its `ThirdParty/` path, including native
+sources, build recipes, recursive submodules and original per-file licenses.
+`source-references.json` records each embedded fork's exact revision. Rust
+adapter crate sources alone do not supply a native fork's source closure.
+
 After the first Gradle dependency download, set `SHINKI_EMU_GRADLE_OFFLINE=1` to pass `--offline`; use a new package output directory each time. `cargo xtask ci --target aarch64-linux-android --component manager --report .work/android-ci.json` builds both ABIs and reports the actual APK path. CI prepares dependencies for both triples and runs this command once: `matrix --json --ci` drops the `x86_64-linux-android` Manager row, which would build the same universal APK. Release publishes one universal, release-signed `.apk` and retains the matching sources ZIP.
 
 All Manager packages derive their application icon from `Assets/Branding/shinkiemu-icon.svg`. Rust renders the Windows executable's ICO resource, macOS ICNS, iOS app icon set, Android adaptive launcher mipmaps, and Linux hicolor PNGs. Linux ZIPs also contain `share/applications/shinkiemu.desktop`; install that file and `share/icons/hicolor` under your applications and icon directories. The desktop runtime restores the Manager icon after a game replaces its window icon.
