@@ -158,6 +158,11 @@ in the large resolved closure. Final linked queries may be local to the
 Manager's shared object; they must still be defined there. Cocos native
 declarations must match DEX and retain their original private implementations.
 The Spine census includes both local and external defined symbols.
+Manager corresponding-source archives include the full Git snapshot of every
+selected external static core under its `ThirdParty/` path, including native
+sources, build recipes, recursive submodules and original per-file licenses.
+`source-references.json` records each embedded fork's exact revision. Rust
+adapter crate sources alone do not supply a native fork's source closure.
 The checker also inspects native exit/environment implementations and verifies
 original UI resource hashes and both-ABI Spine membership. This inspection
 does not launch a device or establish runtime gameplay compatibility.
