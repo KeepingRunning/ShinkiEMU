@@ -846,9 +846,8 @@ fn renpy_sources(inv: &Inventory, root: &Path, target: &str) -> Result<()> {
             )?;
         }
         copy_input(
-            &inv.root.join(
-                ".work/downloads/metalangle-850c87ba5b744c7c39f30c66bacdc9648d15067a.tar.gz",
-            ),
+            &inv.root
+                .join(".work/downloads/metalangle-850c87ba5b744c7c39f30c66bacdc9648d15067a.tar.gz"),
             &root.join("native/metalangle-850c87ba5b744c7c39f30c66bacdc9648d15067a.tar.gz"),
         )?;
     }
