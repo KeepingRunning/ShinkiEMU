@@ -11077,7 +11077,7 @@ dependencies = [
 [[package]]
 name = "shinki-emu-impacto"
 version = "0.1.0"
-source = "git+https://github.com/Project-Shinkirou/impacto?rev=011a78682362c9ba770fff0cf18a7835692e9053#011a78682362c9ba770fff0cf18a7835692e9053"
+source = "git+https://github.com/Project-Shinkirou/impacto?rev=910a820ba3ea8d4dd8d6e19c560df1d5a3bc5157#910a820ba3ea8d4dd8d6e19c560df1d5a3bc5157"
 dependencies = [
  "shinki-emu-abi",
  "shinki-emu-build",
@@ -11327,7 +11327,7 @@ dependencies = [
 [[package]]
 name = "shinki-emu-renpy"
 version = "0.1.0"
-source = "git+https://github.com/Project-Shinkirou/renpy?rev=fcc4a51d242312de251341ef0dd52fcf12740864#fcc4a51d242312de251341ef0dd52fcf12740864"
+source = "git+https://github.com/Project-Shinkirou/renpy?rev=a52d9d9c006223c2b5a276c05e1b97ffeecbe66f#a52d9d9c006223c2b5a276c05e1b97ffeecbe66f"
 dependencies = [
  "anyhow",
  "serde_json",
