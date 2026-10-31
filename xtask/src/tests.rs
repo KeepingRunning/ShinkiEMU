@@ -413,6 +413,14 @@ fn reparse_input_is_rejected() {
     }
     assert!(tree(&link).is_err());
     assert!(plain(&link.join("file")).is_err());
+    assert!(
+        zip_entries(
+            &[(real.join("file"), "file".into())],
+            &link.join("package.zip")
+        )
+        .is_err()
+    );
+    assert!(!real.join("package.zip").exists());
 }
 #[cfg(unix)]
 #[test]
@@ -426,6 +434,14 @@ fn linked_parent_and_files_are_rejected() {
     symlink(&real, &link).unwrap();
     assert!(tree(&link).is_err());
     assert!(plain(&link.join("file")).is_err());
+    assert!(
+        zip_entries(
+            &[(real.join("file"), "file".into())],
+            &link.join("package.zip")
+        )
+        .is_err()
+    );
+    assert!(!real.join("package.zip").exists());
 }
 #[test]
 fn matrix_covers_each_core_and_target_without_accepting_unknown_keys() {
@@ -644,7 +660,11 @@ fn external_package_receipt_matches_exact_upstream_and_adapter_pins() {
     let fixture = fixture();
     let mut receipt = result(temp.path());
     receipt.source_commit = source.rev.clone();
-    let output = temp.path().join("upstream-core");
+    let output = temp
+        .path()
+        .join(".work/release")
+        .join(format!("core-rfvp-{}", identity.version()))
+        .join("x86_64-pc-windows-msvc/package");
     let staged = stage_core(
         &receipt,
         &identity.version(),
@@ -659,6 +679,22 @@ fn external_package_receipt_matches_exact_upstream_and_adapter_pins() {
     assert_eq!(
         packaged.identity.as_ref().unwrap().adapter.commit,
         receipt.source_commit
+    );
+    let archive = output.parent().unwrap().join(format!(
+        "shinki-emu-core-rfvp-{}-windows-x86_64.zip",
+        identity.version()
+    ));
+    zip_entries(&tree(&staged).unwrap(), &archive).unwrap();
+    let archive_hash = sha256(&archive).unwrap();
+    assert!(zip_entries(&tree(&staged).unwrap(), &archive).is_err());
+    assert_eq!(sha256(&archive).unwrap(), archive_hash);
+    let extracted = temp.path().join("extracted");
+    extract_zip(&archive, &extracted).unwrap();
+    let extracted_manifest = verify_core(&extracted).unwrap();
+    assert_eq!(extracted_manifest.identity.as_ref(), Some(&identity));
+    assert_eq!(
+        sha256(&extracted.join(&extracted_manifest.library)).unwrap(),
+        sha256(&receipt.library).unwrap()
     );
     let mut changed = identity.clone();
     changed.adapter.commit = "f".repeat(40);

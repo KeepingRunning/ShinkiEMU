@@ -232,10 +232,13 @@ pub fn zip_entries(entries: &[(PathBuf, String)], out: &Path) -> Result<()> {
     let parent = out.parent().context("archive parent")?;
     fs::create_dir_all(parent)?;
     plain(parent)?;
+    // tempfile persists through Win32 directly; retain canonical extended paths.
+    let parent = fs::canonicalize(parent)?;
+    let out = parent.join(out.file_name().context("archive filename")?);
     let mut entries = entries.to_vec();
     entries.sort_by(|a, b| a.1.cmp(&b.1));
     let mut seen = BTreeSet::new();
-    let mut tmp = tempfile::NamedTempFile::new_in(parent)?;
+    let mut tmp = tempfile::NamedTempFile::new_in(&parent)?;
     {
         let mut zip = zip::ZipWriter::new(tmp.as_file_mut());
         for (source, name) in entries {
@@ -269,7 +272,17 @@ pub fn zip_entries(entries: &[(PathBuf, String)], out: &Path) -> Result<()> {
         }
         zip.finish()?;
     }
-    tmp.persist_noclobber(out).map_err(|e| e.error)?;
+    tmp.persist_noclobber(&out)
+        .map_err(|e| e.error)
+        .with_context(|| {
+            format!(
+                "persisting ZIP {} (path bytes {}; parent {} exists={})",
+                out.display(),
+                out.as_os_str().len(),
+                parent.display(),
+                parent.is_dir()
+            )
+        })?;
     Ok(())
 }
 #[derive(Debug, Serialize, Deserialize)]
