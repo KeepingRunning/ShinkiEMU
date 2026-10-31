@@ -43,6 +43,7 @@ Manager 会为匹配游戏的 hosted 附件及带附件的 external 记录提供
 cargo xtask metadata schema
 cargo xtask metadata validate
 cargo xtask metadata build --root Metadata --out .work/metadata-snapshot
+cargo xtask metadata resolve-core --plugin-id rfvp --platform windows-x86_64 --abi shinki.emu.native.c.v3
 cargo xtask metadata intake --kind compatibility --event event.json --out .work/compat-candidate
 cargo xtask metadata intake --kind patch --event event.json --out .work/patch-candidate
 ```
@@ -50,5 +51,7 @@ cargo xtask metadata intake --kind patch --event event.json --out .work/patch-ca
 schema 默认导出到 `Metadata/schema`，规则来自 Rust DTO。修改源记录和脚本，不手写另一套 schema。validate/build 接受 `--root`；build/intake 要求输出目录尚不存在。
 
 快照包含 `compatibility.json`、`cores.json`、`presets.json`、`patches.json`、仅含配方的 `patches/catalog.json`、已审查脚本和 `index.json`。可执行配方目录的标题取 `zh-CN`。核心发行记录来自 `Metadata/engines/cores/<plugin_id>/<platform>/<version>.json`，下载只指向本仓库 Releases。index 记录生成文件的 SHA256、大小和来源提交，时间取源提交时间，同一已提交输入可生成相同字节。限制为单文件 8 MiB、总计 64 MiB、4096 个文件，大附件不计入该快照。
+
+索引还包含 `cores-v2.json`（`shinki.emu.cores.v2`），其中既有真实的旧记录，也有新的第三方 `identity`。`cores.json` 保持旧 v1，并保留已发布下载，供旧 Manager 使用。新消费者优先读索引中的 v2，仅在 v2 不存在时读取 v1；上游/适配身份、安全文件名及按发布序号选最新的规则见[构建与发布](build-and-release.md#打包与发布)。
 
 Manager 与门户读取同一份 `https://project-shinkirou.github.io/data/shinkiemu/v1/` 快照。`Metadata/` 是唯一数据源，不另行手写兼容性或核心状态表。另见[用户指南](user-guide.md)和[构建与发布](build-and-release.md)。

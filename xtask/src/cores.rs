@@ -37,6 +37,8 @@ pub struct CoreSource {
     pub rev: String,
     /// Original upstream project this organization fork tracks.
     pub upstream: String,
+    pub upstream_identity: shinki_emu_metadata::UpstreamIdentity,
+    pub release_sequence: u64,
 }
 
 impl Core {
@@ -57,7 +59,20 @@ impl Core {
 }
 
 impl CoreSource {
+    pub fn identity(&self) -> shinki_emu_metadata::CoreIdentity {
+        shinki_emu_metadata::CoreIdentity {
+            upstream: self.upstream_identity.clone(),
+            adapter: shinki_emu_metadata::AdapterIdentity {
+                repo: self.repo.clone(), branch: self.branch.clone(), commit: self.rev.clone(),
+            },
+            release_sequence: self.release_sequence,
+        }
+    }
     fn validate(&self) -> Result<()> {
+        self.identity().validate()?;
+        if self.upstream != self.upstream_identity.repo {
+            bail!("upstream identity must name the original upstream repository");
+        }
         let repository = self
             .repo
             .strip_prefix("https://github.com/Project-Shinkirou/")
@@ -144,6 +159,7 @@ pub struct Matrix {
 pub struct MatrixRow {
     pub target: String,
     pub component: String,
+    pub external: bool,
     pub runner: String,
     pub platform: String,
     pub architecture: String,
@@ -209,6 +225,9 @@ impl Inventory {
                 );
             }
             if let Some(source) = &c.source {
+                if slug(&c.id).len() > 32 || c.id.contains('/') {
+                    bail!("external plugin slug must be one segment of at most 32 bytes");
+                }
                 source.validate()?;
                 c.source_directory(&self.root)?;
             }
@@ -369,6 +388,7 @@ impl Inventory {
                     platform: t.platform.clone(),
                     architecture: t.architecture.clone(),
                     variant: t.variant.clone(),
+                    external: component != "manager" && self.core(component)?.source.is_some(),
                     blocked: self.blocked(component, &t.triple)?.map(str::to_owned),
                     publish_blocked: if component == "manager" {
                         String::new()

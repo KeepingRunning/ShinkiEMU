@@ -15,8 +15,10 @@ impl ShinkiEmuManagerController {
             .map_or_else(|| family_id.to_owned(), |descriptor| descriptor.family_name.clone())
     }
 
-    pub(super) fn emulator_label(descriptor: &FamilyPluginDescriptor) -> String {
-        format!("{} · {}", descriptor.display_name, descriptor.version)
+    pub(super) fn emulator_label(&self, descriptor: &FamilyPluginDescriptor) -> String {
+        let (version, identity) = self.core_release(descriptor);
+        let version = identity.map_or_else(|| version.to_owned(), shinki_emu_metadata::CoreIdentity::display_version);
+        format!("{} · {}", descriptor.display_name, version)
     }
 
     pub(super) fn appearance_view(&self) -> AppearanceViewModel {
@@ -38,7 +40,7 @@ impl ShinkiEmuManagerController {
                 .iter()
                 .map(|choice| ChoiceViewModel {
                     id: choice.report.plugin_id.clone(),
-                    label: Self::emulator_label(&choice.descriptor),
+                    label: self.emulator_label(&choice.descriptor),
                 })
                 .collect(),
             _ => Vec::new(),

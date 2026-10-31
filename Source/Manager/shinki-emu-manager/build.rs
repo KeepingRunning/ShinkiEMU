@@ -70,6 +70,7 @@ fn embed_windows_icon() {
 }
 
 fn main() {
+    write_embedded_core_identities();
     println!("cargo:rerun-if-changed=../../../Assets/Branding/shinkiemu-icon.svg");
     write_runtime_icon();
     #[cfg(windows)]
@@ -131,6 +132,28 @@ fn main() {
         );
     }
     println!("cargo:rerun-if-env-changed=RUSTC");
+}
+
+fn write_embedded_core_identities() {
+    const INVENTORY: &str = "../../../build/cores.toml";
+    println!("cargo:rerun-if-changed={INVENTORY}");
+    let inventory: toml::Value = toml::from_str(&std::fs::read_to_string(INVENTORY).expect("core inventory")).expect("valid core inventory");
+    let target = env::var("TARGET").expect("build target");
+    let mut identities = serde_json::Map::new();
+    for core in inventory["cores"].as_array().expect("cores") {
+        let embedded = core.get("static_manager_targets").and_then(toml::Value::as_array)
+            .is_some_and(|targets| targets.iter().any(|value| value.as_str() == Some(&target)));
+        if !embedded { continue; }
+        if let Some(source) = core.get("source") {
+            identities.insert(core["id"].as_str().expect("core id").to_owned(), serde_json::json!({
+                "upstream": source["upstream_identity"],
+                "adapter": {"repo":source["repo"],"branch":source["branch"],"commit":source["rev"]},
+                "release_sequence": source["release_sequence"],
+            }));
+        }
+    }
+    let output = std::path::PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR")).join("embedded-core-identities.json");
+    std::fs::write(output, serde_json::to_vec(&identities).expect("identity JSON")).expect("embedded identity output");
 }
 
 fn hex_sha256(bytes: &[u8]) -> String {

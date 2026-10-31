@@ -21,6 +21,7 @@ fn manifest(plugin_id: &str, files: &[(&str, &[u8])]) -> Vec<u8> {
         plugin_id: plugin_id.into(),
         library: LIBRARY.into(),
         version: "0.2.0".into(),
+        identity: None,
         abi: INDEPENDENT_FAMILY_ABI_FINGERPRINT.into(),
         files,
     })
@@ -67,7 +68,7 @@ fn package_with_parent_directory_entry_is_rejected() {
     files.push((CORE_MANIFEST, &manifest));
     write_zip(&archive, &files);
     let error =
-        stage_package(&archive, Some("shinki.emu.fixture"), &cores.join(PENDING)).unwrap_err();
+        stage_package(&archive, Some(("shinki.emu.fixture", "0.2.0", None)), &cores.join(PENDING)).unwrap_err();
     assert_eq!(error, "SHINKI_EMU_CORE_PACKAGE_PATH");
     assert!(!root.path().join("evil.dll").exists());
     assert!(pending_is_empty(&cores));
@@ -112,7 +113,7 @@ fn package_with_hash_mismatch_or_foreign_plugin_is_rejected() {
     files.push((CORE_MANIFEST, &manifest));
     write_zip(&archive, &files);
     let error =
-        stage_package(&archive, Some("shinki.emu.fixture"), &cores.join(PENDING)).unwrap_err();
+        stage_package(&archive, Some(("shinki.emu.fixture", "0.2.0", None)), &cores.join(PENDING)).unwrap_err();
     assert!(
         error.starts_with("SHINKI_EMU_CORE_PACKAGE_HASH_MISMATCH"),
         "{error}"
@@ -121,7 +122,7 @@ fn package_with_hash_mismatch_or_foreign_plugin_is_rejected() {
 
     valid_package(&archive, "shinki.emu.fixture");
     assert_eq!(
-        stage_package(&archive, Some("shinki.emu.other"), &cores.join(PENDING)).unwrap_err(),
+        stage_package(&archive, Some(("shinki.emu.other", "0.2.0", None)), &cores.join(PENDING)).unwrap_err(),
         "SHINKI_EMU_CORE_PACKAGE_PLUGIN_MISMATCH"
     );
     assert!(pending_is_empty(&cores));
@@ -139,7 +140,7 @@ fn valid_package_is_staged_and_apply_pending_replaces_the_core_directory() {
     valid_package(&archive, "shinki.emu.fixture");
 
     let (stem, staged) =
-        stage_package(&archive, Some("shinki.emu.fixture"), &cores.join(PENDING)).unwrap();
+        stage_package(&archive, Some(("shinki.emu.fixture", "0.2.0", None)), &cores.join(PENDING)).unwrap();
     assert_eq!(stem, "shinki_emu_fixture");
     assert_eq!(staged.version, "0.2.0");
     assert_eq!(
@@ -242,4 +243,55 @@ fn failed_install_restores_the_previous_directory() {
     assert!(apply_pending(&cores).is_empty());
     assert_eq!(fs::read(installed.join(LIBRARY)).unwrap(), b"replacement");
     assert!(pending_is_empty(&cores));
+}
+
+#[test]
+fn installs_branch_identity_and_rejects_catalog_receipt_disagreement() {
+    let identity = shinki_emu_metadata::CoreIdentity {
+        upstream: shinki_emu_metadata::UpstreamIdentity {
+            repo: "https://github.com/example/engine".into(),
+            ref_kind: shinki_emu_metadata::UpstreamRefKind::Branch,
+            ref_name: "release/next".into(), commit: "a".repeat(40),
+        },
+        adapter: shinki_emu_metadata::AdapterIdentity {
+            repo: "https://github.com/Project-Shinkirou/engine".into(),
+            branch: "shinki".into(), commit: "b".repeat(40),
+        },
+        release_sequence: 4,
+    };
+    let files = valid_files();
+    let mut receipt: CoreManifest = serde_json::from_slice(&manifest("engine", &files)).unwrap();
+    receipt.version = identity.version();
+    receipt.identity = Some(identity.clone());
+    let root = tempfile::tempdir().unwrap();
+    let archive = root.path().join("branch.zip");
+    let encoded = serde_json::to_vec(&receipt).unwrap();
+    let mut entries = files;
+    entries.push((CORE_MANIFEST, &encoded));
+    write_zip(&archive, &entries);
+    let pending = root.path().join("pending");
+    let (stem, accepted) = stage_package(&archive, Some(("engine", &receipt.version, Some(&identity))), &pending).unwrap();
+    assert_eq!(accepted.identity, Some(identity.clone()));
+    assert_eq!(read_manifest(&pending.join(&stem)).unwrap().version, receipt.version);
+    let mut changed = identity.clone();
+    changed.adapter.commit = "c".repeat(40);
+    changed.release_sequence += 1;
+    assert!(stage_package(&archive, Some(("engine", &changed.version(), Some(&changed))), &pending).is_err());
+    assert_eq!(read_manifest(&pending.join(stem)).unwrap().identity, Some(identity));
+}
+
+#[test]
+fn published_beta_package_without_identity_remains_installable() {
+    let root = tempfile::tempdir().unwrap();
+    let archive = root.path().join("legacy.zip");
+    let files = valid_files();
+    let mut receipt: CoreManifest = serde_json::from_slice(&manifest("engine", &files)).unwrap();
+    receipt.version = "0.1.0-beta.3".into();
+    let encoded = serde_json::to_vec(&receipt).unwrap();
+    let mut entries = files;
+    entries.push((CORE_MANIFEST, &encoded));
+    write_zip(&archive, &entries);
+    let (_, staged) = stage_package(&archive, Some(("engine", "0.1.0-beta.3", None)), &root.path().join(PENDING)).unwrap();
+    assert_eq!(staged.version, "0.1.0-beta.3");
+    assert!(staged.identity.is_none());
 }

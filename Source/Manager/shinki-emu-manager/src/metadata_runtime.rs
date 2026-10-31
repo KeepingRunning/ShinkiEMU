@@ -420,7 +420,7 @@ async fn download_core(entry: &CoreCatalogEntry, pending: &Path) -> Result<Strin
         .sync_all()
         .map_err(|_| "SHINKI_EMU_CORE_INSTALL_COPY")?;
     let (stem, _) =
-        crate::core_package::stage_package(archive.path(), Some(&entry.plugin_id), pending)?;
+        crate::core_package::stage_package(archive.path(), Some((&entry.plugin_id, &entry.version, entry.identity.as_ref())), pending)?;
     tracing::info!(
         event = "shinki.emu.manager.core_downloaded",
         plugin_id = %entry.plugin_id,
@@ -448,6 +448,7 @@ mod tests {
             size: bytes.len() as u64,
             license: "MIT".into(),
             release_tag: "emu-v0.2.0".into(),
+            identity: None,
         }
     }
 

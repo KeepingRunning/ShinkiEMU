@@ -270,12 +270,7 @@ fn staged_disk_set_hashes_and_deterministic_archive_match() {
     let t = tempfile::tempdir().unwrap();
     let r = result(t.path());
     let f = fixture();
-    let dir = stage_core(
-        &r,
-        "1.0.0",
-        &t.path().join("out"),
-        &[f._dir.path().to_owned()],
-    )
+    let dir = stage_core(&r, "1.0.0", None, &t.path().join("out"), &[f._dir.path().to_owned()])
     .unwrap();
     let m = verify_core(&dir).unwrap();
     let actual = tree(&dir).unwrap();
@@ -331,6 +326,7 @@ fn unlisted_duplicate_and_missing_licenses_fail_without_output() {
         stage_core(
             &r,
             "1.0.0",
+            None,
             &t.path().join("no-license"),
             &[f._dir.path().to_owned()]
         )
@@ -338,12 +334,7 @@ fn unlisted_duplicate_and_missing_licenses_fail_without_output() {
     );
     assert!(!t.path().join("no-license").exists());
     let r = result(t.path());
-    let dir = stage_core(
-        &r,
-        "1.0.0",
-        &t.path().join("out"),
-        &[f._dir.path().to_owned()],
-    )
+    let dir = stage_core(&r, "1.0.0", None, &t.path().join("out"), &[f._dir.path().to_owned()])
     .unwrap();
     let mut m = verify_core(&dir).unwrap();
     fs::write(dir.join("unlisted"), "hidden").unwrap();
@@ -546,7 +537,7 @@ fn native_packages_include_dynamically_loaded_modules_and_validate_resource_bina
         dest: "Resources".into(),
     });
     let output = temp.path().join("complete");
-    let core = stage_core(&result, "1.0.0", &output, std::slice::from_ref(&native)).unwrap();
+    let core = stage_core(&result, "1.0.0", None, &output, std::slice::from_ref(&native)).unwrap();
     let manifest = verify_core(&core).unwrap();
     assert!(manifest.files.iter().any(|file| file.path == optional));
     assert!(
@@ -557,7 +548,7 @@ fn native_packages_include_dynamically_loaded_modules_and_validate_resource_bina
     );
     fs::write(resources.join(extension), b"invalid native extension").unwrap();
     let rejected = temp.path().join("rejected");
-    assert!(stage_core(&result, "1.0.0", &rejected, &[native]).is_err());
+    assert!(stage_core(&result, "1.0.0", None, &rejected, &[native]).is_err());
     assert!(!rejected.exists());
 }
 
@@ -580,9 +571,31 @@ fn output_nested_in_resource_inputs_is_rejected_without_modifying_sources() {
         });
     let output = resources.join("nested").join("output");
     let fixture = fixture();
-    assert!(stage_core(&result, "1.0.0", &output, &[fixture._dir.path().to_owned()]).is_err());
+    assert!(stage_core(&result, "1.0.0", None, &output, &[fixture._dir.path().to_owned()]).is_err());
     assert!(!resources.join("nested").exists());
     assert_eq!(fs::read(&source).unwrap(), b"original public resource");
+}
+
+#[test]
+fn external_package_receipt_matches_exact_upstream_and_adapter_pins() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let inventory = Inventory::load(root).unwrap();
+    let source = inventory.core("rfvp").unwrap().source.as_ref().unwrap();
+    let identity = source.identity();
+    let temp = tempfile::tempdir().unwrap();
+    let fixture = fixture();
+    let mut receipt = result(temp.path());
+    receipt.source_commit = source.rev.clone();
+    let output = temp.path().join("upstream-core");
+    let staged = stage_core(&receipt, &identity.version(), Some(&identity), &output, &[fixture._dir.path().to_owned()]).unwrap();
+    let packaged = verify_core(&staged).unwrap();
+    assert_eq!(packaged.identity.as_ref(), Some(&identity));
+    assert_eq!(packaged.version, identity.version());
+    assert_eq!(packaged.identity.as_ref().unwrap().adapter.commit, receipt.source_commit);
+    let mut changed = identity.clone();
+    changed.adapter.commit = "f".repeat(40);
+    assert!(stage_core(&receipt, &changed.version(), Some(&changed), &temp.path().join("wrong-pin"), &[]).is_err());
+    assert!(stage_core(&receipt, "0.1.0-beta.5", Some(&identity), &temp.path().join("false-version"), &[]).is_err());
 }
 
 // Public synthetic loader metadata, generated directly from the ELF64 format.

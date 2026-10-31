@@ -98,7 +98,7 @@ pub enum Command {
         target: String,
         #[command(flatten)]
         selection: Selection,
-        #[arg(long)]
+        #[arg(long, default_value = "")]
         version: String,
         #[arg(long)]
         out: PathBuf,
@@ -107,15 +107,18 @@ pub enum Command {
     Release {
         #[arg(long)]
         component: String,
-        #[arg(long, required_unless_present_any = ["publish", "verify_handoff"], conflicts_with_all = ["publish", "verify_handoff"])]
+        #[arg(long, required_unless_present_any = ["publish", "verify_handoff", "dry_run"], conflicts_with_all = ["publish", "verify_handoff", "dry_run"])]
         target: Option<String>,
-        #[arg(long)]
+        #[arg(long, default_value = "")]
         version: String,
         #[arg(long)]
         publish: bool,
         /// Verify the staged OHOS HAP and corresponding source without DevEco.
         #[arg(long, conflicts_with = "publish")]
         verify_handoff: bool,
+        /// Resolve and verify upstream/adapter identities without building or publishing.
+        #[arg(long, conflicts_with_all = ["publish", "verify_handoff"])]
+        dry_run: bool,
     },
     Metadata {
         #[command(subcommand)]

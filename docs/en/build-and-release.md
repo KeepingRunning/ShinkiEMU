@@ -80,7 +80,7 @@ cargo xtask deps --target x86_64-unknown-linux-gnu --all-cores
 cargo xtask build --target x86_64-unknown-linux-gnu --manager --release
 cargo xtask build --target x86_64-unknown-linux-gnu --all-cores --release
 cargo xtask package --target x86_64-unknown-linux-gnu --manager --version 0.1.0-beta.1 --out .work/linux-manager
-cargo xtask package --target x86_64-unknown-linux-gnu --core siglus_rs --version 0.1.0-beta.1 --out .work/linux-siglus
+cargo xtask package --target x86_64-unknown-linux-gnu --core siglus_rs --out .work/linux-siglus
 cargo xtask ci --target x86_64-unknown-linux-gnu --component manager --report .work/linux-ci.json
 ```
 
@@ -218,9 +218,9 @@ Local runners are optional pre-checks that catch failures before a push. `matrix
 Build the selected component first, then package its recorded output:
 
 ```sh
-cargo xtask package --target x86_64-pc-windows-msvc --core rfvp --version 0.1.0-beta.1 --out .work/packages/rfvp
+cargo xtask package --target x86_64-pc-windows-msvc --core rfvp --out .work/packages/rfvp
 cargo xtask package --target x86_64-pc-windows-msvc --manager --version 0.1.0-beta.1 --out .work/packages/manager
-cargo xtask release --component rfvp --target x86_64-pc-windows-msvc --version 0.1.0-beta.1
+cargo xtask release --component rfvp --target x86_64-pc-windows-msvc
 ```
 
 Output directories must be new. Packaging rejects unsafe paths, links, collisions, missing licenses, wrong architectures, missing query exports and unresolved native dependencies. A core package includes the library, resources, dependencies, licenses, provenance and hashed `core.json`. Source bundles retain applicable corresponding-source/relinking inputs.
@@ -247,10 +247,20 @@ Sena retains the upstream embedded MS PGothic font under the approved upstream-d
 
 Source notice discovery also includes nested asset licenses and font-paired text notices, preserving their relative paths without copying the fonts themselves. Git workspace members inherit provided checkout-root license files when their package directory has none, retaining upstream copyright notices before considering canonical SPDX texts.
 
-Release tags are `manager-v<semver>` or `core-<slug>-v<semver>`. Slugs lowercase plugin_id and replace dots/underscores with hyphens (`ReMinori` → `reminori`); the plugin_id itself is unchanged. `cargo xtask release --component <id> --target <triple> --version <semver>` packages one target and writes `.work/release/<tag>/<target>/` with the binary ZIP, the sources ZIP and `release.json`; targets blocked in `build/targets.toml`/`build/cores.toml` or by `publish_blocked` produce nothing. Running it again for a prepared target reuses that directory.
+Manager and self-owned CMVS/Musica retain `manager-v<semver>` and `core-<slug>-v<semver>` tags and require `--version`. Third-party cores, including RFVP and Artemis, derive their identity from `build/cores.toml`; omit `--version`. `cargo xtask release --component <id> --dry-run` verifies the original upstream ref and full commit against the adapter pin without building or publishing. `release --target <triple>` writes binary/source ZIPs and `release.json` under `.work/release/<tag>/<target>/`. Blocked targets and `publish_blocked` cores produce nothing.
+
+External identities retain original `upstream {repo, ref_kind, ref_name, commit}` separately from organization `adapter {repo, branch, commit}`. Commits are full lowercase 40-hex IDs. Prefer a verified upstream tag at the upstream commit; otherwise record its real upstream branch, never the integration branch. Display is `<ref>@<upstream commit12> (adapter <adapter commit12>)`. Version filenames are `<tag|branch>-<ref slug>-<digest>`: take the first 16 ASCII ref bytes, lowercase alphanumerics and replace every other byte with `-`; digest is full SHA256 of UTF-8 upstream repo/kind/ref/commit, adapter repo/branch/commit and decimal `release_sequence`, each terminated by LF. Versions are at most 88 bytes. Release tags are `core-<plugin slug>-<version>`; plugin slugs lowercase the ID and replace `.`/`_` with `-`. Branch slashes cannot enter paths, and adapter-only changes change the digest.
+
+External plugin slugs are limited to 32 bytes, bounding release tags to 126 safe ASCII bytes.
+
+`release_sequence` is a positive, strictly increasing publication counter per external plugin (maximum 9007199254740991). Increment it for a changed upstream, adapter pin or deliberate rebuild. Tags and branch snapshots share this order; neither branch names nor hashes are ranked. New typed entries supersede legacy beta entries; otherwise latest uses SemVer. Different versions may not reuse a sequence, even across platforms. Packages, embedded-core inventories, source references and catalog entries carry the same typed provenance. Existing upstream license/copyright notices and complete corresponding sources remain required.
+
+The indexed snapshot includes `cores-v2.json` (`shinki.emu.cores.v2`) with legacy and typed entries. `cores.json` stays `shinki.emu.cores.v1` and keeps every identity-free published entry, so old Managers retain their downloadable catalog. New Managers prefer indexed v2 and accept v1 snapshots. Old beta entries remain authentic, installable history; public tags/assets are never rewritten. Installation compares package identities, not the adapter crate's independent version.
 
 `cargo xtask release --component <id> --version <semver> --publish` (with `GH_TOKEN` or `GITHUB_TOKEN`) collects every prepared target of that tag. It refuses records from another product commit or core pin, a tag that already names another commit, a draft opened from another commit, and an empty or already-published Release. It creates a draft at the run's commit or reuses that draft (replacing same-name assets from an interrupted run), uploads the source and binary archives, and publishes it; GitHub creates a missing tag at that commit. For a core it then commits every platform's catalog entry under `Metadata/engines/cores/` to `metadata/release-<tag>` and opens a PR to `main`. If the organization does not allow Actions to create PRs, that last step fails with every entry already on the branch; open the PR by hand. Catalog URLs are built from the final tag, never from the draft's `untagged-*` URL. Manager releases are independent of core releases. Debug-signed Android test APKs are recorded as blocked and never uploaded.
 
 `release.yml` builds all selected hosted component × target rows and publishes components without local-only targets. A Manager release with the supported OHOS target stays unpublished until the gated local handoff above supplies its HAP and sources. To release one core, push its tag; to release several components, dispatch the workflow with `version` and `components` (comma-separated plugin_ids, or `all`). Pushing more than three new tags at once triggers no workflow.
+
+The dispatch `version` applies only to Manager/self-owned cores; each external component resolves its own verified identity before fan-out. For external publication omit `--version` from the publish command above; Manager/self-owned publication still supplies it.
 
 Metadata commands are described in [Metadata](metadata.md); native package requirements in [Core ABI](core-abi.md).

@@ -21,6 +21,7 @@ const PREVIOUS_DIRECTORY: &str = "metadata.old";
 const COMPATIBILITY_FILE: &str = "compatibility.json";
 const PRESETS_FILE: &str = "presets.json";
 const CORES_FILE: &str = "cores.json";
+const CORES_V2_FILE: &str = "cores-v2.json";
 const PATCH_CATALOG_FILE: &str = "patches/catalog.json";
 const PATCHES_FILE: &str = "patches.json";
 const PATCH_DIRECTORY: &str = "patches";
@@ -57,7 +58,7 @@ impl MetadataCatalog {
             }
             if matches!(
                 file.path.as_str(),
-                COMPATIBILITY_FILE | PRESETS_FILE | CORES_FILE | PATCHES_FILE
+                COMPATIBILITY_FILE | PRESETS_FILE | CORES_FILE | CORES_V2_FILE | PATCHES_FILE
             ) {
                 contents.insert(file.path.as_str(), bytes);
             }
@@ -71,7 +72,8 @@ impl MetadataCatalog {
             .map_err(|error| error.to_string())?;
         let presets =
             parse_preset_database(required(PRESETS_FILE)?).map_err(|error| error.to_string())?;
-        let cores = parse_core_catalog(required(CORES_FILE)?).map_err(|error| error.to_string())?;
+        let core_file = if contents.contains_key(CORES_V2_FILE) { CORES_V2_FILE } else { CORES_FILE };
+        let cores = parse_core_catalog(required(core_file)?).map_err(|error| error.to_string())?;
         let patches = shinki_emu_metadata::parse_patch_catalog(required(PATCHES_FILE)?)
             .map_err(|error| error.to_string())?;
         let recipes = if index

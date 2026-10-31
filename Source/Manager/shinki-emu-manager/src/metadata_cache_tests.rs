@@ -74,6 +74,45 @@ pub(crate) fn write_tree(root: &Path, generated_at_unix_ms: i64, files: &[(Strin
 }
 
 #[test]
+fn indexed_v2_exposes_external_snapshots_while_legacy_catalog_stays_readable() {
+    let data = tempfile::tempdir().unwrap();
+    let bundled = tempfile::tempdir().unwrap();
+    let mut tree = files(compatibility_json(""), "");
+    let identity = shinki_emu_metadata::CoreIdentity {
+        upstream: shinki_emu_metadata::UpstreamIdentity {
+            repo: "https://github.com/example/engine".into(),
+            ref_kind: shinki_emu_metadata::UpstreamRefKind::Branch,
+            ref_name: "release/next".into(), commit: "a".repeat(40),
+        },
+        adapter: shinki_emu_metadata::AdapterIdentity {
+            repo: "https://github.com/Project-Shinkirou/engine".into(),
+            branch: "shinki".into(), commit: "b".repeat(40),
+        },
+        release_sequence: 1,
+    };
+    let version = identity.version();
+    let tag = format!("core-engine-{version}");
+    let entry = shinki_emu_metadata::CoreCatalogEntry {
+        plugin_id: "engine".into(), display_name: "Engine".into(), family_name: "Engine".into(),
+        version, abi: "shinki.emu.native.c.v3".into(), platform: "windows-x86_64".into(),
+        url: format!("{}{tag}/engine.zip", shinki_emu_metadata::CORE_RELEASE_URL_PREFIX),
+        sha256: "c".repeat(64), size: 1, license: "MIT".into(), release_tag: tag, identity: Some(identity),
+    };
+    let modern = shinki_emu_metadata::CoreCatalog {
+        schema: shinki_emu_metadata::CORE_CATALOG_SCHEMA_VERSION.into(), entries: vec![entry.clone()],
+    };
+    tree.push((CORES_V2_FILE.into(), serde_json::to_vec(&modern).unwrap()));
+    write_tree(bundled.path(), 20, &tree);
+    let selected = select_catalog(data.path(), Some(bundled.path())).unwrap();
+    assert_eq!(selected.cores.latest("engine", "windows-x86_64", "shinki.emu.native.c.v3"), Some(&entry));
+    let legacy = tree.iter().find(|(path, _)| path == CORES_FILE).unwrap();
+    assert_eq!(parse_core_catalog(&legacy.1).unwrap().schema, shinki_emu_metadata::LEGACY_CORE_CATALOG_SCHEMA_VERSION);
+    tree.retain(|(path, _)| path != CORES_V2_FILE);
+    write_tree(bundled.path(), 21, &tree);
+    assert!(select_catalog(data.path(), Some(bundled.path())).unwrap().cores.entries.is_empty());
+}
+
+#[test]
 fn newer_bundled_snapshot_wins_and_equal_age_prefers_synchronized_cache() {
     let data = tempfile::tempdir().unwrap();
     let bundled = tempfile::tempdir().unwrap();
