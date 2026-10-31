@@ -262,7 +262,10 @@ fn two_installed_copies_link_one_work_and_stay_independent() {
     h.app.selected_case_id = Some("retail".into());
     h.app.releases.insert(
         "retail".into(),
-        vec![("r10".into(), "初回限定版".into()), ("r11".into(), "通常版".into())],
+        vec![
+            MetadataRelease { release_id: "r10".into(), title: Some("初回限定版".into()), released: None, platforms: Vec::new() },
+            MetadataRelease { release_id: "r11".into(), title: Some("通常版".into()), released: None, platforms: Vec::new() },
+        ],
     );
     h.app.pin_release("r10").unwrap();
     h.app
