@@ -688,7 +688,10 @@ fn external_package_receipt_matches_exact_upstream_and_adapter_pins() {
     let archive_hash = sha256(&archive).unwrap();
     assert!(zip_entries(&tree(&staged).unwrap(), &archive).is_err());
     assert_eq!(sha256(&archive).unwrap(), archive_hash);
-    let extracted = temp.path().join("extracted");
+    let extracted = temp
+        .path()
+        .join("extracted")
+        .join(staged.file_name().unwrap());
     extract_zip(&archive, &extracted).unwrap();
     let extracted_manifest = verify_core(&extracted).unwrap();
     assert_eq!(extracted_manifest.identity.as_ref(), Some(&identity));
