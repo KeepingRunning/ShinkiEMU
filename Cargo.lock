@@ -11086,7 +11086,7 @@ dependencies = [
 [[package]]
 name = "shinki-emu-kirikiroid2-web"
 version = "0.1.0"
-source = "git+https://github.com/Project-Shinkirou/kirikiroid2-web?rev=71631c1e5420f3f9a10ff5cf0fbf7226f97f83b0#71631c1e5420f3f9a10ff5cf0fbf7226f97f83b0"
+source = "git+https://github.com/Project-Shinkirou/kirikiroid2-web?rev=9d2d403b92e800ce27942566c1fc0114c60c4a6d#9d2d403b92e800ce27942566c1fc0114c60c4a6d"
 dependencies = [
  "shinki-emu-abi",
  "shinki-emu-build",
