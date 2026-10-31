@@ -369,8 +369,6 @@ pub(crate) fn system(name: &str, target: &str) -> bool {
         // from the developer machine. Keep versioned SONAMEs explicit.
         "libstdc++.so.6",
         "libgomp.so.1",
-        "libssl.so.3",
-        "libcrypto.so.3",
         "libfontconfig.so.1",
         "libudev.so.1",
         "libasound.so.2",
@@ -401,6 +399,7 @@ pub(crate) fn system(name: &str, target: &str) -> bool {
         "libcairo-gobject.so.2",
         "libpango-1.0.so.0",
         "libpangocairo-1.0.so.0",
+        "libpangoft2-1.0.so.0",
         "libgdk_pixbuf-2.0.so.0",
         "libharfbuzz.so.0",
     ]

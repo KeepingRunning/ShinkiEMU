@@ -105,6 +105,13 @@ KiriKiri2 also uses the distribution's OpenGL dispatch libraries `libGL.so.1`,
 `libGLX.so.0` and `libOpenGL.so.0` (Ubuntu packages `libgl1 libglx0 libopengl0`).
 Its X11 and OpenMP dependencies use the distribution's `libX11.so.6` and
 `libgomp.so.1` (Ubuntu packages `libx11-6 libgomp1`).
+Its gdiplus text renderer uses the distribution's Pango Cairo/FreeType modules
+`libpangocairo-1.0.so.0` and `libpangoft2-1.0.so.0`
+(Ubuntu packages `libpangocairo-1.0-0 libpangoft2-1.0-0`).
+The GTK dialog ABI `libgtk-3.so.0` is also supplied by the distribution
+(Ubuntu 24.04 package `libgtk-3-0t64`). Pinned OpenSSL libraries are bundled:
+the vcpkg curl build requires OpenSSL symbols newer than Ubuntu 24.04 supplies,
+so matching `libssl.so.3`/`libcrypto.so.3` cannot be treated as system ABI files.
 KiriKiri2 Linux bundles the pinned Cocos FMOD runtime as `libfmod.so.6`,
 using relative `$ORIGIN` lookup. It is a third-party runtime, not a system ABI.
 The project owner authorized its redistribution on 2026-10-31. The package's
