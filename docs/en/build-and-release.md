@@ -52,6 +52,8 @@ Select exactly one of `--manager`, `--core` and `--all-cores` for build. Check t
 
 Each core owns a real `build.rs`. It validates target inputs and records `core-build.json` in Cargo's `OUT_DIR`. C++ adapters drive their native CMake builds; pure Rust cores are compiled by Cargo. Build scripts do not recursively run Cargo or publish releases. xtask reads `compiler-artifact` and `build-script-executed` JSON, not guessed target paths. Components build independently under `.work/target/<target>/<component>`; receipts are under `.work/build/`. Artemis uses Luau on every platform and shares Manager's runtime when statically embedded on Android.
 
+Android Manager and standalone-core builds import the pinned `cargo ndk-env` toolchain and invoke Cargo directly, preserving its real build-script manifests. Native standalone builds receive their selected core's exact prepared installation through `SHINKI_EMU_VCPKG_INSTALLED`; embedded builds use the per-core native root so multiple cores do not share one installation.
+
 Manager initializes the process-wide Rustls crypto provider once, before creating network clients or workers. It selects AWS-LC, matching reqwest 0.13 and platform certificate verification; VNDB's current reqwest 0.12 dependency also enables ring, so automatic feature-based selection is ambiguous. Steam and the other providers do not install a process default themselves.
 
 ### Compile-in stores

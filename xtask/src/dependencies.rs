@@ -1550,6 +1550,15 @@ pub fn apply_environment(
             );
         if selected.native_vcpkg {
             cmd.env("VCPKG_ROOT", inv.root.join(".work/vcpkg"));
+            if component != "manager" {
+                cmd.env(
+                    "SHINKI_EMU_VCPKG_INSTALLED",
+                    inv.root
+                        .join(".work/native-vcpkg")
+                        .join(component)
+                        .join("installed"),
+                );
+            }
         }
     }
     if (crate::apple::supported(target) || target.contains("android") || target.ends_with("ohos"))

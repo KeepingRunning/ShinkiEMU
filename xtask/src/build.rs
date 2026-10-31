@@ -162,7 +162,7 @@ pub fn execute(
         .find(|p| p["name"] == package)
         .and_then(|p| p["id"].as_str())
         .with_context(|| format!("package {package} absent from {}", manifest.display()))?;
-    let android_abi = if target.contains("android") && component == "manager" {
+    let android_abi = if target.contains("android") {
         Some(if target.starts_with("aarch64") {
             "arm64-v8a"
         } else {

@@ -1023,6 +1023,11 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
             "$env:VCPKG_ROOT = \"$PWD/.work/vcpkg\"\n$env:SHINKI_EMU_NATIVE_VCPKG_ROOT = \"$PWD/.work/native-vcpkg\"\n$env:SHINKI_EMU_VCPKG_TRIPLET = \"{}\"\n",
             dependencies::native_triplet(inv, target)?
         ));
+        if component != "manager" {
+            instructions.push_str(&format!(
+                "$env:SHINKI_EMU_VCPKG_INSTALLED = \"$PWD/.work/native-vcpkg/{component}/installed\"\n"
+            ));
+        }
     }
     if selected.impacto_sources || selected.renpy {
         instructions
@@ -1041,7 +1046,7 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
     if selected.bison {
         instructions.push_str("$env:BISON_EXECUTABLE = (Get-Command win_bison.exe).Source\n");
     }
-    let build_command = if target.contains("android") && component == "manager" {
+    let build_command = if target.contains("android") {
         format!(
             "cargo ndk -t {} -P 26 build",
             if target.starts_with("aarch64") {
