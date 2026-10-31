@@ -182,7 +182,11 @@ pub fn native_vcpkg_installation(core: &str) -> Result<PathBuf> {
     println!("cargo:rerun-if-env-changed=SHINKI_EMU_NATIVE_VCPKG_ROOT");
     let root = env::var_os("SHINKI_EMU_NATIVE_VCPKG_ROOT")
         .context("SHINKI_EMU_NATIVE_VCPKG_ROOT is required; run cargo xtask deps")?;
-    let installed = PathBuf::from(root).join(core).join("installed");
+    let triplet = env::var("SHINKI_EMU_VCPKG_TRIPLET")
+        .context("SHINKI_EMU_VCPKG_TRIPLET is required; run cargo xtask deps")?;
+    let installed = PathBuf::from(root)
+        .join(core)
+        .join(format!("installed-{triplet}"));
     if !installed.is_dir() {
         bail!("native vcpkg installation missing: {}", installed.display());
     }
@@ -283,6 +287,11 @@ pub fn link_apple_static_core(
     println!("cargo:rustc-link-lib=framework=Foundation");
     Ok(output)
 }
+fn should_auto_select_ninja(host: &str, target: &str, generator_override: bool) -> bool {
+    !generator_override
+        && (target.ends_with("windows-msvc")
+            || (host.contains("windows") && target.contains("android")))
+}
 
 /// Configure an OUT_DIR-owned native tree, then build the requested real targets.
 /// Cross builds must supply an explicit CMake toolchain; no host/target guessing.
@@ -358,8 +367,8 @@ pub fn configure_cmake(
         .arg("-DVCPKG_MANIFEST_INSTALL=OFF");
     if let Some(generator) = env::var_os("CMAKE_GENERATOR") {
         configure.arg("-G").arg(generator);
-    } else if cfg!(windows)
-        && target.ends_with("windows-msvc")
+    } else if host.contains("windows")
+        && should_auto_select_ninja(&host, &target, false)
         && env::var_os("VCToolsInstallDir").is_some()
         && env::var_os("LIB").is_some()
         && env::var_os("INCLUDE").is_some()
@@ -479,6 +488,30 @@ pub fn generate_import_library(dll: &Path, out_dir: &Path, target: &str) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn ninja_auto_selection_respects_host_target_and_override() {
+        assert!(should_auto_select_ninja(
+            "x86_64-pc-windows-msvc",
+            "x86_64-pc-windows-msvc",
+            false
+        ));
+        assert!(should_auto_select_ninja(
+            "x86_64-pc-windows-msvc",
+            "aarch64-linux-android",
+            false
+        ));
+        assert!(!should_auto_select_ninja(
+            "x86_64-unknown-linux-gnu",
+            "aarch64-linux-android",
+            false
+        ));
+        assert!(!should_auto_select_ninja(
+            "x86_64-pc-windows-msvc",
+            "x86_64-pc-windows-msvc",
+            true
+        ));
+    }
+
     #[test]
     fn malformed_assets_do_not_publish_manifest() {
         let temp = tempfile::tempdir().unwrap();

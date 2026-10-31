@@ -48,6 +48,10 @@ pub(crate) struct NativeNeeds {
     pub gstreamer: bool,
 }
 
+fn windows_host_bison(selected: bool, host_is_windows: bool) -> bool {
+    selected && host_is_windows
+}
+
 pub(crate) fn needs(inv: &Inventory, target: &str, component: &str) -> Result<NativeNeeds> {
     let mut result = NativeNeeds::default();
     let manager = component == "manager";
@@ -782,15 +786,9 @@ pub fn doctor(inv: &Inventory, target: &str, core: Option<&str>) -> Result<()> {
         if selected.dxc {
             paths.push(inv.root.join(".work/dxc/dxcompiler.dll"));
         }
-        if selected.bison {
-            paths.push(inv.root.join(".work/bison/win_bison.exe"));
-        }
         if selected.native_vcpkg {
             paths.push(
-                inv.root
-                    .join(".work/native-vcpkg")
-                    .join(core.context("native core id")?)
-                    .join("installed/vcpkg/status"),
+                native_install(inv, target, core.context("native core id")?)?.join("vcpkg/status"),
             );
         }
         for p in paths {
@@ -803,6 +801,18 @@ pub fn doctor(inv: &Inventory, target: &str, core: Option<&str>) -> Result<()> {
                 println!("dependency: {}", p.display());
             }
         }
+    }
+    if windows_host_bison(selected.bison, cfg!(windows)) {
+        let bison = inv.root.join(".work/bison/win_bison.exe");
+        if !bison.is_file() {
+            missing.push(format!(
+                "{} (cargo xtask deps --target {target})",
+                bison.display()
+            ));
+        }
+    }
+    if !cfg!(windows) && selected.bison && executable("bison").is_none() {
+        missing.push("Bison host executable".into());
     }
     if crate::apple::supported(target) && selected.subtitle {
         let pc = subtitle_install(inv, target)?.join("lib/pkgconfig/libass.pc");
@@ -1186,6 +1196,15 @@ pub(crate) fn native_triplet(inv: &Inventory, target: &str) -> Result<String> {
     }
 }
 
+/// Manifest-mode vcpkg installs prune unrelated triplets from a shared root.
+pub(crate) fn native_install(inv: &Inventory, target: &str, core: &str) -> Result<PathBuf> {
+    Ok(inv
+        .root
+        .join(".work/native-vcpkg")
+        .join(core)
+        .join(format!("installed-{}", native_triplet(inv, target)?)))
+}
+
 /// One installation per target; manifest mode must not prune another SDK's ports.
 pub(crate) fn ffmpeg_install(inv: &Inventory, target: &str) -> Result<PathBuf> {
     let triplet = ffmpeg_triplet(inv, target)?;
@@ -1394,13 +1413,6 @@ pub fn apply_environment(
         if selected.dxc {
             paths.push(inv.root.join(".work/dxc"));
         }
-        if selected.bison {
-            paths.push(inv.root.join(".work/bison"));
-            cmd.env(
-                "BISON_EXECUTABLE",
-                inv.root.join(".work/bison/win_bison.exe"),
-            );
-        }
         cmd.env(
             "PATH",
             env::join_paths(
@@ -1425,6 +1437,15 @@ pub fn apply_environment(
             )
             .env("PYTHONDONTWRITEBYTECODE", "1");
     }
+    if windows_host_bison(selected.bison, cfg!(windows)) {
+        let bison = inv.root.join(".work/bison");
+        let path = env::var_os("PATH").unwrap_or_default();
+        cmd.env("BISON_EXECUTABLE", bison.join("win_bison.exe"))
+            .env(
+                "PATH",
+                env::join_paths(std::iter::once(bison).chain(env::split_paths(&path)))?,
+            );
+    }
     if crate::apple::supported(target) && selected.subtitle {
         // Apple triplets statically link the complete libass closure, including
         // pkg-config's private libraries and system frameworks.
@@ -1442,10 +1463,10 @@ pub fn apply_environment(
             .env("PKG_CONFIG_ALL_STATIC", "1")
             .env("PKG_CONFIG_LIBDIR", subtitle.join("lib/pkgconfig"));
     }
-    if !target.contains("windows") && selected.bison {
+    if !cfg!(windows) && selected.bison {
         cmd.env(
             "BISON_EXECUTABLE",
-            executable("bison").context("Linux Bison is missing")?,
+            executable("bison").context("Bison host executable is missing")?,
         );
     }
     if target == "x86_64-unknown-linux-gnu" && (selected.subtitle || selected.ffmpeg) {
@@ -1564,11 +1585,7 @@ pub fn apply_environment(
             paths.push(subtitle.join("lib/pkgconfig"));
         }
         for native in native_cores(inv, target, component) {
-            let installation = inv
-                .root
-                .join(".work/native-vcpkg")
-                .join(&native.id)
-                .join("installed")
+            let installation = native_install(inv, target, &native.id)?
                 .join(native_triplet(inv, target)?);
             paths.push(installation.join("lib/pkgconfig"));
             paths.push(installation.join("share/pkgconfig"));
@@ -1848,7 +1865,7 @@ pub fn prepare(
     if selected.dxc {
         dxc(inv)?;
     }
-    if selected.bison && target_spec.platform == "windows" {
+    if windows_host_bison(selected.bison, cfg!(windows)) {
         let archive = inv.root.join(".work/downloads/win_flex_bison-2.5.25.zip");
         download(&pins.bison_url, &pins.bison_sha256, &archive)?;
         let out = inv.root.join(".work/bison");
@@ -2010,11 +2027,7 @@ pub fn prepare(
                 source.display()
             );
         }
-        let installed = inv
-            .root
-            .join(".work/native-vcpkg")
-            .join(&native.id)
-            .join("installed");
+        let installed = native_install(inv, target, &native.id)?;
         let mut command = vcpkg_install_command(inv, &binary)?;
         command
             .arg("--x-wait-for-lock")
@@ -2079,6 +2092,28 @@ pub fn prepare_all(inv: &Inventory, target: &str, allow_dirty_sources: bool) -> 
 mod native_tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn windows_host_prepares_bison_for_android_core() {
+        let inv = Inventory::load(Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap()).unwrap();
+        let selected = needs(&inv, "aarch64-linux-android", "kirikiroid2-web").unwrap();
+        assert!(selected.bison);
+        assert!(windows_host_bison(selected.bison, true));
+        assert!(!windows_host_bison(selected.bison, false));
+    }
+
+    #[test]
+    fn native_manifest_installations_keep_each_target_closure() {
+        let inv = Inventory::load(Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap()).unwrap();
+        let windows = native_install(&inv, "x86_64-pc-windows-msvc", "kirikiroid2-web").unwrap();
+        let arm = native_install(&inv, "aarch64-linux-android", "kirikiroid2-web").unwrap();
+        let x64 = native_install(&inv, "x86_64-linux-android", "kirikiroid2-web").unwrap();
+        assert!(windows.ends_with("kirikiroid2-web/installed-x64-windows"));
+        assert!(arm.ends_with("kirikiroid2-web/installed-arm64-android-ffmpeg"));
+        assert!(x64.ends_with("kirikiroid2-web/installed-x64-android-ffmpeg"));
+        assert_ne!(windows, arm);
+        assert_ne!(arm, x64);
+    }
 
     #[test]
     fn ndk_requires_the_exact_stable_revision() {

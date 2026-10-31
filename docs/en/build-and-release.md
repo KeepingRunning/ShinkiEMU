@@ -13,6 +13,10 @@ Every file written by ShinkiEMU itself inside a game directory belongs under `<g
 
 Clone the repository with its recursive submodules. Use Rust/Cargo and the target's native toolchain. Windows native builds require an x64 MSVC developer environment, CMake, Ninja and Git. Android uses JDK 27, NDK 30.0.16248370 and cargo-ndk 4.1.2. Tool versions and downloads are inputs in `build/dependencies.toml`; core manifests/features/licenses are in `build/cores.toml`, and target/runner definitions in `build/targets.toml`.
 
+KiriKiri's parser generator runs on the build host, including Android cross-builds.
+Windows uses the pinned WinFlexBison prepared by `deps`; other hosts require Bison
+on `PATH`. CI installs Bison/Flex for its Linux-hosted Android rows.
+
 Ren’Py additionally needs the official pinned SDK: `RENPY_SDK_ROOT`, `RENPY_PYTHON_DEV`, `RENPY_SDL_INCLUDE` and the official Cython 3.2.4 compiler matching CPython 3.12.7. These are upstream build/runtime dependencies, not replacement product build tools. Inspect the selected fork's `shinki/sdk.json` for SDK inputs.
 
 All workspace crates use Rust 2024 with MSRV 1.99. The toolchain is Rust 1.99.1. Android packaging uses Gradle 9.8.2, AGP 9.4.1 with built-in Kotlin, JDK 27, platform 37.2, build-tools 37.0.0 and stable NDK r30 (30.0.16248370). CMVS has no Win32 dependency and builds as a dynamic core for Windows x64, Linux x64 and both macOS architectures; Android and iOS wait on static Manager embedding.
@@ -248,6 +252,23 @@ Each `shinki-emu-<slug>-<version>-<platform>-sources.zip` contains `source.tar` 
 Rust dependencies are identified by the unchanged `Cargo.lock` (registry checksums and exact Git commits) and fetched by Cargo when rebuilding. `rust-sources/<name>-<version>+<source>/` additionally holds the exact sources of each linked crate whose license requires source distribution: crates whose every license choice is copyleft (MPL-2.0 symphonia, triple_buffer and option-ext, for example), crates without an SPDX expression, and every linked crate when any linked crate is GPL/LGPL/AGPL-only (ReMinori). Crates with a permissive alternative (`Apache-2.0 OR GPL-2.0-only`, Slint's `GPL-3.0-only OR LicenseRef-Slint-Royalty-free-2.0 OR …`) are distributed under that alternative and add no source obligation. Path crates are already in the fork snapshot.
 
 Native sources cover every installed vcpkg port of the selected installation, followed from `vcpkg/status` including host-triplet build tools. `native/ports/<group>/` holds each registry port's recipe and patches, extracted from the pinned registry tree recorded by its SPDX `gitoid`; overlay ports have no tree identity and are part of the fork snapshot. `.work/vcpkg-downloads/` contains the archives whose SHA512 the installed SPDX records. The instructions clone the pinned vcpkg revision. Impacto additionally retains the prepared LibAtrac9/magic_enum sources; its in-fork mspack is in the fork snapshot.
+
+SPDX Git resources use their exact `git+https://…@<commit>` identity instead of a
+download checksum. The bundle archives that committed tree from vcpkg's Git object
+cache, or fetches the pinned commit into a private temporary repository when it is
+absent. It writes vcpkg's `<port>-<commit>.tar.gz` cache name for offline rebuilds.
+Named SPDX archive inputs retain their recorded cache-relative paths, including
+nested OpenCV caches, after matching the recorded SHA512.
+
+Native vcpkg manifest installations use one `installed-<triplet>` root per core and target. Running Windows, Android arm64 and Android x64 `deps` sequentially therefore preserves each target's dependency and license closure; CMake receives that root and the matching explicit triplet rather than inferring a different Android triplet. Corresponding-source rebuild commands retain the Apple/mobile triplet overlays used by `deps`, including the standalone Android core's `*-android-ffmpeg` triplets.
+
+Standalone Android cores ship native core packages, not APKs. The release APK-signing restriction applies only to Android Manager installers.
+
+Standalone Android native cores resolve the pinned NDK's OpenMP runtime through
+Clang's `--print-file-name=libomp.so`, bundle it when the binary closure needs it,
+and ship the NDK's `NOTICE` and `NOTICE.toolchain` texts alongside core licenses.
+Android corresponding-source recipes run on a Linux build host, require the pinned
+NDK through `ANDROID_NDK_HOME`, and resolve the host Bison rather than WinFlexBison.
 
 The bundle copies inputs that `deps` and `build` already verified: it does not re-hash `.work/downloads`, re-verify recipes, re-resolve Cargo offline or check for dirty trees a second time. `release` itself refuses a dirty product checkout and a build receipt from another source revision.
 

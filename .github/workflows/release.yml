@@ -126,7 +126,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends nasm pkg-config
+          sudo apt-get install -y --no-install-recommends nasm pkg-config bison flex
       - name: Android SDK
         if: contains(matrix.target, 'android')
         shell: bash

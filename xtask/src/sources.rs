@@ -531,6 +531,63 @@ pub(crate) fn port_recipe(spdx: &Value, registry: &Path, dest: &Path) -> Result<
     Ok(true)
 }
 
+fn native_git_source(downloads: &Path, port: &str, location: &str, dest: &Path) -> Result<()> {
+    let (repo, rev) = location
+        .strip_prefix("git+")
+        .and_then(|source| source.rsplit_once('@'))
+        .context("native Git source requires a repository and commit")?;
+    if !repo.starts_with("https://")
+        || rev.len() != 40
+        || !rev.bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
+        bail!("native Git source requires an HTTPS repository and exact commit");
+    }
+    package::portable(port)?;
+    let archive = dest.join(format!("{port}-{rev}.tar.gz"));
+    if archive.exists() {
+        return Ok(());
+    }
+    let cached = downloads.join("git-tmp");
+    let cached_rev = dependencies::capture(
+        git_committed_bytes(&cached)
+            .args(["rev-parse", "--verify"])
+            .arg(format!("{rev}^{{commit}}")),
+    );
+    let checkout;
+    let source = if cached_rev
+        .as_ref()
+        .is_ok_and(|actual| String::from_utf8_lossy(actual).trim() == rev)
+    {
+        cached.as_path()
+    } else {
+        checkout = tempfile::tempdir()?;
+        dependencies::run(git_committed_bytes(checkout.path()).args(["init", "-q"]))?;
+        dependencies::run(git_committed_bytes(checkout.path()).args([
+            "fetch",
+            "-q",
+            "--depth",
+            "1",
+            "--no-tags",
+            repo,
+            rev,
+        ]))?;
+        let actual = dependencies::capture(
+            git_committed_bytes(checkout.path()).args(["rev-parse", "FETCH_HEAD"]),
+        )?;
+        if String::from_utf8_lossy(&actual).trim() != rev {
+            bail!("native Git repository did not return pinned commit {rev}");
+        }
+        checkout.path()
+    };
+    fs::create_dir_all(dest)?;
+    dependencies::run(
+        git_committed_bytes(source)
+            .args(["archive", "--format=tar.gz", "-o"])
+            .arg(archive)
+            .arg(rev),
+    )
+}
+
 /// Collect installed target ports and their host-tool dependency closure:
 /// recipes/patches and the original source archives vcpkg consumed.
 fn native_sources(
@@ -551,10 +608,7 @@ fn native_sources(
     for native in dependencies::native_cores(inv, target, component) {
         installations.push((
             native.id.as_str(),
-            inv.root
-                .join(".work/native-vcpkg")
-                .join(&native.id)
-                .join("installed")
+            dependencies::native_install(inv, target, &native.id)?
                 .join(dependencies::native_triplet(inv, target)?),
         ));
     }
@@ -584,12 +638,31 @@ fn native_sources(
                 {
                     continue;
                 }
-                let checksum = resource["checksums"]
+                if let Some(checksum) = resource["checksums"]
                     .as_array()
                     .and_then(|a| a.iter().find(|c| c["algorithm"] == "SHA512"))
                     .and_then(|c| c["checksumValue"].as_str())
-                    .context("native source resource missing SHA512")?;
-                required.insert(checksum.to_ascii_lowercase());
+                {
+                    if let Some(filename) = resource["packageFileName"].as_str() {
+                        copy_named_archive(
+                            &inv.root.join(".work/vcpkg-downloads"),
+                            filename,
+                            checksum,
+                            &root.join(".work/vcpkg-downloads"),
+                        )?;
+                    } else {
+                        required.insert(checksum.to_ascii_lowercase());
+                    }
+                } else {
+                    native_git_source(
+                        &inv.root.join(".work/vcpkg-downloads"),
+                        &port,
+                        resource["downloadLocation"]
+                            .as_str()
+                            .context("native source resource missing SHA512 or Git location")?,
+                        &root.join(".work/vcpkg-downloads"),
+                    )?;
+                }
             }
         }
         let triplet = installed
@@ -624,7 +697,7 @@ fn native_sources(
         if *group == "subtitle" {
             commands.push_str(" --overlay-triplets=\"$PWD/native/subtitle-triplets\" --overlay-triplets=\"$PWD/build/vcpkg/apple-triplets\" --overlay-triplets=\"$PWD/build/vcpkg/mobile-triplets\"");
         }
-        if *group == "ffmpeg" {
+        if matches!(*group, "ffmpeg" | "native") {
             commands.push_str(" --overlay-triplets=\"$PWD/build/vcpkg/apple-triplets\" --overlay-triplets=\"$PWD/build/vcpkg/mobile-triplets\"");
         }
         commands.push('\n');
@@ -691,6 +764,18 @@ fn native_sources(
         renpy_sources(inv, root)?;
     }
     Ok(commands)
+}
+
+fn copy_named_archive(downloads: &Path, filename: &str, checksum: &str, dest: &Path) -> Result<()> {
+    package::portable(filename)?;
+    let source = downloads.join(filename);
+    if !sha512(&source)?.eq_ignore_ascii_case(checksum) {
+        bail!(
+            "native source archive SHA512 mismatch: {}",
+            source.display()
+        );
+    }
+    copy_input(&source, &dest.join(filename))
 }
 
 /// Copy the downloaded archives vcpkg recorded by SHA512 in the installed SPDX.
@@ -907,6 +992,13 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
          $env:CARGO_TARGET_DIR = \"$PWD/target\"\n"
     );
     let selected = dependencies::needs(inv, target, component)?;
+    if target.contains("android") {
+        instructions.push_str(
+            "# Rebuild on a Linux host with the Android NDK revision pinned in build/dependencies.toml.\n\
+             : \"${ANDROID_NDK_HOME:?Set ANDROID_NDK_HOME to the pinned Android NDK}\"\n\
+             export ANDROID_NDK_HOME\n",
+        );
+    }
     if !native_commands.is_empty() {
         instructions.push_str(
             "$env:VCPKG_DOWNLOADS = \"$PWD/.work/vcpkg-downloads\"\n\
@@ -942,9 +1034,9 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
         }
     }
     if selected.native_vcpkg {
+        let triplet = dependencies::native_triplet(inv, target)?;
         instructions.push_str(&format!(
-            "$env:VCPKG_ROOT = \"$PWD/.work/vcpkg\"\n$env:SHINKI_EMU_NATIVE_VCPKG_ROOT = \"$PWD/.work/native-vcpkg\"\n$env:SHINKI_EMU_VCPKG_TRIPLET = \"{}\"\n",
-            dependencies::native_triplet(inv, target)?
+            "$env:VCPKG_ROOT = \"$PWD/.work/vcpkg\"\n$env:SHINKI_EMU_NATIVE_VCPKG_ROOT = \"$PWD/.work/native-vcpkg\"\n$env:SHINKI_EMU_VCPKG_TRIPLET = \"{triplet}\"\n"
         ));
     }
     if selected.impacto_sources || selected.renpy {
@@ -962,7 +1054,11 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
         ));
     }
     if selected.bison {
-        instructions.push_str("$env:BISON_EXECUTABLE = (Get-Command win_bison.exe).Source\n");
+        if target.contains("windows") {
+            instructions.push_str("$env:BISON_EXECUTABLE = (Get-Command win_bison.exe).Source\n");
+        } else {
+            instructions.push_str("$env:BISON_EXECUTABLE = \"$(command -v bison)\"\n");
+        }
     }
     let build_command = if target.contains("android") && component == "manager" {
         format!(
@@ -1283,6 +1379,71 @@ mod tests {
         assert_eq!(
             fs::read_to_string(extracted.join("nested/payload.txt")).unwrap(),
             "second public source\n"
+        );
+    }
+
+    #[test]
+    fn named_native_source_caches_keep_nested_paths_and_reject_modified_archives() {
+        let (temp, _inv, _core, upstream, first, _second) = fixture();
+        let downloads = temp.path().join("downloads");
+        let filename = "native-cache/library/source.tar.gz";
+        let source = downloads.join(filename);
+        fs::create_dir_all(source.parent().unwrap()).unwrap();
+        dependencies::run(
+            git_committed_bytes(&upstream)
+                .args(["archive", "--format=tar.gz", "-o"])
+                .arg(&source)
+                .arg(&first),
+        )
+        .unwrap();
+        let checksum = sha512(&source).unwrap();
+        let output = temp.path().join("copied-source");
+        copy_named_archive(&downloads, filename, &checksum, &output).unwrap();
+        let extracted = temp.path().join("nested-source");
+        tar::Archive::new(flate2::read::GzDecoder::new(
+            fs::File::open(output.join(filename)).unwrap(),
+        ))
+        .unpack(&extracted)
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(extracted.join("payload.txt")).unwrap(),
+            "first public source\n"
+        );
+        fs::write(source, b"modified source archive").unwrap();
+        let rejected = temp.path().join("rejected-source");
+        assert!(copy_named_archive(&downloads, filename, &checksum, &rejected).is_err());
+        assert!(!rejected.exists());
+    }
+
+    #[test]
+    fn native_git_sources_archive_the_pinned_commit_without_touching_working_edits() {
+        let (temp, _inv, _core, upstream, first, _second) = fixture();
+        let downloads = temp.path().join("downloads");
+        fs::create_dir(&downloads).unwrap();
+        let cached = downloads.join("git-tmp");
+        fs::rename(upstream, &cached).unwrap();
+        fs::write(cached.join("payload.txt"), "preserved working edit\n").unwrap();
+        let output = temp.path().join("sources");
+        native_git_source(
+            &downloads,
+            "native-dependency",
+            &format!("git+https://example.invalid/native-source@{first}"),
+            &output,
+        )
+        .unwrap();
+        let archive =
+            fs::File::open(output.join(format!("native-dependency-{first}.tar.gz"))).unwrap();
+        let extracted = temp.path().join("extracted-git-source");
+        tar::Archive::new(flate2::read::GzDecoder::new(archive))
+            .unpack(&extracted)
+            .unwrap();
+        assert_eq!(
+            fs::read_to_string(extracted.join("payload.txt")).unwrap(),
+            "first public source\n"
+        );
+        assert_eq!(
+            fs::read_to_string(cached.join("payload.txt")).unwrap(),
+            "preserved working edit\n"
         );
     }
 
