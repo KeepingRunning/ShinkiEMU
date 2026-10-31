@@ -369,21 +369,37 @@ fn prepare_native_tree(
         for (layer, input) in layers.iter().zip(&archives) {
             extract_native_archive(layer.archive, input, stage, layer.destination)?;
         }
-        if name == "sdl2" && cfg!(target_os = "linux") {
+        if name == "sdl2" && cfg!(unix) {
             run(Command::new("sh")
                 .arg("configure")
                 .arg("--disable-shared")
                 .current_dir(stage))?;
         }
         if let Some((python, cython)) = python_versions {
-            if cfg!(target_os = "linux") {
-                run(Command::new("sh")
+            if cfg!(unix) {
+                let openssl = stage.join("host-openssl");
+                if cfg!(target_os = "macos") {
+                    let source = stage.join("build-openssl");
+                    run(Command::new("perl")
+                        .arg("Configure")
+                        .args(["no-shared", "no-tests", "--openssldir=/etc/ssl"])
+                        .arg(format!("--prefix={}", openssl.display()))
+                        .current_dir(&source))?;
+                    run(Command::new("make").arg("-j3").current_dir(&source))?;
+                    run(Command::new("make").arg("install_sw").current_dir(&source))?;
+                }
+                let mut configure = Command::new("sh");
+                configure
                     .arg("configure")
                     .arg("--without-ensurepip")
                     .current_dir(stage)
-                    .env("PYTHONDONTWRITEBYTECODE", "1"))?;
+                    .env("PYTHONDONTWRITEBYTECODE", "1");
+                if cfg!(target_os = "macos") {
+                    configure.arg(format!("--with-openssl={}", openssl.display()));
+                }
+                run(&mut configure)?;
                 run(Command::new("make")
-                    .args(["-j4", "python", "sharedmods"])
+                    .args(["-j3", "all"])
                     .current_dir(stage)
                     .env("PYTHONDONTWRITEBYTECODE", "1"))?;
                 // CPython's build tree links extension modules back to Modules/.
@@ -403,7 +419,17 @@ fn prepare_native_tree(
                     }
                 }
                 // Keep the executable distinct from CPython's Python/ source directory.
-                fs::rename(stage.join("python"), stage.join(build_python_relative()))?;
+                let makefile = fs::read_to_string(stage.join("Makefile"))?;
+                let suffix = makefile
+                    .lines()
+                    .find_map(|line| {
+                        let (name, value) = line.split_once('=')?;
+                        (name.trim() == "BUILDEXE").then(|| value.trim())
+                    })
+                    .context("CPython BUILDEXE output")?;
+                let executable = format!("python{suffix}");
+                native_path(&executable)?;
+                fs::rename(stage.join(executable), stage.join(build_python_relative()))?;
             }
             validate_build_python(&stage.join(build_python_relative()), python, cython)?;
         }
@@ -430,8 +456,8 @@ pub(crate) fn build_python_relative() -> &'static str {
 }
 
 fn renpy_host_pin(name: &str) -> String {
-    if cfg!(target_os = "linux") {
-        format!("{name}-linux")
+    if !cfg!(windows) {
+        format!("{name}-posix")
     } else {
         name.into()
     }
@@ -710,8 +736,8 @@ fn prepare_native_inputs(inv: &Inventory, lock: &Lock, selected: NativeNeeds) ->
         }
     }
     if selected.renpy {
-        if !cfg!(any(windows, target_os = "linux")) {
-            bail!("RenPy's pinned build interpreter requires a Windows or Linux x64 host");
+        if !cfg!(any(windows, target_os = "linux", target_os = "macos")) {
+            bail!("RenPy's pinned build interpreter requires a Windows, Linux or macOS host");
         }
         crate::sources::prepare_renpy_build(inv)?;
         for inventory in ["python-sources.json", "native-sources.json"] {
@@ -763,6 +789,8 @@ fn prepare_native_inputs(inv: &Inventory, lock: &Lock, selected: NativeNeeds) ->
         )?;
         let (runtime_key, runtime_dir) = if cfg!(windows) {
             ("windows_x86_64", "lib/py3-windows-x86_64")
+        } else if cfg!(target_os = "macos") {
+            ("mac_universal", "lib/py3-mac-universal")
         } else {
             ("linux_x86_64", "lib/py3-linux-x86_64")
         };
@@ -774,23 +802,30 @@ fn prepare_native_inputs(inv: &Inventory, lock: &Lock, selected: NativeNeeds) ->
                 bail!("official RenPy SDK runtime hash mismatch: {name}");
             }
         }
+        let mut python_layers = vec![
+            NativeLayer {
+                archive: python,
+                destination: "",
+            },
+            NativeLayer {
+                archive: cython,
+                destination: if cfg!(windows) {
+                    "Lib/site-packages"
+                } else {
+                    "Lib"
+                },
+            },
+        ];
+        if cfg!(target_os = "macos") {
+            python_layers.push(NativeLayer {
+                archive: get("renpy-host-openssl")?,
+                destination: "build-openssl",
+            });
+        }
         prepare_native_tree(
             &inv.root,
             "python",
-            &[
-                NativeLayer {
-                    archive: python,
-                    destination: "",
-                },
-                NativeLayer {
-                    archive: cython,
-                    destination: if cfg!(windows) {
-                        "Lib/site-packages"
-                    } else {
-                        "Lib"
-                    },
-                },
-            ],
+            &python_layers,
             Some((&python.version, &cython.version)),
         )?;
         prepare_native_tree(

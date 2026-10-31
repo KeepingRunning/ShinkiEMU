@@ -370,7 +370,7 @@ resources = []
 static_manager_targets = ["aarch64-linux-android", "x86_64-linux-android"]
 static_features = ["static"]
 licenses = ["ThirdParty/impacto/LICENSE", "ThirdParty/impacto/THIRDPARTY.md", "ThirdParty/impacto/README.md", "ThirdParty/impacto/licenses/NotoSansCJK-OFL.txt"]
-supported_targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]
+supported_targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "aarch64-apple-darwin"]
 publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/impacto"
@@ -379,12 +379,6 @@ rev = "910a820ba3ea8d4dd8d6e19c560df1d5a3bc5157"
 upstream = "https://github.com/CommitteeOfZero/impacto"
 release_sequence = 1
 upstream_identity = { repo = "https://github.com/CommitteeOfZero/impacto", ref_kind = "tag", ref_name = "0.10.8.930", commit = "3706ddd89d4ad4aed0e32e127355c4251f22e574" }
-[[cores.blocked]]
-target = "x86_64-apple-darwin"
-reason = "ThirdParty/impacto/shinki/build.rs accepts no Apple host/target build; its native dependency and install paths have no verified Apple implementation."
-[[cores.blocked]]
-target = "aarch64-apple-darwin"
-reason = "ThirdParty/impacto/shinki/build.rs accepts no Apple host/target build; its native dependency and install paths have no verified Apple implementation."
 [[cores.blocked]]
 target = "aarch64-linux-android"
 reason = "Statically embedded in the Android Manager; standalone dynamic-core installation is not supported."
@@ -418,7 +412,7 @@ resources = []
 static_manager_targets = ["aarch64-linux-android", "x86_64-linux-android"]
 static_features = ["static"]
 licenses = ["ThirdParty/renpy/shinki/LICENSE", "ThirdParty/renpy/licenses/renpy/README.txt", "ThirdParty/renpy/licenses/renpy/python", "ThirdParty/renpy/licenses/renpy/python-sources.json", "ThirdParty/renpy/licenses/renpy/native-sources.json"]
-supported_targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]
+supported_targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "aarch64-apple-darwin"]
 publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/renpy"
@@ -427,12 +421,6 @@ rev = "a52d9d9c006223c2b5a276c05e1b97ffeecbe66f"
 upstream = "https://github.com/renpy/renpy"
 release_sequence = 1
 upstream_identity = { repo = "https://github.com/renpy/renpy", ref_kind = "tag", ref_name = "8.5.3.26051504", commit = "39895c1e017f0b36ffea2447d97eccd69d76ee1c" }
-[[cores.blocked]]
-target = "x86_64-apple-darwin"
-reason = "AppleNative build has not run for the generalized Ren'Py SDK adapter; macOS SDK/runtime and Cython inputs require Apple verification."
-[[cores.blocked]]
-target = "aarch64-apple-darwin"
-reason = "AppleNative build has not run for the generalized Ren'Py SDK adapter; macOS SDK/runtime and Cython inputs require Apple verification."
 [[cores.blocked]]
 target = "aarch64-linux-android"
 reason = "Statically embedded in the Android Manager; standalone dynamic-core installation is not supported."

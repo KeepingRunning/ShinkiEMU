@@ -3,7 +3,7 @@ use object::{
     Object, ObjectKind,
     read::{
         elf::{Dyn, FileHeader, ProgramHeader},
-        macho::MachHeader,
+        macho::{FatArch, MachHeader, MachOFatFile, MachOFatFile32, MachOFatFile64},
         pe::ImageNtHeaders,
     },
 };
@@ -133,11 +133,39 @@ fn macho<'a, M: MachHeader>(
     }
     Ok(())
 }
+fn fat_slice<'a, A: FatArch>(
+    file: &MachOFatFile<'a, A>,
+    bytes: &'a [u8],
+    architecture: object::Architecture,
+) -> Result<&'a [u8]> {
+    let mut matches = file
+        .arches()
+        .iter()
+        .filter(|arch| arch.architecture() == architecture);
+    let arch = matches
+        .next()
+        .context("universal binary lacks the requested architecture")?;
+    if matches.next().is_some() {
+        bail!("universal binary repeats the requested architecture");
+    }
+    Ok(arch.data(bytes)?)
+}
+
+pub(crate) fn target_slice(bytes: &[u8], architecture: object::Architecture) -> Result<&[u8]> {
+    match object::FileKind::parse(bytes)? {
+        object::FileKind::MachOFat32 => {
+            fat_slice(&MachOFatFile32::parse(bytes)?, bytes, architecture)
+        }
+        object::FileKind::MachOFat64 => {
+            fat_slice(&MachOFatFile64::parse(bytes)?, bytes, architecture)
+        }
+        _ => Ok(bytes),
+    }
+}
+
 pub fn inspect(path: &Path, target: &str, require_query: bool) -> Result<BinaryInfo> {
     crate::package::plain(path)?;
     let bytes = fs::read(path)?;
-    let file = object::File::parse(bytes.as_slice())
-        .with_context(|| format!("parsing {}", path.display()))?;
     let arch = if target.starts_with("x86_64-") {
         object::Architecture::X86_64
     } else if target.starts_with("aarch64-") {
@@ -145,6 +173,8 @@ pub fn inspect(path: &Path, target: &str, require_query: bool) -> Result<BinaryI
     } else {
         bail!("unsupported architecture {target}");
     };
+    let file = object::File::parse(target_slice(&bytes, arch)?)
+        .with_context(|| format!("parsing {}", path.display()))?;
     if file.architecture() != arch {
         bail!(
             "{}: architecture {:?} does not match {target}",
@@ -159,8 +189,18 @@ pub fn inspect(path: &Path, target: &str, require_query: bool) -> Result<BinaryI
     } else {
         object::BinaryFormat::Elf
     };
+    let runtime_bundle = !require_query
+        && match &file {
+            object::File::MachO32(f) => {
+                f.macho_header().filetype(f.endian()) == object::macho::MH_BUNDLE
+            }
+            object::File::MachO64(f) => {
+                f.macho_header().filetype(f.endian()) == object::macho::MH_BUNDLE
+            }
+            _ => false,
+        };
     if file.format() != format
-        || !matches!(file.kind(), ObjectKind::Dynamic | ObjectKind::Executable)
+        || !(matches!(file.kind(), ObjectKind::Dynamic | ObjectKind::Executable) || runtime_bundle)
     {
         bail!("{}: not a target executable/shared library", path.display());
     }
@@ -194,6 +234,9 @@ pub fn inspect(path: &Path, target: &str, require_query: bool) -> Result<BinaryI
         _ => bail!("unsupported binary format"),
     }
     for r in &info.rpaths {
+        if target.ends_with("apple-darwin") && r == "@executable_path/../Frameworks" {
+            continue;
+        }
         if !(r == "$ORIGIN"
             || r.starts_with("$ORIGIN/")
             || r == "@loader_path"

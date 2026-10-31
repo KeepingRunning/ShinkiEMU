@@ -41,8 +41,18 @@ sha256 = "ff57648f9c04f27e381c48af6d8e3ee3cdec296bed4d3831f47f09b0a71b505e"
 file_name = "renpy-8.5.3-sdk.zip"
 format = "zip"
 strip_prefix = "renpy-8.5.3-sdk"
-include = ["lib/py3-windows-x86_64", "lib/py3-linux-x86_64", "lib/python3.12", "renpy/vc_version.py", "LICENSE.txt"]
-required = ["lib/py3-windows-x86_64/libpython3.12.dll", "lib/py3-windows-x86_64/librenpython.dll", "lib/py3-linux-x86_64/librenpython.so", "lib/python3.12", "renpy/vc_version.py", "LICENSE.txt"]
+include = ["lib/py3-windows-x86_64", "lib/py3-linux-x86_64", "lib/py3-mac-universal", "lib/python3.12", "renpy/vc_version.py", "LICENSE.txt"]
+required = ["lib/py3-windows-x86_64/libpython3.12.dll", "lib/py3-windows-x86_64/librenpython.dll", "lib/py3-linux-x86_64/librenpython.so", "lib/py3-mac-universal/librenpython.dylib", "lib/python3.12", "renpy/vc_version.py", "LICENSE.txt"]
+
+# CPython 3.12's build interpreter requires OpenSSL 3, not Homebrew's OpenSSL 4.
+[native.renpy-host-openssl]
+version = "3.3.2"
+url = "https://www.openssl.org/source/openssl-3.3.2.tar.gz"
+sha256 = "2e8a40b01979afe8be0bbfb3de5dc1c6709fedb46d6c89c10da114ab5fc3d281"
+file_name = "openssl-3.3.2.tar.gz"
+format = "tar-gz"
+strip_prefix = "openssl-3.3.2"
+required = ["Configure", "LICENSE.txt"]
 
 [native.python]
 version = "3.12.7"
@@ -62,7 +72,7 @@ format = "zip"
 strip_prefix = ""
 required = ["Cython/__init__.py", "cython.py"]
 
-[native.python-linux]
+[native.python-posix]
 version = "3.12.7"
 url = "https://www.python.org/ftp/python/3.12.7/Python-3.12.7.tgz"
 sha256 = "73ac8fe780227bf371add8373c3079f42a0dc62deff8d612cd15a618082ab623"
@@ -71,7 +81,7 @@ format = "tar-gz"
 strip_prefix = "Python-3.12.7"
 required = ["configure", "Include/Python.h", "LICENSE"]
 
-[native.cython-linux]
+[native.cython-posix]
 version = "3.2.4"
 url = "https://files.pythonhosted.org/packages/91/85/7574c9cd44b69a27210444b6650f6477f56c75fee1b70d7672d3e4166167/cython-3.2.4.tar.gz"
 sha256 = "84226ecd313b233da27dc2eb3601b4f222b8209c3a7216d8733b031da1dc64e6"
@@ -101,7 +111,7 @@ strip_prefix = "SDL2-2.0.20"
 include = ["include", "COPYING.txt"]
 required = ["include/SDL.h", "COPYING.txt"]
 
-[native.sdl2-linux]
+[native.sdl2-posix]
 version = "2.0.20"
 url = "https://www.libsdl.org/release/SDL2-2.0.20.tar.gz"
 sha256 = "c56aba1d7b5b0e7e999e4a7698c70b63a3394ff9704b5f6e1c57e0c16f04dd06"

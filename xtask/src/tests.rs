@@ -745,8 +745,7 @@ fn elf_dynamic_segments_resolve_needed_and_runpath_without_section_headers() {
     assert!(binary::inspect(&library, "x86_64-unknown-linux-gnu", false).is_err());
 }
 
-fn synthetic_macho(rpath: &str) -> Vec<u8> {
-    let dependency = b"@rpath/libmissing.dylib\0";
+fn synthetic_macho(dependency: &[u8], rpath: &str) -> Vec<u8> {
     let library_size = (24 + dependency.len() + 7) & !7;
     let rpath_size = (12 + rpath.len() + 1 + 7) & !7;
     let mut bytes = vec![0u8; 32 + library_size + rpath_size];
@@ -772,13 +771,84 @@ fn synthetic_macho(rpath: &str) -> Vec<u8> {
 fn macho_load_commands_require_relocatable_rpaths_and_a_complete_closure() {
     let temp = tempfile::tempdir().unwrap();
     let library = temp.path().join("libsynthetic.dylib");
-    fs::write(&library, synthetic_macho("@loader_path")).unwrap();
+    fs::write(
+        &library,
+        synthetic_macho(b"@rpath/libmissing.dylib\0", "@loader_path"),
+    )
+    .unwrap();
     let info = binary::inspect(&library, "x86_64-apple-darwin", false).unwrap();
     assert!(info.dependencies.contains("@rpath/libmissing.dylib"));
     assert!(info.rpaths.iter().any(|path| path == "@loader_path"));
     assert!(binary::closure(&library, &[], "x86_64-apple-darwin").is_err());
-    fs::write(&library, synthetic_macho("/developer/private")).unwrap();
+    fs::write(
+        &library,
+        synthetic_macho(b"@rpath/libmissing.dylib\0", "/developer/private"),
+    )
+    .unwrap();
     assert!(binary::inspect(&library, "x86_64-apple-darwin", false).is_err());
+}
+
+#[test]
+fn macho_runtime_bundles_keep_architecture_dependency_and_query_checks() {
+    let temp = tempfile::tempdir().unwrap();
+    let module = temp.path().join("display.so");
+    let mut bytes = synthetic_macho(b"@rpath/libpython3.12.dylib\0", "@loader_path");
+    bytes[12..16].copy_from_slice(&object::macho::MH_BUNDLE.0.to_le_bytes());
+    fs::write(&module, &bytes).unwrap();
+    let info = binary::inspect(&module, "x86_64-apple-darwin", false).unwrap();
+    assert!(info.dependencies.contains("@rpath/libpython3.12.dylib"));
+    assert!(binary::inspect(&module, "aarch64-apple-darwin", false).is_err());
+    assert!(binary::inspect(&module, "x86_64-apple-darwin", true).is_err());
+    assert!(binary::closure(&module, &[], "x86_64-apple-darwin").is_err());
+    let dependency = temp.path().join("libpython3.12.dylib");
+    fs::write(
+        &dependency,
+        synthetic_macho(b"/usr/lib/libSystem.B.dylib\0", "@loader_path"),
+    )
+    .unwrap();
+    assert_eq!(
+        binary::closure(&module, &[temp.path().into()], "x86_64-apple-darwin").unwrap(),
+        vec![dependency]
+    );
+    bytes[12..16].copy_from_slice(&object::macho::MH_OBJECT.0.to_le_bytes());
+    fs::write(&module, bytes).unwrap();
+    assert!(binary::inspect(&module, "x86_64-apple-darwin", false).is_err());
+}
+
+#[test]
+fn universal_macho_inspection_selects_and_bounds_checks_each_target_slice() {
+    let temp = tempfile::tempdir().unwrap();
+    let x86 = synthetic_macho(b"/usr/lib/libSystem.B.dylib\0", "@loader_path");
+    let mut arm = x86.clone();
+    arm[4..8].copy_from_slice(&object::macho::CPU_TYPE_ARM64.0.to_le_bytes());
+    let mut universal = Vec::new();
+    universal.extend_from_slice(&object::macho::FAT_MAGIC.to_be_bytes());
+    universal.extend_from_slice(&2u32.to_be_bytes());
+    for (cpu, subtype, offset, size) in [
+        (object::macho::CPU_TYPE_X86_64.0, 3, 48, x86.len() as u32),
+        (
+            object::macho::CPU_TYPE_ARM64.0,
+            0,
+            48 + x86.len() as u32,
+            arm.len() as u32,
+        ),
+    ] {
+        for word in [cpu, subtype, offset, size, 0] {
+            universal.extend_from_slice(&word.to_be_bytes());
+        }
+    }
+    universal.extend_from_slice(&x86);
+    universal.extend_from_slice(&arm);
+    let library = temp.path().join("universal.dylib");
+    fs::write(&library, &universal).unwrap();
+    for target in ["x86_64-apple-darwin", "aarch64-apple-darwin"] {
+        let info = binary::inspect(&library, target, false).unwrap();
+        assert!(info.dependencies.contains("/usr/lib/libSystem.B.dylib"));
+    }
+    assert!(binary::target_slice(&universal, object::Architecture::I386).is_err());
+    universal[40..44].copy_from_slice(&u32::MAX.to_be_bytes());
+    fs::write(&library, universal).unwrap();
+    assert!(binary::inspect(&library, "aarch64-apple-darwin", false).is_err());
 }
 
 #[test]

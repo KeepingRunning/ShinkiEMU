@@ -406,6 +406,9 @@ pub fn stage_core(
         .collect();
     let mut runtimes = std::collections::BTreeMap::<String, PathBuf>::new();
     let mut add_runtime = |path: PathBuf| -> Result<()> {
+        if result.target.contains("apple") && entries.iter().any(|(source, _)| source == &path) {
+            return Ok(());
+        }
         let name = path
             .file_name()
             .and_then(|s| s.to_str())
@@ -493,7 +496,11 @@ pub fn stage_core(
         copy_entries(&entries, &dir)?;
         let staged_library = dir.join(library);
         if crate::apple::supported(&result.target) {
-            crate::apple::sign_binary(&staged_library)?;
+            for (_, relative) in &entries {
+                if is_runtime(Path::new(relative)) {
+                    crate::apple::sign_binary(&dir.join(relative))?;
+                }
+            }
         }
         let mut packaged_result = result.clone();
         packaged_result.library = staged_library;
