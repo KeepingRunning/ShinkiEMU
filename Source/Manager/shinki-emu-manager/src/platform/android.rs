@@ -38,7 +38,7 @@ use super::{FileFilter, PickDone};
 const BRIDGE_CLASS: &JNIStr = jni_str!("org/shinkirou/shinkiemu/ShinkiPlatformBridge");
 const BUNDLED_MANIFEST: &str = "bundled.manifest";
 const MAX_MANIFEST_BYTES: usize = 1024 * 1024;
-const MAX_ASSET_BYTES: usize = 16 * 1024 * 1024;
+const MAX_ASSET_BYTES: usize = 32 * 1024 * 1024;
 const MAX_SECRET_BYTES: usize = 16 * 1024;
 /// `MainActivity.pickDocument` kinds.
 const PICK_TREE: i32 = 0;
@@ -352,14 +352,28 @@ fn extract_bundled_assets() -> Result<(), String> {
     let manifest = String::from_utf8(manifest)
         .map_err(|_| "SHINKI_EMU_ANDROID_BUNDLED_MANIFEST: not UTF-8".to_owned())?;
     for entry in paths::manifest_entries(&manifest)? {
-        let bytes = read_asset(entry, MAX_ASSET_BYTES)?;
         let destination = target.join(entry);
         if let Some(parent) = destination.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|error| format!("SHINKI_EMU_ANDROID_BUNDLED_WRITE: {entry}: {error}"))?;
         }
-        std::fs::write(&destination, bytes)
+        let name =
+            CString::new(entry).map_err(|_| format!("SHINKI_EMU_ANDROID_ASSET_PATH: {entry}"))?;
+        let asset = context()?
+            .app
+            .asset_manager()
+            .open(&name)
+            .ok_or_else(|| format!("SHINKI_EMU_ANDROID_ASSET_MISSING: {entry}"))?;
+        if asset.length() > MAX_ASSET_BYTES {
+            return Err(format!("SHINKI_EMU_ANDROID_ASSET_BOUNDS: {entry}"));
+        }
+        let mut output = std::fs::File::create(&destination)
             .map_err(|error| format!("SHINKI_EMU_ANDROID_BUNDLED_WRITE: {entry}: {error}"))?;
+        let copied = std::io::copy(&mut asset.take(MAX_ASSET_BYTES as u64 + 1), &mut output)
+            .map_err(|error| format!("SHINKI_EMU_ANDROID_ASSET_READ: {entry}: {error}"))?;
+        if copied > MAX_ASSET_BYTES as u64 {
+            return Err(format!("SHINKI_EMU_ANDROID_ASSET_BOUNDS: {entry}"));
+        }
     }
     Ok(())
 }

@@ -30,6 +30,25 @@ fn checked(command: &mut Command) -> Result<()> {
     Ok(())
 }
 pub fn sign_binary(path: &Path) -> Result<()> {
+    if path
+        .extension()
+        .is_some_and(|extension| extension == "dylib")
+    {
+        let tool = if cfg!(target_os = "macos") {
+            "install_name_tool"
+        } else {
+            "llvm-install-name-tool"
+        };
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .context("core dylib filename")?;
+        checked(
+            Command::new(tool)
+                .args(["-id", &format!("@rpath/{name}")])
+                .arg(path),
+        )?;
+    }
     if cfg!(target_os = "macos") {
         checked(
             Command::new("codesign")

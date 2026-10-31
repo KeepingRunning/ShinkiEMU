@@ -22,6 +22,8 @@ pub(super) struct CoreMetadata {
     pub(super) menu: Vec<SessionMenuEntry>,
     pub(super) stem: String,
     pub(super) bundled: bool,
+    pub(super) release_version: String,
+    pub(super) release_identity: Option<shinki_emu_metadata::CoreIdentity>,
 }
 
 pub(super) type Metadata = BTreeMap<String, CoreMetadata>;
@@ -488,6 +490,13 @@ pub(super) fn collect_metadata(
                 (Some(path), Some(dir)) => path.starts_with(dir),
                 _ => false,
             };
+            let manifest = location.and_then(Path::parent).and_then(crate::core_package::read_manifest)
+                .filter(|manifest| manifest.plugin_id == descriptor.plugin_id);
+            let release_identity = manifest.as_ref().and_then(|manifest| manifest.identity.clone())
+                .or_else(|| location.is_none().then(|| super::cores::embedded_identity(&descriptor.plugin_id).cloned()).flatten());
+            let release_version = manifest.map(|manifest| manifest.version)
+                .or_else(|| release_identity.as_ref().map(shinki_emu_metadata::CoreIdentity::version))
+                .unwrap_or_else(|| descriptor.version.clone());
             Ok((
                 descriptor.plugin_id.clone(),
                 CoreMetadata {
@@ -496,6 +505,8 @@ pub(super) fn collect_metadata(
                     menu,
                     stem,
                     bundled,
+                    release_version,
+                    release_identity,
                 },
             ))
         })

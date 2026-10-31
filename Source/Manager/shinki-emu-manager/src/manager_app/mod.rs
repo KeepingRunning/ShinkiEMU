@@ -26,7 +26,7 @@ use shinki_emu_manager_ui_slint::{
 };
 use shinki_emu_metadata::{
     BangumiPlayStatus, BangumiPlayUpdate, CompatibilityEntry, CoverAsset,
-    DEFAULT_METADATA_BASE_URL, MetadataProviderId, MetadataRecord, MetadataSearchQuery,
+    DEFAULT_METADATA_BASE_URL, MetadataProviderId, MetadataRecord, MetadataRelease, MetadataSearchQuery,
     plain_description, unique_exact_match,
 };
 use shinki_emu_translation::{OpenAiApi, SecretResolver, TranslationProfile, TranslationProvider};
@@ -81,6 +81,19 @@ pub(super) fn run_extension_command(command: crate::ExtensionCommand) -> Result<
 use session::ActiveFamilySession;
 use support::*;
 
+enum MetadataStatus {
+    Message(String),
+    Error(String),
+}
+
+impl MetadataStatus {
+    fn text(&self) -> &str {
+        match self {
+            Self::Message(message) | Self::Error(message) => message,
+        }
+    }
+}
+
 struct PendingMetadata {
     game_id: Option<String>,
     core: Option<String>,
@@ -123,7 +136,7 @@ struct ShinkiEmuManagerController {
     defaults_plugin: Option<String>,
     metadata: MetadataRuntime,
     metadata_sequence: u64,
-    metadata_status: BTreeMap<String, String>,
+    metadata_status: BTreeMap<String, MetadataStatus>,
     pending_metadata: BTreeMap<String, PendingMetadata>,
     match_candidates: BTreeMap<String, (String, MetadataRecord)>,
     /// Games waiting for an automatic VNDB search, submitted one at a time.
@@ -138,7 +151,7 @@ struct ShinkiEmuManagerController {
     bangumi_play_status: String,
     bangumi_rating: i32,
     bangumi_note: String,
-    releases: BTreeMap<String, Vec<(String, String)>>,
+    releases: BTreeMap<String, Vec<MetadataRelease>>,
     translation_enabled: bool,
     translation_models: Vec<String>,
     translation_status: String,

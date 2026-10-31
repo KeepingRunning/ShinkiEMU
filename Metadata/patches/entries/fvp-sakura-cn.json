@@ -4,7 +4,7 @@
     "zh-CN": "樱花萌放旧补丁离线转换",
     "en": "Sakura Moyu legacy patch offline conversion"
   },
-  "version": "0.1.0",
+  "version": "0.2.0",
   "vn_ids": [
     "v22313"
   ],
@@ -17,8 +17,8 @@
   "license": "MIT OR Apache-2.0",
   "authorization_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/LICENSE",
   "summary": {
-    "zh-CN": "樱花萌放旧补丁离线转换；使用本地资源执行配方。",
-    "en": "Sakura Moyu legacy patch offline conversion. Recipe uses locally supplied resources."
+    "zh-CN": "将本地旧补丁离线转换为原生 GBK HCB；统一游戏首选字体，隔离旧存档和既读，不使用外挂翻译。",
+    "en": "Converts local legacy inputs into native GBK HCB with a consistent game font and isolated save/read identity; no runtime translation table."
   },
   "issue_url": null,
   "artifact": null,

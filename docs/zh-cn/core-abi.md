@@ -26,6 +26,15 @@ description: C ABI v3 生命周期、owner 线程、CPU 帧租约和核心包。
 
 普通 ABI 调用在宿主 owner 线程串行执行。核心自己的原生 owner 负责 VM 推进、渲染/音频调度及资源生命周期。Manager 只提供输入、控制和宿主服务，没有 advance 回调。取消和 epoch 校验会拒绝旧会话或旧输出代次的迟到结果。
 
+## 转换结果兼容性
+
+现有 `Descriptor.capabilities` 掩码增加两个可选语义位，ABI 版本 3、C 布局和 fingerprint 均不变：
+
+- `CAP_NATIVE_SCRIPT_IDENTITY`（64）：校验显式声明的转换脚本 hash，隔离该脚本的存档与既读；没有 marker 的游戏保留原命名空间。
+- `CAP_CONFIGURED_FONT_PRIORITY`（128）：配置的字体优先于脚本或恢复状态中的首选字体，包括 ruby 和 UI 文字。
+
+Luau recipe 在输出 profile 的 `plugin_id`、`configuration` 旁声明 `required_capabilities = 192`，receipt 保留此要求。Manager 在新增导入游戏或绑定配置前，以及启动会话前，分别检查实际加载的所选核心的 `describe` 结果。自动导入还会拒绝转换完成后要求被改动的 receipt。缺少能力时拒绝操作并提示更新核心；未知要求会使 profile 无效，不会被忽略。不以版本字符串或文件名判定功能。旧 profile 省略该字段，默认要求为零；新 receipt 中的零值也省略，保持旧协议兼容。
+
 ## 文本替换等级
 
 descriptor 能力位是唯一依据：不带 `CAP_TEXT_HOOK` 为 **none**；仅带 `CAP_TEXT_HOOK` 为 **synchronous**；同时带 `CAP_TEXT_HOOK | CAP_ASYNC_TEXT` 为 **async-v1**。单独声明 `CAP_ASYNC_TEXT` 无效。目前固定版本的九个外部核心均声明 none；外部核心可以选择同步替换，保留自己的调度方式。SDK 核心按归属划分：Musica 属于 SDK 自研核心；Artemis 即使使用 SDK 音频，仍是外部核心。CMVS 在独立工作树维护。
@@ -62,3 +71,5 @@ Ready 状态的 `FrameSurface` 包含实际尺寸、stride、像素/颜色/行�
 ```
 
 `core.json` 使用 `shinki.emu.core_package.v1`，记录 `plugin_id`、`library`、`version`、`abi` 及文件路径/SHA256。清单覆盖除自身外的所有包文件。核心库使用新文件名前缀和 query 符号。打包检查架构、依赖闭包及许可，拒绝路径穿越、链接和大小写冲突，只发布到不存在的新目录。Manager 在安装前校验整个包，不接受旧产品协议或加载别名。命令见[构建与发布](build-and-release.md)。
+
+新的第三方包增加 `identity`，分别记录原作者上游与组织适配仓库的来源；`version` 必须等于据此计算的安全标识。旧包不含此字段，保留原有 SemVer。新 Manager 在暂存前同时核对目录与包的 plugin、version 和 identity，并显示完整上游/适配标签；C ABI 和 descriptor 版本独立不变。详见[版本身份规则](build-and-release.md#打包与发布)。

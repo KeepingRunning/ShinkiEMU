@@ -216,12 +216,6 @@ fn stage_inputs(
     entries.extend(package::metadata_entries(inv, temp.path())?);
     entries.extend(package::licenses(inv, result, temp.path())?);
     entries.extend(package::static_core_entries(inv, result, temp.path())?);
-    if dependencies::needs(inv, &result.target, "manager")?.ffmpeg {
-        entries.push((
-            dependencies::ffmpeg_install(inv, &result.target)?.join("share/ffmpeg/copyright"),
-            "licenses/ffmpeg/copyright".into(),
-        ));
-    }
     fs::create_dir_all(&bundled)?;
     copy_entries(&entries, &bundled)?;
     let mut names = entries

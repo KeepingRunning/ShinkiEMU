@@ -122,6 +122,81 @@ fn adapter_relative(core: &Core) -> Result<PathBuf> {
     }
     Ok(relative)
 }
+/// Verify original upstream reachability independently of organization branch names.
+pub fn verify_provenance(inv: &Inventory, core: &Core) -> Result<()> {
+    let Some(source) = &core.source else {
+        return Ok(());
+    };
+    let directory = inv.root.join(".work/provenance").join(&core.id);
+    if !directory.exists() {
+        fs::create_dir_all(&directory)?;
+        dependencies::run(
+            Command::new("git")
+                .args(["init", "--bare", "--quiet"])
+                .arg(&directory),
+        )?;
+    }
+    dependencies::run(git(&directory).args([
+        "fetch",
+        "--filter=blob:none",
+        "--no-tags",
+        &source.repo,
+        &source.rev,
+    ]))?;
+    let upstream = &source.upstream_identity;
+    let namespace = match upstream.ref_kind {
+        shinki_emu_metadata::UpstreamRefKind::Tag => "tags",
+        shinki_emu_metadata::UpstreamRefKind::Branch => "heads",
+    };
+    let reference = format!(
+        "+refs/{namespace}/{}:refs/proof/upstream",
+        upstream.ref_name
+    );
+    dependencies::run(git(&directory).args([
+        "fetch",
+        "--filter=blob:none",
+        "--no-tags",
+        &upstream.repo,
+        &reference,
+        "+refs/tags/*:refs/proof/tags/*",
+    ]))?;
+    verify_provenance_at(source, &directory)
+}
+
+fn verify_provenance_at(source: &crate::cores::CoreSource, directory: &Path) -> Result<()> {
+    let upstream = &source.upstream_identity;
+    let at = String::from_utf8(dependencies::capture(
+        git(directory).args(["rev-parse", "refs/proof/upstream^{commit}"]),
+    )?)?;
+    if upstream.ref_kind == shinki_emu_metadata::UpstreamRefKind::Tag
+        && at.trim() != upstream.commit
+    {
+        bail!("upstream tag does not resolve to the declared full commit");
+    }
+    for descendant in [&source.rev, at.trim()] {
+        dependencies::run(git(directory).args([
+            "merge-base",
+            "--is-ancestor",
+            &upstream.commit,
+            descendant,
+        ]))
+        .context(
+            "declared upstream commit must be contained in both upstream ref and adapter pin",
+        )?;
+    }
+    if upstream.ref_kind == shinki_emu_metadata::UpstreamRefKind::Branch {
+        let tags = dependencies::capture(git(directory).args([
+            "for-each-ref",
+            &format!("--points-at={}", upstream.commit),
+            "--format=%(refname)",
+            "refs/proof/tags",
+        ]))?;
+        if !tags.is_empty() {
+            bail!("upstream commit has a verified tag; select that tag rather than a branch");
+        }
+    }
+    Ok(())
+}
 
 fn verify_at(core: &Core, directory: &Path, clean: bool) -> Result<()> {
     let source = core
@@ -548,18 +623,11 @@ fn native_sources(
     if selected.ffmpeg {
         installations.push(("ffmpeg", dependencies::ffmpeg_install(inv, target)?));
     }
-    if selected.native_vcpkg {
+    for native in dependencies::native_cores(inv, target, component) {
         installations.push((
-            "native",
-            inv.root
-                .join(".work/native-vcpkg")
-                .join(component)
-                .join("installed")
-                .join(if target == "x86_64-unknown-linux-gnu" {
-                    "x64-linux-dynamic"
-                } else {
-                    "x64-windows"
-                }),
+            native.id.as_str(),
+            dependencies::native_install(inv, target, &native.id)?
+                .join(dependencies::native_triplet(inv, target)?),
         ));
     }
     let registry = inv.root.join(".work/vcpkg");
@@ -610,7 +678,7 @@ fn native_sources(
             "subtitle" => "build/vcpkg/subtitle".to_owned(),
             "ffmpeg" => "build/vcpkg/ffmpeg".to_owned(),
             _ => inv
-                .core(component)?
+                .core(group)?
                 .source_directory(&inv.root)?
                 .strip_prefix(&inv.root)?
                 .to_string_lossy()
@@ -619,7 +687,9 @@ fn native_sources(
         commands.push_str(&format!(
             "& $vcpkg install --vcpkg-root=\"$PWD/.work/vcpkg\" --triplet {triplet} --x-manifest-root=\"$PWD/{manifest}\" --x-install-root=\"$PWD/{install_root}\""
         ));
-        if *group == "native" && inv.root.join(&manifest).join("vcpkg/ports").is_dir() {
+        if !matches!(*group, "subtitle" | "ffmpeg")
+            && inv.root.join(&manifest).join("vcpkg/ports").is_dir()
+        {
             commands.push_str(&format!(" --overlay-ports=\"$PWD/{manifest}/vcpkg/ports\""));
         }
         commands.push_str(&format!(" --overlay-ports=\"$PWD/native/ports/{group}\""));
@@ -630,7 +700,7 @@ fn native_sources(
             commands.push_str(" --overlay-triplets=\"$PWD/build/vcpkg/apple-triplets\" --overlay-triplets=\"$PWD/build/vcpkg/mobile-triplets\"");
         }
         commands.push('\n');
-        if *group != "native" {
+        if matches!(*group, "subtitle" | "ffmpeg") {
             let prefix = installed
                 .parent()
                 .and_then(Path::parent)
@@ -857,6 +927,25 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
         "core": null, "target": target
     });
     let (manifest, package, features) = if component == "manager" {
+        let mut embedded = Vec::new();
+        for core in &inv.cores {
+            if core
+                .static_manager_targets
+                .iter()
+                .any(|triple| triple == target)
+                && let Some(source) = &core.source
+            {
+                let repo = core.source_directory(&inv.root)?;
+                append_revision(
+                    &mut builder,
+                    &repo,
+                    &source.rev,
+                    repo.strip_prefix(&inv.root)?,
+                )?;
+                embedded.push(serde_json::json!({"id": core.id, "source": source}));
+            }
+        }
+        references["embedded_cores"] = serde_json::Value::Array(embedded);
         (
             inv.root.join("Cargo.toml"),
             "shinki-emu-manager".to_owned(),
@@ -874,6 +963,8 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
                 repo.strip_prefix(&inv.root)?,
             )?;
             references["core"] = serde_json::to_value(source)?;
+            references["identity"] = serde_json::to_value(source.identity())?;
+            references["version"] = source.identity().version().into();
         }
         (
             inv.root.join(&core.manifest),
@@ -945,9 +1036,18 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
     }
     if selected.native_vcpkg {
         instructions.push_str(&format!(
-            "$env:VCPKG_ROOT = \"$PWD/.work/vcpkg\"\n$env:SHINKI_EMU_VCPKG_INSTALLED = \"$PWD/.work/native-vcpkg/{component}/installed\"\n$env:SHINKI_EMU_VCPKG_TRIPLET = \"{}\"\n",
-            if target.contains("linux") { "x64-linux-dynamic" } else { "x64-windows" }
+            "$env:VCPKG_ROOT = \"$PWD/.work/vcpkg\"\n$env:SHINKI_EMU_NATIVE_VCPKG_ROOT = \"$PWD/.work/native-vcpkg\"\n$env:SHINKI_EMU_VCPKG_TRIPLET = \"{}\"\n",
+            dependencies::native_triplet(inv, target)?
         ));
+        if component != "manager" {
+            let relative = dependencies::native_install(inv, target, component)?
+                .strip_prefix(&inv.root)?
+                .to_string_lossy()
+                .replace('\\', "/");
+            instructions.push_str(&format!(
+                "$env:SHINKI_EMU_VCPKG_INSTALLED = \"$PWD/{relative}\"\n"
+            ));
+        }
     }
     if selected.impacto_sources || selected.renpy {
         instructions
@@ -966,7 +1066,7 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
     if selected.bison {
         instructions.push_str("$env:BISON_EXECUTABLE = (Get-Command win_bison.exe).Source\n");
     }
-    let build_command = if target.contains("android") && component == "manager" {
+    let build_command = if target.contains("android") {
         format!(
             "cargo ndk -t {} -P 26 build",
             if target.starts_with("aarch64") {
@@ -1000,7 +1100,30 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
              Compatible replacement and reverse engineering for debugging modifications to LGPL components are permitted.\n",
         );
     }
-    if selected.renpy {
+    if selected.renpy && target.ends_with("-linux-android") {
+        instructions.push_str(
+            "\n## Ren'Py Android runtime rebuild and relink\n\n\
+             Manager statically links the target CPython 3.12.8, SDL2, Ren'Py and codec archives. \
+             The complete fork, its Android SDL patch and private-symbol builder are under ThirdParty/renpy; \
+             native/renpy-build.tar contains the exact official recipes and tracked source archives. \
+             native/renpy-sources and native/python-sources contain the additional native inputs and \
+             the exact Python source/wheel inventory used by the target stage, not host-native wheels.\n\n\
+             On Ubuntu 24.04 install the build prerequisites listed in the pinned recipe README. \
+             Clone renpy/renpy-build at 7bfab40c1174f622f644b24669afd5fb167fbb79 and renpy/renpy at \
+             39895c1e017f0b36ffea2447d97eccd69d76ee1c into its renpy/ subdirectory, then copy \
+             the supplied source archives into that build root. Place the NDK r29 Linux archive and \
+             Cubism 4-r.6.2 header SDK in tars/ using the URLs and checksums in ThirdParty/renpy/shinki/sdk.json. \
+             Cubism Core is not part of Manager; its proprietary implementation is game-supplied.\n\n\
+             Run ThirdParty/renpy/shinki/android_runtime.py with --build-root <recipe-root>, \
+             --target aarch64-linux-android or x86_64-linux-android, and a new --output directory. \
+             It stages target headers/archives, standard library, private symbols and exact Python artifacts. \
+             Modify the LGPL sources or supplied patches before rebuilding; preserve modified sources. \
+             Point RENPY_STATIC_ROOT at the rebuilt stage, then rebuild the full Manager from these sources \
+             to relink every static dependency. The complete Manager and Rust dependency source is supplied \
+             so no proprietary Manager object is required for relinking. Android packaging/signing tools \
+             remain external build tools; use your own signing key for an installable modified APK.\n",
+        );
+    } else if selected.renpy {
         instructions.push_str(
             "\n## Ren'Py combined-runtime rebuild and relink\n\n\
              The shipped SDK is 8.5.3.26051504, SHA256 ff57648f9c04f27e381c48af6d8e3ee3cdec296bed4d3831f47f09b0a71b505e. \
@@ -1146,6 +1269,25 @@ mod tests {
         revision(directory).unwrap()
     }
 
+    #[test]
+    fn provenance_requires_real_ref_resolution_and_shared_adapter_ancestry() {
+        let (_temp, _inv, core, repository, first, second) = fixture();
+        let mut source = core.source.unwrap();
+        source.rev = second.clone();
+        source.upstream_identity.commit = first.clone();
+        source.upstream_identity.ref_kind = shinki_emu_metadata::UpstreamRefKind::Branch;
+        dependencies::run(git(&repository).args(["update-ref", "refs/proof/upstream", &second]))
+            .unwrap();
+        verify_provenance_at(&source, &repository).unwrap();
+        source.upstream_identity.ref_kind = shinki_emu_metadata::UpstreamRefKind::Tag;
+        assert!(verify_provenance_at(&source, &repository).is_err());
+        dependencies::run(git(&repository).args(["update-ref", "refs/proof/upstream", &first]))
+            .unwrap();
+        verify_provenance_at(&source, &repository).unwrap();
+        source.upstream_identity.commit = second;
+        assert!(verify_provenance_at(&source, &repository).is_err());
+    }
+
     fn fixture() -> (tempfile::TempDir, Inventory, Core, PathBuf, String, String) {
         let temp = tempfile::tempdir().unwrap();
         let source = temp.path().join("upstream");
@@ -1170,6 +1312,15 @@ mod tests {
             branch: "shinki".into(),
             rev: first.clone(),
             upstream: "https://github.com/xmoezzz/rfvp".into(),
+            upstream_identity: inv
+                .core("rfvp")
+                .unwrap()
+                .source
+                .as_ref()
+                .unwrap()
+                .upstream_identity
+                .clone(),
+            release_sequence: 1,
         });
         (temp, inv, core, source, first, second)
     }

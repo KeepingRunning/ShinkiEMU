@@ -24,7 +24,7 @@ impl ShinkiEmuManagerController {
         self.match_candidates
             .retain(|_, (game_id, _)| game_id != &game.game_id);
         self.metadata_status
-            .insert(game.game_id, tr!("正在搜索…").into());
+            .insert(game.game_id, MetadataStatus::Message(tr!("正在搜索…").into()));
         self.diagnostic.clear();
         self.model()
     }
@@ -74,7 +74,7 @@ impl ShinkiEmuManagerController {
             self.mark_auto_link_attempted(&game.game_id)?;
         }
         self.metadata_status
-            .insert(game.game_id, tr!("已解除关联").into());
+            .insert(game.game_id, MetadataStatus::Message(tr!("已解除关联").into()));
         self.model()
     }
 
@@ -236,15 +236,25 @@ impl ShinkiEmuManagerController {
             self.diagnostic.clear();
             return self.model();
         }
-        let Some(release) = self.releases.get(&game.game_id).and_then(|values| {
-            values
-                .iter()
-                .find(|(id, _)| id == release_id)
-                .map(|(id, title)| GameRelease {
-                    release_id: id.clone(),
-                    title: title.clone(),
-                })
-        }) else {
+        let Some(release) = self
+            .releases
+            .get(&game.game_id)
+            .and_then(|values| {
+                values
+                    .iter()
+                    .find(|release| release.release_id == release_id)
+                    .map(|release| GameRelease {
+                        release_id: release.release_id.clone(),
+                        title: release.title.clone().unwrap_or_default(),
+                    })
+            })
+            .or_else(|| {
+                self.pinned_releases
+                    .get(&game.game_id)
+                    .filter(|release| release.release_id == release_id)
+                    .cloned()
+            })
+        else {
             return Err("SHINKI_EMU_VNDB_RELEASE_INVALID".into());
         };
         self.library

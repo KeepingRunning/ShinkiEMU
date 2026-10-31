@@ -80,6 +80,25 @@ pub(crate) fn needs(inv: &Inventory, target: &str, component: &str) -> Result<Na
     Ok(result)
 }
 
+pub(crate) fn native_cores<'a>(
+    inv: &'a Inventory,
+    target: &'a str,
+    component: &'a str,
+) -> impl Iterator<Item = &'a crate::cores::Core> {
+    inv.cores.iter().filter(move |core| {
+        core.dependencies
+            .iter()
+            .any(|dependency| dependency == "native-vcpkg")
+            && if component == "manager" {
+                core.static_manager_targets
+                    .iter()
+                    .any(|triple| triple == target)
+            } else {
+                core.id == component
+            }
+    })
+}
+
 const NATIVE_RECORD: &str = ".shinki-native.json";
 
 #[derive(Serialize)]
@@ -350,21 +369,37 @@ fn prepare_native_tree(
         for (layer, input) in layers.iter().zip(&archives) {
             extract_native_archive(layer.archive, input, stage, layer.destination)?;
         }
-        if name == "sdl2" && cfg!(target_os = "linux") {
+        if name == "sdl2" && cfg!(unix) {
             run(Command::new("sh")
                 .arg("configure")
                 .arg("--disable-shared")
                 .current_dir(stage))?;
         }
         if let Some((python, cython)) = python_versions {
-            if cfg!(target_os = "linux") {
-                run(Command::new("sh")
+            if cfg!(unix) {
+                let openssl = stage.join("host-openssl");
+                if cfg!(target_os = "macos") {
+                    let source = stage.join("build-openssl");
+                    run(Command::new("perl")
+                        .arg("Configure")
+                        .args(["no-shared", "no-tests", "--openssldir=/etc/ssl"])
+                        .arg(format!("--prefix={}", openssl.display()))
+                        .current_dir(&source))?;
+                    run(Command::new("make").arg("-j3").current_dir(&source))?;
+                    run(Command::new("make").arg("install_sw").current_dir(&source))?;
+                }
+                let mut configure = Command::new("sh");
+                configure
                     .arg("configure")
                     .arg("--without-ensurepip")
                     .current_dir(stage)
-                    .env("PYTHONDONTWRITEBYTECODE", "1"))?;
+                    .env("PYTHONDONTWRITEBYTECODE", "1");
+                if cfg!(target_os = "macos") {
+                    configure.arg(format!("--with-openssl={}", openssl.display()));
+                }
+                run(&mut configure)?;
                 run(Command::new("make")
-                    .args(["-j4", "python", "sharedmods"])
+                    .args(["-j3", "all"])
                     .current_dir(stage)
                     .env("PYTHONDONTWRITEBYTECODE", "1"))?;
                 // CPython's build tree links extension modules back to Modules/.
@@ -384,7 +419,17 @@ fn prepare_native_tree(
                     }
                 }
                 // Keep the executable distinct from CPython's Python/ source directory.
-                fs::rename(stage.join("python"), stage.join(build_python_relative()))?;
+                let makefile = fs::read_to_string(stage.join("Makefile"))?;
+                let suffix = makefile
+                    .lines()
+                    .find_map(|line| {
+                        let (name, value) = line.split_once('=')?;
+                        (name.trim() == "BUILDEXE").then(|| value.trim())
+                    })
+                    .context("CPython BUILDEXE output")?;
+                let executable = format!("python{suffix}");
+                native_path(&executable)?;
+                fs::rename(stage.join(executable), stage.join(build_python_relative()))?;
             }
             validate_build_python(&stage.join(build_python_relative()), python, cython)?;
         }
@@ -411,8 +456,8 @@ pub(crate) fn build_python_relative() -> &'static str {
 }
 
 fn renpy_host_pin(name: &str) -> String {
-    if cfg!(target_os = "linux") {
-        format!("{name}-linux")
+    if !cfg!(windows) {
+        format!("{name}-posix")
     } else {
         name.into()
     }
@@ -494,6 +539,183 @@ fn git_archive(repo: &str, rev: &str, sha: &str, out: &Path) -> Result<()> {
     Ok(())
 }
 
+fn renpy_android_root(inv: &Inventory, target: &str) -> Result<PathBuf> {
+    let recipe = inv
+        .core("renpy")?
+        .source_directory(&inv.root)?
+        .join("shinki");
+    let builder = package::sha256(&recipe.join("android_runtime.py"))?;
+    let patch = package::sha256(&recipe.join("android/SDL2-offscreen-default-display.patch"))?;
+    let sdk = package::sha256(&recipe.join("sdk.json"))?;
+    let python = package::sha256(&recipe.join("../licenses/renpy/python-sources.json"))?;
+    Ok(inv
+        .root
+        .join(".work/native-downloads/renpy-android")
+        .join(target)
+        .join(format!(
+            "{}-{}-{}-{}",
+            &builder[..12],
+            &patch[..12],
+            &sdk[..12],
+            &python[..12]
+        )))
+}
+
+fn validate_renpy_android(inv: &Inventory, target: &str, root: &Path) -> Result<()> {
+    let receipt: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.join("runtime.json")).with_context(|| {
+            format!("target Ren'Py runtime receipt missing: {}", root.display())
+        })?)?;
+    let recipe = inv
+        .core("renpy")?
+        .source_directory(&inv.root)?
+        .join("shinki");
+    let sdk: serde_json::Value = serde_json::from_slice(&fs::read(recipe.join("sdk.json"))?)?;
+    if receipt["target"] != target
+        || receipt["renpy_build"] != sdk["android"]["renpy_build"]
+        || receipt["renpy_source"] != sdk["source_revision"]
+        || receipt["ndk_sha256"] != sdk["android"]["ndk_sha256"]
+    {
+        bail!(
+            "target Ren'Py runtime provenance mismatch: {}",
+            root.display()
+        );
+    }
+    for (key, relative) in [
+        ("builder_sha256", "android_runtime.py"),
+        (
+            "sdl_patch_sha256",
+            "android/SDL2-offscreen-default-display.patch",
+        ),
+        ("sdk_sha256", "sdk.json"),
+        (
+            "python_sources_sha256",
+            "../licenses/renpy/python-sources.json",
+        ),
+    ] {
+        if receipt[key].as_str() != Some(package::sha256(&recipe.join(relative))?.as_str()) {
+            bail!("target Ren'Py runtime recipe mismatch: {relative}");
+        }
+    }
+    for (name, sha) in receipt["archives"]
+        .as_object()
+        .context("Ren'Py runtime archive hashes")?
+    {
+        package::portable(name)?;
+        if sha.as_str() != Some(package::sha256(&root.join("lib").join(name))?.as_str()) {
+            bail!("target Ren'Py runtime archive hash mismatch: {name}");
+        }
+    }
+    for relative in [
+        "include/python3.12/Python.h",
+        "include/python3.12/pyconfig.h",
+        "include/SDL2/SDL.h",
+        "include/shinki-renpy-symbols.h",
+        "lib/libpython3.12.a",
+        "lib/librenpy.a",
+        "lib/libSDL2.a",
+        "lib/pkgconfig/shinki-renpy-runtime.pc",
+        "LICENSE-CPython.txt",
+        "LICENSE-Cubism-Headers.md",
+        "Resources/lib/python3.12/encodings/__init__.py",
+    ] {
+        if !root.join(relative).is_file() {
+            bail!(
+                "target Ren'Py runtime input missing: {}",
+                root.join(relative).display()
+            );
+        }
+    }
+    let sysconfig = root
+        .join("Resources/lib")
+        .join(target)
+        .join("python3.12/_sysconfigdata__linux_.py");
+    if !sysconfig.is_file() {
+        bail!(
+            "target Ren'Py sysconfig input missing: {}",
+            sysconfig.display()
+        );
+    }
+    Ok(())
+}
+
+fn prepare_renpy_android(inv: &Inventory, target: &str) -> Result<()> {
+    let root = renpy_android_root(inv, target)?;
+    if root.exists() {
+        return validate_renpy_android(inv, target, &root);
+    }
+    let recipe = inv
+        .core("renpy")?
+        .source_directory(&inv.root)?
+        .join("shinki");
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        bail!(
+            "Android Ren'Py needs target archives built on Ubuntu 24.04 x64: run {} --build-root <official-renpy-build> --target {target} --output {} on that host, then transfer that complete output here",
+            recipe.join("android_runtime.py").display(),
+            root.display()
+        );
+    }
+    let sdk: serde_json::Value = serde_json::from_slice(&fs::read(recipe.join("sdk.json"))?)?;
+    if sdk["android"]["renpy_build"] != crate::sources::RENPY_BUILD_PIN {
+        bail!("Ren'Py Android recipe and corresponding-source build pins disagree");
+    }
+    let build = inv.root.join(".work/renpy-build");
+    let source = build.join("renpy");
+    if !source.exists() {
+        run(Command::new("git")
+            .args([
+                "clone",
+                "--no-checkout",
+                "https://github.com/renpy/renpy.git",
+            ])
+            .arg(&source))?;
+        run(Command::new("git")
+            .arg("-C")
+            .arg(&source)
+            .args(["checkout", "--detach"])
+            .arg(
+                sdk["source_revision"]
+                    .as_str()
+                    .context("Ren'Py Android source revision")?,
+            ))?;
+    }
+    fs::create_dir_all(build.join("tars"))?;
+    download(
+        sdk["android"]["ndk_url"]
+            .as_str()
+            .context("Ren'Py Android NDK URL")?,
+        sdk["android"]["ndk_sha256"]
+            .as_str()
+            .context("Ren'Py Android NDK SHA256")?,
+        &build.join("tars/android-ndk-r29-linux.zip"),
+    )?;
+    download(
+        sdk["android"]["cubism_url"]
+            .as_str()
+            .context("Ren'Py Cubism header SDK URL")?,
+        sdk["android"]["cubism_sha256"]
+            .as_str()
+            .context("Ren'Py Cubism header SDK SHA256")?,
+        &build.join("tars/CubismSdkForNative-4-r.6.2.zip"),
+    )?;
+    let python = executable("python3").context("official Ren'Py Android builds require Python 3 with Jinja2 and the upstream Ubuntu build prerequisites")?;
+    run(Command::new(python)
+        .env("PYTHONDONTWRITEBYTECODE", "1")
+        .arg(recipe.join("android_runtime.py"))
+        .arg("--build-root")
+        .arg(build)
+        .args(["--target", target])
+        .arg("--output")
+        .arg(&root)
+        .arg("--host-python")
+        .arg(
+            inv.root
+                .join(".work/native-downloads/python")
+                .join(build_python_relative()),
+        ))?;
+    validate_renpy_android(inv, target, &root)
+}
+
 fn prepare_native_inputs(inv: &Inventory, lock: &Lock, selected: NativeNeeds) -> Result<()> {
     let get = |name: &str| {
         lock.native
@@ -514,8 +736,8 @@ fn prepare_native_inputs(inv: &Inventory, lock: &Lock, selected: NativeNeeds) ->
         }
     }
     if selected.renpy {
-        if !cfg!(any(windows, target_os = "linux")) {
-            bail!("RenPy's pinned build interpreter requires a Windows or Linux x64 host");
+        if !cfg!(any(windows, target_os = "linux", target_os = "macos")) {
+            bail!("RenPy's pinned build interpreter requires a Windows, Linux or macOS host");
         }
         crate::sources::prepare_renpy_build(inv)?;
         for inventory in ["python-sources.json", "native-sources.json"] {
@@ -567,6 +789,8 @@ fn prepare_native_inputs(inv: &Inventory, lock: &Lock, selected: NativeNeeds) ->
         )?;
         let (runtime_key, runtime_dir) = if cfg!(windows) {
             ("windows_x86_64", "lib/py3-windows-x86_64")
+        } else if cfg!(target_os = "macos") {
+            ("mac_universal", "lib/py3-mac-universal")
         } else {
             ("linux_x86_64", "lib/py3-linux-x86_64")
         };
@@ -578,23 +802,30 @@ fn prepare_native_inputs(inv: &Inventory, lock: &Lock, selected: NativeNeeds) ->
                 bail!("official RenPy SDK runtime hash mismatch: {name}");
             }
         }
+        let mut python_layers = vec![
+            NativeLayer {
+                archive: python,
+                destination: "",
+            },
+            NativeLayer {
+                archive: cython,
+                destination: if cfg!(windows) {
+                    "Lib/site-packages"
+                } else {
+                    "Lib"
+                },
+            },
+        ];
+        if cfg!(target_os = "macos") {
+            python_layers.push(NativeLayer {
+                archive: get("renpy-host-openssl")?,
+                destination: "build-openssl",
+            });
+        }
         prepare_native_tree(
             &inv.root,
             "python",
-            &[
-                NativeLayer {
-                    archive: python,
-                    destination: "",
-                },
-                NativeLayer {
-                    archive: cython,
-                    destination: if cfg!(windows) {
-                        "Lib/site-packages"
-                    } else {
-                        "Lib"
-                    },
-                },
-            ],
+            &python_layers,
             Some((&python.version, &cython.version)),
         )?;
         prepare_native_tree(
@@ -766,13 +997,8 @@ pub fn doctor(inv: &Inventory, target: &str, core: Option<&str>) -> Result<()> {
         if selected.bison {
             paths.push(inv.root.join(".work/bison/win_bison.exe"));
         }
-        if selected.native_vcpkg {
-            paths.push(
-                inv.root
-                    .join(".work/native-vcpkg")
-                    .join(core.context("native core id")?)
-                    .join("installed/vcpkg/status"),
-            );
+        for native in native_cores(inv, target, core.unwrap_or("manager")) {
+            paths.push(native_install(inv, target, &native.id)?.join("vcpkg/status"));
         }
         for p in paths {
             if !p.is_file() {
@@ -921,6 +1147,8 @@ pub fn doctor(inv: &Inventory, target: &str, core: Option<&str>) -> Result<()> {
                 "RENPY_SDK_ROOT",
                 base.join(if cfg!(windows) {
                     "renpy-sdk/lib/py3-windows-x86_64/libpython3.12.dll"
+                } else if cfg!(target_os = "macos") {
+                    "renpy-sdk/lib/py3-mac-universal/librenpython.dylib"
                 } else {
                     "renpy-sdk/lib/py3-linux-x86_64/librenpython.so"
                 }),
@@ -967,6 +1195,12 @@ pub fn doctor(inv: &Inventory, target: &str, core: Option<&str>) -> Result<()> {
             }
         } else {
             missing.push("CPython/Cython dependency pins".into());
+        }
+        if target.ends_with("-linux-android")
+            && let Err(error) =
+                validate_renpy_android(inv, target, &renpy_android_root(inv, target)?)
+        {
+            missing.push(error.to_string());
         }
     }
     if !missing.is_empty() {
@@ -1157,6 +1391,14 @@ pub fn subtitle_install(inv: &Inventory, target: &str) -> Result<PathBuf> {
             .join("installed")
             .join(l.subtitle_windows_triplet)
     })
+}
+
+pub(crate) fn native_install(inv: &Inventory, target: &str, core: &str) -> Result<PathBuf> {
+    Ok(shinki_emu_build::native_vcpkg_install_root(
+        &inv.root.join(".work/native-vcpkg"),
+        core,
+        &native_triplet(inv, target)?,
+    ))
 }
 
 pub(crate) fn native_triplet(inv: &Inventory, target: &str) -> Result<String> {
@@ -1405,6 +1647,9 @@ pub fn apply_environment(
                 base.join("cython-license/LICENSE.txt"),
             )
             .env("PYTHONDONTWRITEBYTECODE", "1");
+        if target.ends_with("-linux-android") {
+            cmd.env("RENPY_STATIC_ROOT", renpy_android_root(inv, target)?);
+        }
     }
     if crate::apple::supported(target) && selected.subtitle {
         // Apple triplets statically link the complete libass closure, including
@@ -1423,7 +1668,7 @@ pub fn apply_environment(
             .env("PKG_CONFIG_ALL_STATIC", "1")
             .env("PKG_CONFIG_LIBDIR", subtitle.join("lib/pkgconfig"));
     }
-    if target == "x86_64-unknown-linux-gnu" && selected.bison {
+    if !target.contains("windows") && selected.bison {
         cmd.env(
             "BISON_EXECUTABLE",
             executable("bison").context("Linux Bison is missing")?,
@@ -1518,26 +1763,29 @@ pub fn apply_environment(
             )?,
         );
     }
-    if component != "manager" && inv.core(component)?.artifact_kind == "native-shared" {
+    if selected.native_vcpkg || selected.renpy {
+        cmd.env_remove("SHINKI_EMU_VCPKG_INSTALLED")
+            .env(
+                "SHINKI_EMU_NATIVE_VCPKG_ROOT",
+                inv.root.join(".work/native-vcpkg"),
+            )
+            .env("SHINKI_EMU_VCPKG_TRIPLET", native_triplet(inv, target)?)
+            .env(
+                "SHINKI_EMU_NATIVE_DOWNLOADS",
+                inv.root.join(".work/native-downloads"),
+            );
         if selected.native_vcpkg {
             cmd.env("VCPKG_ROOT", inv.root.join(".work/vcpkg"));
-        }
-        cmd.env(
-            "SHINKI_EMU_NATIVE_DOWNLOADS",
-            inv.root.join(".work/native-downloads"),
-        );
-        let installed = inv
-            .root
-            .join(".work/native-vcpkg")
-            .join(component)
-            .join("installed");
-        if installed.is_dir() {
-            cmd.env("SHINKI_EMU_VCPKG_INSTALLED", installed)
-                .env("SHINKI_EMU_VCPKG_TRIPLET", native_triplet(inv, target)?);
+            if component != "manager" {
+                cmd.env(
+                    "SHINKI_EMU_VCPKG_INSTALLED",
+                    native_install(inv, target, component)?,
+                );
+            }
         }
     }
     if (crate::apple::supported(target) || target.contains("android") || target.ends_with("ohos"))
-        && (selected.ffmpeg || selected.subtitle)
+        && (selected.ffmpeg || selected.subtitle || selected.native_vcpkg || selected.renpy)
     {
         let mut paths = Vec::new();
         if selected.ffmpeg {
@@ -1546,6 +1794,15 @@ pub fn apply_environment(
         }
         if selected.subtitle {
             paths.push(subtitle.join("lib/pkgconfig"));
+        }
+        for native in native_cores(inv, target, component) {
+            let installation =
+                native_install(inv, target, &native.id)?.join(native_triplet(inv, target)?);
+            paths.push(installation.join("lib/pkgconfig"));
+            paths.push(installation.join("share/pkgconfig"));
+        }
+        if selected.renpy && target.ends_with("-linux-android") {
+            paths.push(renpy_android_root(inv, target)?.join("lib/pkgconfig"));
         }
         // Both private closures are static. Never discover host/Homebrew .pc files.
         for var in [
@@ -1776,12 +2033,21 @@ pub fn prepare(
 ) -> Result<()> {
     let target_spec = inv.target(target)?;
     if let Some(core) = core {
-        inv.require_supported(core, target)?;
+        if inv
+            .core(core)?
+            .static_manager_targets
+            .iter()
+            .any(|triple| triple == target)
+        {
+            inv.require_supported("manager", target)?;
+        } else {
+            inv.require_supported(core, target)?;
+        }
     }
     let selected = needs(inv, target, core.unwrap_or("manager"))?;
     if crate::apple::supported(target) {
         crate::apple::preflight(target)?;
-        if (selected.subtitle || selected.ffmpeg || selected.native_vcpkg)
+        if (selected.subtitle || selected.ffmpeg || selected.native_vcpkg || selected.renpy)
             && !cfg!(target_os = "macos")
         {
             bail!("Apple native dependency preparation requires a native macOS host with Xcode");
@@ -1796,8 +2062,19 @@ pub fn prepare(
     if let Some(id) = core {
         crate::sources::prepare(inv, inv.core(id)?, allow_dirty_sources)?;
     }
+    if core.is_none() {
+        for embedded in inv.cores.iter().filter(|entry| {
+            entry
+                .static_manager_targets
+                .iter()
+                .any(|triple| triple == target)
+                && entry.source.is_some()
+        }) {
+            crate::sources::prepare(inv, embedded, allow_dirty_sources)?;
+        }
+    }
     if crate::apple::supported(target)
-        && !(selected.subtitle || selected.ffmpeg || selected.native_vcpkg)
+        && !(selected.subtitle || selected.ffmpeg || selected.native_vcpkg || selected.renpy)
     {
         return doctor(inv, target, core);
     }
@@ -1808,6 +2085,9 @@ pub fn prepare(
     }
     let pins = lock(inv)?;
     prepare_native_inputs(inv, &pins, selected)?;
+    if selected.renpy && target_spec.platform == "android" {
+        prepare_renpy_android(inv, target)?;
+    }
     if selected.dxc {
         dxc(inv)?;
     }
@@ -1963,8 +2243,7 @@ pub fn prepare(
     if selected.ffmpeg {
         prepare_ffmpeg(inv, target, &binary)?;
     }
-    if selected.native_vcpkg {
-        let native = inv.core(core.context("native core selection missing")?)?;
+    for native in native_cores(inv, target, core.unwrap_or("manager")) {
         let source = inv
             .root
             .join(native.manifest.components().take(2).collect::<PathBuf>());
@@ -1974,11 +2253,7 @@ pub fn prepare(
                 source.display()
             );
         }
-        let installed = inv
-            .root
-            .join(".work/native-vcpkg")
-            .join(&native.id)
-            .join("installed");
+        let installed = native_install(inv, target, &native.id)?;
         let mut command = vcpkg_install_command(inv, &binary)?;
         command
             .arg("--x-wait-for-lock")

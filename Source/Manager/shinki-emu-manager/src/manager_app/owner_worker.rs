@@ -271,10 +271,19 @@ const STATIC_CORES: &[(&str, shinki_emu_abi::Query)] = &[
     ("rfvp", shinki_emu_rfvp::shinki_emu_query),
     #[cfg(any(target_os = "android", target_os = "ios"))]
     ("siglus_rs", shinki_emu_siglus_rs::query),
-    #[cfg(any(target_os = "android", target_env = "ohos"))]
     ("shinki.emu.musica", shinki_emu_musica::musica_query),
     #[cfg(target_os = "android")]
     ("art3m1s-core", shinki_emu_art3m1s_core::artemis_query),
+    #[cfg(target_os = "android")]
+    ("impacto", shinki_emu_impacto::shinki_emu_query),
+    #[cfg(target_os = "android")]
+    ("renpy", shinki_emu_renpy::query),
+    #[cfg(target_os = "ios")]
+    ("sena-rs", shinki_emu_sena_rs::shinki_emu_query),
+    #[cfg(target_os = "ios")]
+    ("ethornell-rs", shinki_emu_ethornell_rs::shinki_emu_query),
+    #[cfg(target_os = "ios")]
+    ("ReMinori", shinki_emu_ReMinori::shinki_emu_query),
 ];
 
 fn initialize(
@@ -282,6 +291,21 @@ fn initialize(
     directories: &[PathBuf],
     progress: &mut dyn FnMut(usize, usize),
 ) -> Result<BTreeMap<String, String>, String> {
+    #[cfg(target_os = "android")]
+    {
+        let resources = crate::platform::bundled_resource_dir()
+            .ok_or("SHINKI_EMU_DATA_DIRECTORY_UNAVAILABLE")?
+            .join("cores/renpy/Resources");
+        let path = resources.to_str().ok_or("RENPY_RESOURCE_ROOT_ENCODING")?;
+        let mut error = shinki_emu_abi::Error::default();
+        let status = shinki_emu_renpy::set_resource_root(path, &mut error);
+        if status != shinki_emu_abi::OK {
+            return Err(format!(
+                "RENPY_RESOURCE_ROOT ({status}): {}",
+                String::from_utf8_lossy(&error.message[..error.message_len as usize])
+            ));
+        }
+    }
     #[cfg(any(target_os = "android", target_os = "ios", target_env = "ohos"))]
     for (id, query) in STATIC_CORES {
         unsafe { registry.register_static(*query) }.map_err(|error| error.to_string())?;

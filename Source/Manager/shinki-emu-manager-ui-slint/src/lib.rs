@@ -159,12 +159,21 @@ pub struct GameCardViewModel {
     pub compat: String,
 }
 
+/// A VNDB release, selected by its stable release id rather than its title.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReleaseViewModel {
+    pub release_id: String,
+    pub title: String,
+    pub platforms: Vec<String>,
+    pub released: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SelectionViewModel {
     pub game: SelectedGameViewModel,
     pub emulator_choices: Vec<ChoiceViewModel>,
     pub compat: CompatViewModel,
-    pub releases: Vec<ChoiceViewModel>,
+    pub releases: Vec<ReleaseViewModel>,
     pub pinned_release: String,
     /// Other installed copies linked to the same VNDB work: `(game id, version label)`.
     pub other_versions: Vec<ChoiceViewModel>,
@@ -173,6 +182,8 @@ pub struct SelectionViewModel {
     pub bangumi_summary: String,
     pub metadata_busy: bool,
     pub metadata_status: String,
+    /// Request state, independent of the localized status message.
+    pub metadata_error: bool,
     pub matches: Vec<MatchViewModel>,
 }
 

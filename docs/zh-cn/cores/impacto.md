@@ -13,6 +13,13 @@ description: impacto 的格式、原生行为与限制。
 
 impacto 保留 MAGES SC3 VM、原生资源 reader 和游戏专用配置。C++ 接入仍位于 `src/shinki`，Cargo/CMake 构建入口位于 `shinki`。OpenGL 合成、OpenAL 音频、FFmpeg 影片、游戏 UI 和存档继续由原生引擎执行。
 
+### Android Manager 静态接入
+
+Android 构建将适配层静态链接到 Manager，覆盖 `arm64-v8a` 和 `x86_64`，不单独安装动态核心。包内的 profile、着色器和资源位于 `cores/impacto/Resources`。`resources_root` 为空时使用解包后的资源目录，用户显式指定的路径保持不变。
+
+打包资源以流式写入应用私有目录，单文件上限为 32 MiB，可容纳上游 17,032,620 字节的 Noto CJK 粗体字库，无需分配与整个字库同大的内存。
+
+内置 minilua 的函数及 `lua_ident` 数据符号使用 `shinki_impacto_` 前缀，与 Manager 的 Luau VM 隔离。原生依赖按 ABI 分开安装。构建、APK 依赖闭包与签名检查不代表设备或游戏验收。
 ## 存储
 
 `userconfig.toml` 保留在 Impacto 的平台偏好目录。Windows 路径为 `%APPDATA%/Committee of Zero/Impacto`。当前 CC profile 将 `SaveDataType` 设为 `None`，没有 profile 存档格式或存档文件；后续支持原生存档的 profile 继续使用上游定义的位置。

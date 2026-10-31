@@ -236,10 +236,10 @@ fn install_patch<C: ManagerController>(
         let done: platform::PickDone =
             Box::new(move |picked| w.run(|c| c.set_patch_directory(kind.as_str(), &picked?)));
         if output {
-            // A folder picker only returns existing directories; the platform names
-            // a new one, which the conversion creates.
+            // The native folder UI selects the parent. The proposed child is
+            // shown in output_directory and created by the patch transaction.
             platform::pick_new_directory(
-                tr!("选择尚不存在的新输出目录名称"),
+                tr!("选择输出位置（将在其中新建转换目录）"),
                 "localized-output",
                 done,
             );

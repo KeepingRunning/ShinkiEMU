@@ -28,6 +28,17 @@ pub enum MetadataCommand {
         #[arg(long, default_value = "Metadata")]
         root: PathBuf,
     },
+    /// Resolve an installable published core without downloading or publishing it.
+    ResolveCore {
+        #[arg(long)]
+        plugin_id: String,
+        #[arg(long)]
+        platform: String,
+        #[arg(long)]
+        abi: String,
+        #[arg(long, default_value = "Metadata")]
+        root: PathBuf,
+    },
     Intake {
         #[arg(long, value_enum)]
         kind: IntakeKind,
@@ -53,6 +64,20 @@ pub fn run(cmd: MetadataCommand) -> Result<()> {
         }
         MetadataCommand::Validate { root } => {
             collect(&root, 0, true)?;
+            Ok(())
+        }
+        MetadataCommand::ResolveCore {
+            plugin_id,
+            platform,
+            abi,
+            root,
+        } => {
+            let files = collect(&root, 0, true)?;
+            let catalog = parse_core_catalog(&files["cores-v2.json"])?;
+            let entry = catalog
+                .latest(&plugin_id, &platform, &abi)
+                .context("no published core matches plugin/platform/ABI")?;
+            println!("{}", serde_json::to_string(entry)?);
             Ok(())
         }
         MetadataCommand::Build { out, root } => {
@@ -171,6 +196,27 @@ fn entries<T: DeserializeOwned>(root: &Path, dir: &str) -> Result<Vec<(String, T
         })
         .collect()
 }
+/// Reject counter reuse/rollback before producing a new external release.
+pub(crate) fn require_release_sequence(
+    root: &Path,
+    component: &str,
+    identity: &CoreIdentity,
+) -> Result<()> {
+    let version = identity.version();
+    for (_, entry) in entries::<CoreCatalogEntry>(root, "engines/cores")? {
+        entry.validate()?;
+        if entry.plugin_id != component {
+            continue;
+        }
+        if let Some(previous) = &entry.identity {
+            ensure!(
+                entry.version == version || identity.release_sequence > previous.release_sequence,
+                "external release_sequence must increase beyond every previously published identity for {component}"
+            );
+        }
+    }
+    Ok(())
+}
 fn compat_path(e: &CompatibilityEntry) -> String {
     format!(
         "compatibility/entries/{}/{}/{}/{}-{}-{}.json",
@@ -214,6 +260,22 @@ fn collect(root: &Path, timestamp: i64, schemas: bool) -> Result<BTreeMap<String
         compatibility.entries.push(e);
     }
     compatibility.validate()?;
+    let legacy_compatibility = CompatibilityDatabase {
+        schema: LEGACY_COMPATIBILITY_SCHEMA_VERSION.into(),
+        generated_at_unix_ms: timestamp,
+        entries: compatibility
+            .entries
+            .iter()
+            .filter(|entry| {
+                entry
+                    .emulator_version
+                    .as_deref()
+                    .is_none_or(|version| version.chars().count() <= 64)
+            })
+            .cloned()
+            .collect(),
+    };
+    legacy_compatibility.validate()?;
     let mut presets = PresetDatabase {
         schema: PRESET_DATABASE_SCHEMA_VERSION.into(),
         entries: Vec::new(),
@@ -257,6 +319,16 @@ fn collect(root: &Path, timestamp: i64, schemas: bool) -> Result<BTreeMap<String
         cores.entries.push(c);
     }
     cores.validate()?;
+    let legacy_cores = CoreCatalog {
+        schema: LEGACY_CORE_CATALOG_SCHEMA_VERSION.into(),
+        entries: cores
+            .entries
+            .iter()
+            .filter(|entry| entry.identity.is_none())
+            .cloned()
+            .collect(),
+    };
+    legacy_cores.validate()?;
     let mut patches = PatchCatalog {
         schema: PATCH_CATALOG_SCHEMA_VERSION.into(),
         entries: Vec::new(),
@@ -284,9 +356,11 @@ fn collect(root: &Path, timestamp: i64, schemas: bool) -> Result<BTreeMap<String
     }
     let recipes: Vec<Value> = patches.entries.iter().filter_map(|p| p.recipe.as_ref().map(|r| json!({"id":p.id,"title":p.title["zh-CN"],"script":r.script,"vn_ids":p.vn_ids,"emulators":p.emulators}))).collect();
     let mut files = BTreeMap::from([
-        ("compatibility.json".into(), pretty(&compatibility)?),
+        ("compatibility.json".into(), pretty(&legacy_compatibility)?),
+        ("compatibility-v5.json".into(), pretty(&compatibility)?),
         ("presets.json".into(), pretty(&presets)?),
-        ("cores.json".into(), pretty(&cores)?),
+        ("cores.json".into(), pretty(&legacy_cores)?),
+        ("cores-v2.json".into(), pretty(&cores)?),
         ("patches.json".into(), pretty(&patches)?),
         ("patches/catalog.json".into(), pretty(&recipes)?),
     ]);
@@ -573,6 +647,68 @@ mod tests {
                 .unwrap()
                 .timestamp_millis()
         );
+    }
+    #[test]
+    fn dual_catalog_keeps_published_downloads_and_adds_typed_release() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let published = collect(&repository.join("Metadata"), 0, false).unwrap();
+        let existing = parse_core_catalog(&published["cores.json"]).unwrap();
+        let old = existing
+            .entries
+            .iter()
+            .find(|entry| entry.plugin_id == "rfvp")
+            .expect("published RFVP")
+            .clone();
+        let inventory = crate::cores::Inventory::load(repository).unwrap();
+        let identity = inventory
+            .core("rfvp")
+            .unwrap()
+            .source
+            .as_ref()
+            .unwrap()
+            .identity();
+        let mut new = old.clone();
+        new.version = identity.version();
+        new.release_tag = format!("core-rfvp-{}", new.version);
+        new.url = format!("{CORE_RELEASE_URL_PREFIX}{}/core.zip", new.release_tag);
+        new.identity = Some(identity);
+        let temp = tempfile::tempdir().unwrap();
+        root(temp.path());
+        for entry in [&old, &new] {
+            let path = temp.path().join(format!(
+                "engines/cores/{}/{}/{}.json",
+                entry.plugin_id, entry.platform, entry.version
+            ));
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, pretty(entry).unwrap()).unwrap();
+        }
+        let report: CompatibilityEntry = serde_json::from_value(json!({
+            "vn_id":"v1","release_id":"r1","emulator":"rfvp","status":"boot_only",
+            "emulator_version":new.version,"platform":"windows","architecture":"x86_64",
+            "variant":"desktop","updated_at_unix_ms":0
+        }))
+        .unwrap();
+        let report_path = temp.path().join(compat_path(&report));
+        fs::create_dir_all(report_path.parent().unwrap()).unwrap();
+        fs::write(report_path, pretty(&report).unwrap()).unwrap();
+        let files = collect(temp.path(), 0, true).unwrap();
+        let legacy = parse_core_catalog(&files["cores.json"]).unwrap();
+        assert_eq!(legacy.schema, LEGACY_CORE_CATALOG_SCHEMA_VERSION);
+        assert_eq!(legacy.entries, vec![old.clone()]);
+        let modern = parse_core_catalog(&files["cores-v2.json"]).unwrap();
+        assert_eq!(modern.entries.len(), 2);
+        assert_eq!(modern.latest("rfvp", &old.platform, &old.abi), Some(&new));
+        assert!(modern.entries.contains(&old));
+        let modern_reports = parse_compatibility_database(&files["compatibility-v5.json"]).unwrap();
+        assert_eq!(modern_reports.entries, vec![report]);
+        let legacy_reports = parse_compatibility_database(&files["compatibility.json"]).unwrap();
+        assert_eq!(legacy_reports.schema, LEGACY_COMPATIBILITY_SCHEMA_VERSION);
+        assert!(legacy_reports.entries.is_empty());
+        let mut adapter_update = new.identity.clone().unwrap();
+        adapter_update.adapter.commit = "f".repeat(40);
+        assert!(require_release_sequence(temp.path(), "rfvp", &adapter_update).is_err());
+        adapter_update.release_sequence += 1;
+        require_release_sequence(temp.path(), "rfvp", &adapter_update).unwrap();
     }
     #[test]
     fn deterministic_snapshot_and_existing_output_protection() {

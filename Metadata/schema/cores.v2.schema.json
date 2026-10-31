@@ -1,0 +1,188 @@
+{
+  "$defs": {
+    "AdapterIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^(?!.*\\.\\.)(?!.*@\\{)[A-Za-z0-9._+/-]+$",
+          "type": "string"
+        },
+        "commit": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "repo": {
+          "pattern": "^https://github\\.com/Project-Shinkirou/[A-Za-z0-9._-]{1,100}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo",
+        "branch",
+        "commit"
+      ],
+      "type": "object"
+    },
+    "CoreCatalogEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "abi": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "display_name": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "family_name": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "identity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CoreIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "license": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "platform": {
+          "pattern": "^[a-z0-9_]{1,32}-[a-z0-9_]{1,32}$",
+          "type": "string"
+        },
+        "plugin_id": {
+          "pattern": "^[A-Za-z0-9._-]{1,128}$",
+          "type": "string"
+        },
+        "release_tag": {
+          "pattern": "^[A-Za-z0-9._+-]{1,128}$",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "size": {
+          "format": "uint64",
+          "maximum": 536870912,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "url": {
+          "pattern": "^https://github\\.com/Project-Shinkirou/ShinkiEMU/releases/download/[A-Za-z0-9._+-]+/[A-Za-z0-9._+-]+$",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 88,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "plugin_id",
+        "display_name",
+        "family_name",
+        "version",
+        "abi",
+        "platform",
+        "url",
+        "sha256",
+        "size",
+        "license",
+        "release_tag"
+      ],
+      "type": "object"
+    },
+    "CoreIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "$ref": "#/$defs/AdapterIdentity"
+        },
+        "release_sequence": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "upstream": {
+          "$ref": "#/$defs/UpstreamIdentity"
+        }
+      },
+      "required": [
+        "upstream",
+        "adapter",
+        "release_sequence"
+      ],
+      "type": "object"
+    },
+    "UpstreamIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "commit": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "ref_kind": {
+          "$ref": "#/$defs/UpstreamRefKind"
+        },
+        "ref_name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^(?!.*\\.\\.)(?!.*@\\{)[A-Za-z0-9._+/-]+$",
+          "type": "string"
+        },
+        "repo": {
+          "pattern": "^https://github\\.com/[A-Za-z0-9._-]{1,100}/[A-Za-z0-9._-]{1,100}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo",
+        "ref_kind",
+        "ref_name",
+        "commit"
+      ],
+      "type": "object"
+    },
+    "UpstreamRefKind": {
+      "enum": [
+        "tag",
+        "branch"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/CoreCatalogEntry"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "pattern": "^shinki\\.emu\\.cores\\.v[12]$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "entries"
+  ],
+  "title": "CoreCatalog",
+  "type": "object"
+}

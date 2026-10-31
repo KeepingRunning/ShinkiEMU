@@ -26,6 +26,27 @@ Only C-layout values cross the boundary: versioned headers, bounded borrowed spa
 
 Ordinary ABI calls are serialized on the host's owner thread. The core's native owner drives its own VM, render/audio scheduling and resource lifetimes. Manager supplies input, control and host services; there is no host advance callback. Cancellation and epoch checks reject late results from obsolete sessions or output generations.
 
+## Converted-game compatibility
+
+The existing `Descriptor.capabilities` mask has two optional semantic bits; ABI
+version 3, its C layout and fingerprint are unchanged:
+
+- `CAP_NATIVE_SCRIPT_IDENTITY` (64): validate an explicit converted-script hash,
+  isolate that script's saves/read state, and retain the existing namespace for
+  markerless games.
+- `CAP_CONFIGURED_FONT_PRIORITY` (128): a configured font takes priority over
+  authored/restored primary face choices, including ruby and UI text.
+
+A Luau recipe can return `required_capabilities = 192` beside `plugin_id` and
+`configuration` in its output profile. The receipt retains this requirement.
+Manager checks the selected, actually loaded core's `describe` result before
+adding an imported game or binding its profile, and again before opening a session.
+Automatic import also rejects a receipt whose requirements changed after conversion.
+Missing capabilities fail closed with a core-update diagnostic; unknown requirements
+reject the profile rather than being ignored. Version strings and filenames
+are not feature evidence. Legacy profiles omit the
+field and require zero bits; zero is also omitted from new serialized receipts.
+
 ## Text replacement levels
 
 The descriptor capability bits are the source of truth: no `CAP_TEXT_HOOK` means **none**; `CAP_TEXT_HOOK` alone means **synchronous**; `CAP_TEXT_HOOK | CAP_ASYNC_TEXT` means **async-v1**. `CAP_ASYNC_TEXT` without the hook bit is invalid. The nine pinned external cores currently declare none; external cores may adopt synchronous replacement without changing their scheduling model. Ownership defines SDK cores: Musica is SDK-owned; Artemis remains external despite using SDK audio. CMVS is maintained separately.
@@ -62,3 +83,5 @@ A package contains a directory named after the library stem:
 ```
 
 `core.json` uses `shinki.emu.core_package.v1` and records `plugin_id`, `library`, `version`, `abi` and file paths/SHA256 hashes. The file inventory includes every payload file except the manifest itself. Libraries require the new filename prefix and query symbol. Packaging validates architecture, dependency closure and licenses, rejects path traversal/links/case collisions, and publishes only to a new output directory. Manager verifies the package before installation; older product protocols and loader aliases are not accepted. See [Build and release](build-and-release.md).
+
+New external packages add `identity` with original upstream and organization adapter provenance; `version` must equal its computed safe identifier. Legacy packages omit it and retain their actual SemVer. New Manager checks catalog/package plugin, version and identity together before staging, and displays the complete upstream/adapter label. The C ABI and descriptor version remain independent. See [version identity rules](build-and-release.md#package-and-release).

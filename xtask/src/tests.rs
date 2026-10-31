@@ -110,6 +110,7 @@ fn result(temp: &Path) -> BuildResult {
                 dest: "licenses/fixture/LICENSE".into(),
             }],
         }),
+        embedded_core_builds: vec![],
         source_commit: "fixture".into(),
         source_dirty: false,
         toolchain: "rustc".into(),
@@ -132,6 +133,12 @@ fn paths_reject_traversal_ads_devices_and_collisions() {
         "CON.txt",
         "LPT1",
         "name.",
+        "name ",
+        " leading",
+        "CON .txt",
+        "LPT1 .txt",
+        "name\tfile",
+        "name\nfile",
         "x/../../a",
     ] {
         assert!(portable(bad).is_err(), "{bad}");
@@ -149,6 +156,29 @@ fn paths_reject_traversal_ads_devices_and_collisions() {
     );
     assert!(!out.exists());
     assert_eq!(fs::read_to_string(source).unwrap(), "original");
+}
+#[test]
+fn portable_resource_punctuation_survives_packaging() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source");
+    let bytes = b"<assembly>runtime resource</assembly>";
+    fs::write(&source, bytes).unwrap();
+    let names = [
+        "lib/python3.12/site-packages/setuptools/command/launcher manifest.xml",
+        "lib/python3.12/site-packages/setuptools/script (dev).tmpl",
+        "Resources/data/file #1 + (copy) [final].txt",
+    ];
+    let stage = temp.path().join("stage");
+    fs::create_dir(&stage).unwrap();
+    let entries = names.map(|name| (source.clone(), name.to_owned()));
+    copy_entries(&entries, &stage).unwrap();
+    let archive = temp.path().join("resources.zip");
+    zip_entries(&tree(&stage).unwrap(), &archive).unwrap();
+    let extracted = temp.path().join("extracted");
+    extract_zip(&archive, &extracted).unwrap();
+    for name in names {
+        assert_eq!(fs::read(extracted.join(name)).unwrap(), bytes);
+    }
 }
 #[test]
 fn atomic_publication_preserves_existing_and_racing_outputs_and_cleans_staging() {
@@ -273,6 +303,7 @@ fn staged_disk_set_hashes_and_deterministic_archive_match() {
     let dir = stage_core(
         &r,
         "1.0.0",
+        None,
         &t.path().join("out"),
         &[f._dir.path().to_owned()],
     )
@@ -331,6 +362,7 @@ fn unlisted_duplicate_and_missing_licenses_fail_without_output() {
         stage_core(
             &r,
             "1.0.0",
+            None,
             &t.path().join("no-license"),
             &[f._dir.path().to_owned()]
         )
@@ -341,6 +373,7 @@ fn unlisted_duplicate_and_missing_licenses_fail_without_output() {
     let dir = stage_core(
         &r,
         "1.0.0",
+        None,
         &t.path().join("out"),
         &[f._dir.path().to_owned()],
     )
@@ -380,6 +413,14 @@ fn reparse_input_is_rejected() {
     }
     assert!(tree(&link).is_err());
     assert!(plain(&link.join("file")).is_err());
+    assert!(
+        zip_entries(
+            &[(real.join("file"), "file".into())],
+            &link.join("package.zip")
+        )
+        .is_err()
+    );
+    assert!(!real.join("package.zip").exists());
 }
 #[cfg(unix)]
 #[test]
@@ -393,6 +434,14 @@ fn linked_parent_and_files_are_rejected() {
     symlink(&real, &link).unwrap();
     assert!(tree(&link).is_err());
     assert!(plain(&link.join("file")).is_err());
+    assert!(
+        zip_entries(
+            &[(real.join("file"), "file".into())],
+            &link.join("package.zip")
+        )
+        .is_err()
+    );
+    assert!(!real.join("package.zip").exists());
 }
 #[test]
 fn matrix_covers_each_core_and_target_without_accepting_unknown_keys() {
@@ -546,7 +595,14 @@ fn native_packages_include_dynamically_loaded_modules_and_validate_resource_bina
         dest: "Resources".into(),
     });
     let output = temp.path().join("complete");
-    let core = stage_core(&result, "1.0.0", &output, std::slice::from_ref(&native)).unwrap();
+    let core = stage_core(
+        &result,
+        "1.0.0",
+        None,
+        &output,
+        std::slice::from_ref(&native),
+    )
+    .unwrap();
     let manifest = verify_core(&core).unwrap();
     assert!(manifest.files.iter().any(|file| file.path == optional));
     assert!(
@@ -557,7 +613,7 @@ fn native_packages_include_dynamically_loaded_modules_and_validate_resource_bina
     );
     fs::write(resources.join(extension), b"invalid native extension").unwrap();
     let rejected = temp.path().join("rejected");
-    assert!(stage_core(&result, "1.0.0", &rejected, &[native]).is_err());
+    assert!(stage_core(&result, "1.0.0", None, &rejected, &[native]).is_err());
     assert!(!rejected.exists());
 }
 
@@ -580,9 +636,91 @@ fn output_nested_in_resource_inputs_is_rejected_without_modifying_sources() {
         });
     let output = resources.join("nested").join("output");
     let fixture = fixture();
-    assert!(stage_core(&result, "1.0.0", &output, &[fixture._dir.path().to_owned()]).is_err());
+    assert!(
+        stage_core(
+            &result,
+            "1.0.0",
+            None,
+            &output,
+            &[fixture._dir.path().to_owned()]
+        )
+        .is_err()
+    );
     assert!(!resources.join("nested").exists());
     assert_eq!(fs::read(&source).unwrap(), b"original public resource");
+}
+
+#[test]
+fn external_package_receipt_matches_exact_upstream_and_adapter_pins() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let inventory = Inventory::load(root).unwrap();
+    let source = inventory.core("rfvp").unwrap().source.as_ref().unwrap();
+    let identity = source.identity();
+    let temp = tempfile::tempdir().unwrap();
+    let fixture = fixture();
+    let mut receipt = result(temp.path());
+    receipt.source_commit = source.rev.clone();
+    let output = temp
+        .path()
+        .join(".work/release")
+        .join(format!("core-rfvp-{}", identity.version()))
+        .join("x86_64-pc-windows-msvc/package");
+    let staged = stage_core(
+        &receipt,
+        &identity.version(),
+        Some(&identity),
+        &output,
+        &[fixture._dir.path().to_owned()],
+    )
+    .unwrap();
+    let packaged = verify_core(&staged).unwrap();
+    assert_eq!(packaged.identity.as_ref(), Some(&identity));
+    assert_eq!(packaged.version, identity.version());
+    assert_eq!(
+        packaged.identity.as_ref().unwrap().adapter.commit,
+        receipt.source_commit
+    );
+    let archive = output.parent().unwrap().join(format!(
+        "shinki-emu-core-rfvp-{}-windows-x86_64.zip",
+        identity.version()
+    ));
+    zip_entries(&tree(&staged).unwrap(), &archive).unwrap();
+    let archive_hash = sha256(&archive).unwrap();
+    assert!(zip_entries(&tree(&staged).unwrap(), &archive).is_err());
+    assert_eq!(sha256(&archive).unwrap(), archive_hash);
+    let extracted = temp
+        .path()
+        .join("extracted")
+        .join(staged.file_name().unwrap());
+    extract_zip(&archive, &extracted).unwrap();
+    let extracted_manifest = verify_core(&extracted).unwrap();
+    assert_eq!(extracted_manifest.identity.as_ref(), Some(&identity));
+    assert_eq!(
+        sha256(&extracted.join(&extracted_manifest.library)).unwrap(),
+        sha256(&receipt.library).unwrap()
+    );
+    let mut changed = identity.clone();
+    changed.adapter.commit = "f".repeat(40);
+    assert!(
+        stage_core(
+            &receipt,
+            &changed.version(),
+            Some(&changed),
+            &temp.path().join("wrong-pin"),
+            &[]
+        )
+        .is_err()
+    );
+    assert!(
+        stage_core(
+            &receipt,
+            "0.1.0-beta.5",
+            Some(&identity),
+            &temp.path().join("false-version"),
+            &[]
+        )
+        .is_err()
+    );
 }
 
 // Public synthetic loader metadata, generated directly from the ELF64 format.
@@ -646,8 +784,7 @@ fn elf_dynamic_segments_resolve_needed_and_runpath_without_section_headers() {
     assert!(binary::inspect(&library, "x86_64-unknown-linux-gnu", false).is_err());
 }
 
-fn synthetic_macho(rpath: &str) -> Vec<u8> {
-    let dependency = b"@rpath/libmissing.dylib\0";
+fn synthetic_macho(dependency: &[u8], rpath: &str) -> Vec<u8> {
     let library_size = (24 + dependency.len() + 7) & !7;
     let rpath_size = (12 + rpath.len() + 1 + 7) & !7;
     let mut bytes = vec![0u8; 32 + library_size + rpath_size];
@@ -673,13 +810,84 @@ fn synthetic_macho(rpath: &str) -> Vec<u8> {
 fn macho_load_commands_require_relocatable_rpaths_and_a_complete_closure() {
     let temp = tempfile::tempdir().unwrap();
     let library = temp.path().join("libsynthetic.dylib");
-    fs::write(&library, synthetic_macho("@loader_path")).unwrap();
+    fs::write(
+        &library,
+        synthetic_macho(b"@rpath/libmissing.dylib\0", "@loader_path"),
+    )
+    .unwrap();
     let info = binary::inspect(&library, "x86_64-apple-darwin", false).unwrap();
     assert!(info.dependencies.contains("@rpath/libmissing.dylib"));
     assert!(info.rpaths.iter().any(|path| path == "@loader_path"));
     assert!(binary::closure(&library, &[], "x86_64-apple-darwin").is_err());
-    fs::write(&library, synthetic_macho("/developer/private")).unwrap();
+    fs::write(
+        &library,
+        synthetic_macho(b"@rpath/libmissing.dylib\0", "/developer/private"),
+    )
+    .unwrap();
     assert!(binary::inspect(&library, "x86_64-apple-darwin", false).is_err());
+}
+
+#[test]
+fn macho_runtime_bundles_keep_architecture_dependency_and_query_checks() {
+    let temp = tempfile::tempdir().unwrap();
+    let module = temp.path().join("display.so");
+    let mut bytes = synthetic_macho(b"@rpath/libpython3.12.dylib\0", "@loader_path");
+    bytes[12..16].copy_from_slice(&object::macho::MH_BUNDLE.0.to_le_bytes());
+    fs::write(&module, &bytes).unwrap();
+    let info = binary::inspect(&module, "x86_64-apple-darwin", false).unwrap();
+    assert!(info.dependencies.contains("@rpath/libpython3.12.dylib"));
+    assert!(binary::inspect(&module, "aarch64-apple-darwin", false).is_err());
+    assert!(binary::inspect(&module, "x86_64-apple-darwin", true).is_err());
+    assert!(binary::closure(&module, &[], "x86_64-apple-darwin").is_err());
+    let dependency = temp.path().join("libpython3.12.dylib");
+    fs::write(
+        &dependency,
+        synthetic_macho(b"/usr/lib/libSystem.B.dylib\0", "@loader_path"),
+    )
+    .unwrap();
+    assert_eq!(
+        binary::closure(&module, &[temp.path().into()], "x86_64-apple-darwin").unwrap(),
+        vec![dependency]
+    );
+    bytes[12..16].copy_from_slice(&object::macho::MH_OBJECT.0.to_le_bytes());
+    fs::write(&module, bytes).unwrap();
+    assert!(binary::inspect(&module, "x86_64-apple-darwin", false).is_err());
+}
+
+#[test]
+fn universal_macho_inspection_selects_and_bounds_checks_each_target_slice() {
+    let temp = tempfile::tempdir().unwrap();
+    let x86 = synthetic_macho(b"/usr/lib/libSystem.B.dylib\0", "@loader_path");
+    let mut arm = x86.clone();
+    arm[4..8].copy_from_slice(&object::macho::CPU_TYPE_ARM64.0.to_le_bytes());
+    let mut universal = Vec::new();
+    universal.extend_from_slice(&object::macho::FAT_MAGIC.to_be_bytes());
+    universal.extend_from_slice(&2u32.to_be_bytes());
+    for (cpu, subtype, offset, size) in [
+        (object::macho::CPU_TYPE_X86_64.0, 3, 48, x86.len() as u32),
+        (
+            object::macho::CPU_TYPE_ARM64.0,
+            0,
+            48 + x86.len() as u32,
+            arm.len() as u32,
+        ),
+    ] {
+        for word in [cpu, subtype, offset, size, 0] {
+            universal.extend_from_slice(&word.to_be_bytes());
+        }
+    }
+    universal.extend_from_slice(&x86);
+    universal.extend_from_slice(&arm);
+    let library = temp.path().join("universal.dylib");
+    fs::write(&library, &universal).unwrap();
+    for target in ["x86_64-apple-darwin", "aarch64-apple-darwin"] {
+        let info = binary::inspect(&library, target, false).unwrap();
+        assert!(info.dependencies.contains("/usr/lib/libSystem.B.dylib"));
+    }
+    assert!(binary::target_slice(&universal, object::Architecture::I386).is_err());
+    universal[40..44].copy_from_slice(&u32::MAX.to_be_bytes());
+    fs::write(&library, universal).unwrap();
+    assert!(binary::inspect(&library, "aarch64-apple-darwin", false).is_err());
 }
 
 #[test]

@@ -20,15 +20,31 @@ pub(super) fn pick_file(title: &str, filters: &[FileFilter<'_>], done: PickDone)
     }
 }
 
-/// A folder picker only returns existing directories; the save dialog names a
-/// new one, which the caller creates.
+/// Select the parent with the native folder UI, then propose an unused child.
+/// The patch transaction creates the child only when conversion succeeds.
 pub(super) fn pick_new_directory(title: &str, default_name: &str, done: PickDone) {
-    if let Some(path) = rfd::FileDialog::new()
-        .set_title(title)
-        .set_file_name(default_name)
-        .save_file()
-    {
-        done(Ok(path));
+    if let Some(parent) = rfd::FileDialog::new().set_title(title).pick_folder() {
+        done(new_directory_in(&parent, default_name));
+    }
+}
+
+fn new_directory_in(parent: &std::path::Path, default_name: &str) -> Result<PathBuf, String> {
+    let metadata =
+        std::fs::metadata(parent).map_err(|error| format!("SHINKI_EMU_PATCH_PATH: {error}"))?;
+    if !metadata.is_dir() {
+        return Err("SHINKI_EMU_PATCH_PATH: output location must be a directory".into());
+    }
+    let mut path = parent.join(default_name);
+    let mut suffix = 0u64;
+    loop {
+        match std::fs::symlink_metadata(&path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(path),
+            Err(error) => return Err(format!("SHINKI_EMU_PATCH_PATH: {error}")),
+            Ok(_) => {
+                suffix = suffix.checked_add(1).ok_or("SHINKI_EMU_PATCH_BOUNDS")?;
+                path = parent.join(format!("{default_name}-{suffix}"));
+            }
+        }
     }
 }
 
@@ -81,4 +97,49 @@ pub(super) fn open_path(path: &std::path::Path) -> Result<(), String> {
         .spawn()
         .map(drop)
         .map_err(|error| format!("SHINKI_EMU_OPEN_PATH_FAILED: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn empty_output_location_proposes_child_without_creating_it() {
+        let parent = tempfile::tempdir().unwrap();
+        let output = new_directory_in(parent.path(), "localized-output").unwrap();
+        assert_eq!(output, parent.path().join("localized-output"));
+        assert!(!output.exists());
+        assert_eq!(fs::read_dir(parent.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn occupied_output_names_are_preserved_and_skipped() {
+        let parent = tempfile::tempdir().unwrap();
+        fs::create_dir(parent.path().join("localized-output")).unwrap();
+        fs::write(parent.path().join("localized-output-1"), b"user file").unwrap();
+        fs::create_dir(parent.path().join("localized-output-2")).unwrap();
+        fs::write(parent.path().join("localized-output-2/keep"), b"user data").unwrap();
+        let output = new_directory_in(parent.path(), "localized-output").unwrap();
+        assert_eq!(output, parent.path().join("localized-output-3"));
+        assert!(!output.exists());
+        assert_eq!(fs::read_dir(parent.path()).unwrap().count(), 3);
+        assert_eq!(
+            fs::read(parent.path().join("localized-output-1")).unwrap(),
+            b"user file"
+        );
+        assert_eq!(
+            fs::read(parent.path().join("localized-output-2/keep")).unwrap(),
+            b"user data"
+        );
+    }
+
+    #[test]
+    fn file_cannot_be_used_as_output_location() {
+        let parent = tempfile::tempdir().unwrap();
+        let file = parent.path().join("file");
+        fs::write(&file, b"user file").unwrap();
+        assert!(new_directory_in(&file, "localized-output").is_err());
+        assert_eq!(fs::read(file).unwrap(), b"user file");
+    }
 }

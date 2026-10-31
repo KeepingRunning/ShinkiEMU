@@ -17,6 +17,7 @@ pub struct BuildResult {
     pub profile: String,
     pub library: PathBuf,
     pub core_build: Option<CoreBuildManifest>,
+    pub embedded_core_builds: Vec<CoreBuildManifest>,
     pub source_commit: String,
     pub source_dirty: bool,
     pub toolchain: String,
@@ -161,7 +162,7 @@ pub fn execute(
         .find(|p| p["name"] == package)
         .and_then(|p| p["id"].as_str())
         .with_context(|| format!("package {package} absent from {}", manifest.display()))?;
-    let android_abi = if target.contains("android") && component == "manager" {
+    let android_abi = if target.contains("android") {
         Some(if target.starts_with("aarch64") {
             "arm64-v8a"
         } else {
@@ -170,32 +171,12 @@ pub fn execute(
     } else {
         None
     };
-    let ndk_output = target_dir.join("ndk-output");
-    if android_abi.is_some() && action == "build" && ndk_output.exists() {
-        fs::remove_dir_all(&ndk_output)?;
-    }
     let mut cmd = if crate::apple::supported(target) {
         crate::apple::command(&inv.root, target)?
     } else {
         Command::new("cargo")
     };
     cmd.current_dir(&inv.root);
-    if target.contains("android") && component == "manager" {
-        cmd.args([
-            "ndk",
-            "-t",
-            if target.starts_with("aarch64") {
-                "arm64-v8a"
-            } else {
-                "x86_64"
-            },
-            "-P",
-            "26",
-        ]);
-        if action == "build" {
-            cmd.arg("--output-dir").arg(&ndk_output);
-        }
-    }
     cmd.args([action, "--locked", "--manifest-path"])
         .arg(&manifest)
         .args([
@@ -205,9 +186,7 @@ pub fn execute(
             "--target-dir",
         ])
         .arg(&target_dir);
-    if !(target.contains("android") && component == "manager") {
-        cmd.args(["--target", target]);
-    }
+    cmd.args(["--target", target]);
     if release {
         cmd.arg("--release");
     }
@@ -222,6 +201,27 @@ pub fn execute(
         cmd.arg("--features").arg(features.join(","));
     }
     dependencies::apply_environment(inv, target, component, &mut cmd)?;
+    if let Some(abi) = android_abi {
+        // cargo-ndk consumes build-script JSON. Import its toolchain environment
+        // and invoke Cargo directly so every embedded manifest stays observable.
+        let mut environment = Command::new("cargo");
+        environment
+            .current_dir(&inv.root)
+            .args(["ndk-env", "--target", target, "-P", "26", "--json"]);
+        dependencies::apply_environment(inv, target, component, &mut environment)?;
+        let environment: std::collections::BTreeMap<String, String> =
+            serde_json::from_slice(&dependencies::capture(&mut environment)?)?;
+        let clang = environment
+            .get("CLANG_PATH")
+            .context("cargo ndk-env omitted CLANG_PATH")?;
+        // ndk-env omits the two private variables its linker wrapper requires.
+        cmd.envs(&environment)
+            .env("_CARGO_NDK_LINK_CLANG", clang)
+            .env("_CARGO_NDK_LINK_TARGET", format!("--target={target}26"))
+            .env("ANDROID_PLATFORM", "26")
+            .env("ANDROID_ABI", abi)
+            .env("CARGO_NDK_ANDROID_PLATFORM", abi);
+    }
     let mut child = cmd
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -250,6 +250,23 @@ pub fn execute(
         {
             eprint!("{s}");
         }
+        if value["reason"] == "build-script-executed"
+            && (value["package_id"] == package_id || component == "manager")
+            && let Some(dir) = value["out_dir"].as_str()
+        {
+            let path = Path::new(dir).join("core-build.json");
+            if path.is_file() {
+                match fs::read(&path)
+                    .map_err(anyhow::Error::from)
+                    .and_then(|bytes| {
+                        serde_json::from_slice::<CoreBuildManifest>(&bytes)
+                            .map_err(anyhow::Error::from)
+                    }) {
+                    Ok(m) => manifests.push(m),
+                    Err(e) => parse_error = Some(e),
+                }
+            }
+        }
         if value["package_id"] != package_id {
             continue;
         }
@@ -277,22 +294,6 @@ pub fn execute(
                 }
             }
         }
-        if value["reason"] == "build-script-executed"
-            && let Some(dir) = value["out_dir"].as_str()
-        {
-            let path = Path::new(dir).join("core-build.json");
-            if path.is_file() {
-                match fs::read(&path)
-                    .map_err(anyhow::Error::from)
-                    .and_then(|bytes| {
-                        serde_json::from_slice::<CoreBuildManifest>(&bytes)
-                            .map_err(anyhow::Error::from)
-                    }) {
-                    Ok(m) => manifests.push(m),
-                    Err(e) => parse_error = Some(e),
-                }
-            }
-        }
     }
     let status = child.wait()?;
     if let Some(e) = parse_error {
@@ -304,26 +305,29 @@ pub fn execute(
     if action != "build" {
         return Ok(None);
     }
-    if let Some(abi) = android_abi {
-        // cargo-ndk 4.1.2 consumes Cargo's compiler-artifact messages itself.
-        // Its explicit output directory contains the libraries copied from those
-        // messages; never guess a target/<profile> path.
-        let library_target = metadata["packages"]
-            .as_array()
-            .context("cargo packages")?
-            .iter()
-            .find(|p| p["id"] == package_id)
-            .and_then(|p| p["targets"].as_array())
-            .and_then(|targets| {
-                targets.iter().find(|t| {
-                    t["crate_types"]
-                        .as_array()
-                        .is_some_and(|types| types.iter().any(|t| t == "cdylib"))
-                })
-            })
-            .and_then(|t| t["name"].as_str())
-            .context("Android Manager cdylib target missing")?;
-        libraries.push(ndk_output.join(abi).join(format!("lib{library_target}.so")));
+    let mut embedded_core_builds = Vec::new();
+    if component == "manager" {
+        for manifest in manifests.drain(..) {
+            let embedded = inv.core(&manifest.plugin_id)?;
+            manifest.validate()?;
+            if !embedded
+                .static_manager_targets
+                .iter()
+                .any(|triple| triple == target)
+                || manifest.target != target
+                || manifest.profile != if release { "release" } else { "debug" }
+                || !matches!(
+                    manifest.artifact_kind.as_str(),
+                    "native-static" | "rust-cdylib"
+                )
+            {
+                bail!(
+                    "native build manifest does not match embedded core {}",
+                    embedded.id
+                );
+            }
+            embedded_core_builds.push(manifest);
+        }
     }
     libraries.sort();
     libraries.dedup();
@@ -370,6 +374,7 @@ pub fn execute(
         profile: if release { "release" } else { "debug" }.into(),
         library,
         core_build,
+        embedded_core_builds,
         source_commit,
         source_dirty,
         toolchain,

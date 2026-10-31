@@ -1,18 +1,11 @@
--- Only the legacy DLL dictionary wrapper and append-only warning patch live here.
--- Standard HCB, BIN and hzc1 readers remain in RFVP. The caller pins both inputs;
--- native TranslationTable validates every actual instruction payload boundary.
+-- The private legacy dictionary wrapper and pinned warning flow.
+-- Literal encoding and bounded executable layout belong to common/hcb.luau.
 local M = {}
 
 local function need(ctx, condition, message)
     if not condition then ctx.fail("INTEGRITY", message) end
 end
 
-local function raw_hash(hex)
-    assert(#hex == 64)
-    local bytes = buffer.create(32)
-    for i = 0, 31 do buffer.writeu8(bytes, i, tonumber(string.sub(hex, i * 2 + 1, i * 2 + 2), 16)) end
-    return bytes
-end
 
 function M.dictionary(ctx, source)
     local size = source:size()
@@ -49,8 +42,8 @@ function M.dictionary(ctx, source)
     return records
 end
 
-function M.warning(ctx, original, spec)
-    local bytes = original:read(0, original:size())
+function M.warning(ctx, bytes, spec)
+    local finish = buffer.readu32(bytes, 0)
     need(ctx, buffer.readu8(bytes, spec.site) == 2 and buffer.readu32(bytes, spec.site + 1) == spec.original_call,
         "FVP warning original call mismatch")
     local tail = buffer.create(40)
@@ -60,7 +53,7 @@ function M.warning(ctx, original, spec)
     buffer.writeu16(tail, 6, 250)
     buffer.writeu8(tail, 8, 14)
     buffer.writeu8(tail, 9, 8)
-    -- ASCII is also Shift-JIS: this new literal intentionally takes the native miss path.
+    -- ASCII is valid in every supported native script encoding.
     buffer.writestring(tail, 10, "warning\0")
     buffer.writeu8(tail, 18, 12)
     buffer.writeu8(tail, 19, 5)
@@ -76,34 +69,14 @@ function M.warning(ctx, original, spec)
     buffer.writeu8(tail, 35, 6)
     buffer.writeu32(tail, 36, spec.site + 5)
     buffer.writeu8(bytes, spec.site, 6)
-    buffer.writeu32(bytes, spec.site + 1, original:size())
+    buffer.writeu32(bytes, spec.site + 1, finish)
     local final = buffer.create(buffer.len(bytes) + 40)
-    buffer.copy(final, 0, bytes)
-    buffer.copy(final, buffer.len(bytes), tail)
+    buffer.copy(final, 0, bytes, 0, finish)
+    buffer.copy(final, finish, tail)
+    buffer.copy(final, finish + 40, bytes, finish, buffer.len(bytes) - finish)
+    buffer.writeu32(final, 0, finish + 40)
     return final
 end
 
-function M.write_table(ctx, path, source_hash, patched_hash, records)
-    local size = 76
-    for _, record in records do size += 8 + buffer.len(record.text) end
-    local serialized = buffer.create(size)
-    buffer.writestring(serialized, 0, "AFVPTR1\0")
-    buffer.copy(serialized, 8, raw_hash(source_hash))
-    buffer.copy(serialized, 40, raw_hash(patched_hash))
-    buffer.writeu32(serialized, 72, #records)
-    local at, previous = 76, -1
-    for _, record in records do
-        ctx.check_cancelled()
-        need(ctx, record.offset > previous, "FVP table offset order")
-        buffer.writeu32(serialized, at, record.offset)
-        buffer.writeu32(serialized, at + 4, buffer.len(record.text))
-        buffer.copy(serialized, at + 8, record.text)
-        at += 8 + buffer.len(record.text)
-        previous = record.offset
-    end
-    local output = ctx.create(path)
-    output:write(0, serialized)
-    output:close()
-end
 
 return M

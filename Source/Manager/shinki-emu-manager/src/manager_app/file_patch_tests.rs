@@ -13,7 +13,27 @@ fn settle(app: &mut ShinkiEmuManagerController, ready: impl Fn(&ShinkiEmuManager
     }
 }
 
+fn rejected_import(app: &mut ShinkiEmuManagerController) -> String {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if let Err(error) = app.poll_platform() {
+            assert!(!app.startup_busy());
+            return error;
+        }
+        assert!(app.startup_busy(), "invalid import unexpectedly succeeded");
+        assert!(Instant::now() < deadline, "import rejection did not finish");
+        std::thread::yield_now();
+    }
+}
+
 fn controller(root: &Path) -> (ShinkiEmuManagerController, PathBuf, String) {
+    controller_with_capabilities(root, shinki_emu_abi::CAP_CPU_SURFACE)
+}
+
+fn controller_with_capabilities(
+    root: &Path,
+    capabilities: u64,
+) -> (ShinkiEmuManagerController, PathBuf, String) {
     let source = root.join("source");
     fs::create_dir(&source).unwrap();
     fs::write(source.join("match"), b"public marker").unwrap();
@@ -31,10 +51,11 @@ fn controller(root: &Path) -> (ShinkiEmuManagerController, PathBuf, String) {
     app.prepare_library().unwrap();
     settle(&mut app, |app| !app.startup_busy());
     app.registry
-        .register_provider(|| {
+        .register_provider(move || {
             let mut fixture = Fixture::new("patch-fixture", "fixture", "fixture");
             fixture.marker = Some("match");
             fixture.config = true;
+            fixture.capabilities = capabilities;
             test_native::install(0, fixture)
         })
         .unwrap();
@@ -90,6 +111,56 @@ fn recipe(path: &Path, body: &str, configuration: &str) {
         ),
     )
     .unwrap();
+}
+
+#[test]
+fn selected_output_path_is_previewed_then_created_only_by_successful_conversion() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut app, source, _) = controller(root.path());
+    let script = root.path().join("convert.luau");
+    recipe(&script, "", "{launch_mode=\"title\"}");
+    let parent = root.path().join("chosen-output-location");
+    fs::create_dir(&parent).unwrap();
+    let output = parent.join("localized-output");
+    app.set_patch_script(&script).unwrap();
+    app.set_patch_directory("output", &output).unwrap();
+    assert_eq!(app.patch_state.output_directory, output.to_str().unwrap());
+    assert_eq!(fs::read_dir(&parent).unwrap().count(), 0);
+    app.start_patch().unwrap();
+    settle(&mut app, |app| !app.patch_busy() && !app.startup_busy());
+    assert!(app.patch_state.error.is_empty(), "{}", app.patch_state.error);
+    assert_eq!(fs::read_dir(&parent).unwrap().count(), 1);
+    assert_eq!(fs::read(output.join("payload.bin")).unwrap(), b"original public payload");
+    assert_eq!(fs::read(source.join("payload.bin")).unwrap(), b"original public payload");
+    assert!(output.join("shinki-patch-result.json").is_file());
+}
+
+#[test]
+fn occupied_or_source_contained_output_is_rejected_without_mutation() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut app, source, _) = controller(root.path());
+    let script = root.path().join("convert.luau");
+    recipe(&script, "", "{launch_mode=\"title\"}");
+    let empty = root.path().join("occupied-empty");
+    fs::create_dir(&empty).unwrap();
+    let nonempty = root.path().join("occupied-data");
+    fs::create_dir(&nonempty).unwrap();
+    fs::write(nonempty.join("keep"), b"user data").unwrap();
+    let file = root.path().join("occupied-file");
+    fs::write(&file, b"user file").unwrap();
+    let contained = source.join("localized-output");
+    for output in [&empty, &nonempty, &file, &source, &contained] {
+        app.start_file_patch(&script, Path::new(""), output).unwrap();
+        settle(&mut app, |app| !app.patch_busy());
+        assert!(!app.patch_state.error.is_empty(), "{output:?}");
+        assert_eq!(fs::read(source.join("payload.bin")).unwrap(), b"original public payload");
+        assert_eq!(fs::read(source.join("save/slot.bin")).unwrap(), b"original public save");
+        assert_eq!(fs::read_dir(&empty).unwrap().count(), 0);
+        assert_eq!(fs::read(nonempty.join("keep")).unwrap(), b"user data");
+        assert_eq!(fs::read(&file).unwrap(), b"user file");
+        assert!(!contained.exists());
+    }
+    assert_eq!(app.library.list_games().unwrap().len(), 1);
 }
 
 #[test]
@@ -275,7 +346,9 @@ fn running_patch_blocks_launch_scan_and_second_job_but_cancel_joins_and_allows_r
     let (mut app, source, source_id) = controller(root.path());
     let script = root.path().join("cancel.luau");
     recipe(&script, "ctx.create('partial'):write(0,buffer.fromstring('partial')); ctx.progress('public waiting',0,nil); while true do end", "{launch_mode=\"title\"}");
-    let output = root.path().join("cancelled-output");
+    let parent = root.path().join("chosen-output-location");
+    fs::create_dir(&parent).unwrap();
+    let output = parent.join("localized-output");
     app.start_file_patch(&script, Path::new(""), &output)
         .unwrap();
     settle(&mut app, |app| app.patch_state.phase == "public waiting");
@@ -290,6 +363,8 @@ fn running_patch_blocks_launch_scan_and_second_job_but_cancel_joins_and_allows_r
     app.cancel_file_patch().unwrap();
     settle(&mut app, |app| app.patch_job.is_none());
     assert!(!output.exists());
+    assert!(parent.is_dir());
+    assert_eq!(fs::read_dir(&parent).unwrap().count(), 0);
     assert!(app.patch_state_view().can_start);
     recipe(&script, "", "{launch_mode=\"title\"}");
     app.start_file_patch(&script, Path::new(""), &output)
@@ -375,4 +450,220 @@ fn explicit_receipt_import_reads_only_data_and_private_staging_is_never_discover
         .iter()
         .any(|game| shinki_emu_patch::is_staging_path(Path::new(&game.location))));
     assert_eq!(app.library.game_settings(&source_id).unwrap(), before);
+}
+
+#[test]
+fn native_profile_import_requires_every_loaded_core_capability_before_binding() {
+    let required = shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY
+        | shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY;
+    for available in [
+        0,
+        shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY,
+        shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY,
+        required,
+    ] {
+        let root = tempfile::tempdir().unwrap();
+        let (mut app, _, source_id) = controller_with_capabilities(
+            root.path(),
+            shinki_emu_abi::CAP_CPU_SURFACE | available,
+        );
+        let before = app.library.game_settings(&source_id).unwrap();
+        let output = root.path().join("native-output");
+        fs::create_dir(&output).unwrap();
+        fs::write(output.join("match"), b"public native fixture").unwrap();
+        fs::write(
+            output.join("shinki-patch-result.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "schema": "shinki.emu.file_patch.v1",
+                "profile": {
+                    "plugin_id": "patch-fixture",
+                    "required_capabilities": required,
+                    "configuration": {"launch_mode": "title"}
+                }
+            })).unwrap(),
+        ).unwrap();
+        app.add_game_directory(&output).unwrap();
+        if available == required {
+            settle(&mut app, |app| !app.startup_busy());
+        } else {
+            assert!(rejected_import(&mut app).contains("SHINKI_EMU_CORE_UPDATE_REQUIRED"));
+        }
+        let output_id = path_id(&fs::canonicalize(&output).unwrap());
+        if available == required {
+            assert!(app.candidates.contains_key(&output_id));
+            let schema = app.registry.configuration("patch-fixture").unwrap();
+            assert_eq!(
+                app.library.family_configuration("patch-fixture", &output_id, &schema)
+                    .unwrap().values[0].value,
+                shinki_emu_manager_core::model::ConfigValue::Enum("title".into())
+            );
+        } else {
+            assert!(!app.candidates.contains_key(&output_id));
+            assert!(!app.probe_choices.contains_key(&output_id));
+            assert!(app.library.game_settings(&output_id).unwrap().is_none());
+            assert!(app.library.game(&output_id).unwrap().is_none());
+            assert_eq!(app.library.list_games().unwrap().len(), 1);
+            assert!(app.diagnostic.contains("SHINKI_EMU_CORE_UPDATE_REQUIRED"));
+        }
+        assert_eq!(app.library.game_settings(&source_id).unwrap(), before);
+        assert_eq!(fs::read(output.join("match")).unwrap(), b"public native fixture");
+    }
+}
+
+#[test]
+fn automatic_import_rejects_removed_receipt_requirements_before_library_mutation() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut app, _, source_id) = controller(root.path());
+    let before = app.library.game(&source_id).unwrap();
+    let script = root.path().join("native.luau");
+    fs::write(&script, r#"return {id="native",version=1,title="Native",apply=function(ctx)
+        ctx.copy("source","match","match")
+        return {plugin_id="patch-fixture",required_capabilities=192,configuration={launch_mode="title"}}
+    end}"#).unwrap();
+    let output = root.path().join("native-output");
+    app.start_file_patch(&script, Path::new(""), &output).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !app.patch_job.as_ref().unwrap().thread.as_ref().unwrap().is_finished() {
+        assert!(Instant::now() < deadline, "conversion worker did not finish");
+        std::thread::yield_now();
+    }
+    let receipt = output.join("shinki-patch-result.json");
+    let mut document: serde_json::Value = serde_json::from_slice(&fs::read(&receipt).unwrap()).unwrap();
+    assert_eq!(document["profile"]["required_capabilities"], 192);
+    document["profile"].as_object_mut().unwrap().remove("required_capabilities");
+    fs::write(receipt, serde_json::to_vec(&document).unwrap()).unwrap();
+    settle(&mut app, |app| !app.patch_busy() && !app.startup_busy());
+    assert!(app.patch_state.error.contains("SHINKI_EMU_PATCH_INTEGRITY"));
+    let output_id = path_id(&fs::canonicalize(&output).unwrap());
+    assert!(app.library.game(&output_id).unwrap().is_none());
+    assert_eq!(app.library.list_games().unwrap().len(), 1);
+    assert_eq!(app.library.game(&source_id).unwrap(), before);
+    assert!(!app.candidates.contains_key(&output_id));
+    assert!(output.join("match").is_file());
+}
+
+#[test]
+fn native_profile_receipt_blocks_launch_after_reopening_with_an_older_core() {
+    let root = tempfile::tempdir().unwrap();
+    let required = shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY
+        | shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY;
+    let (mut app, _, _) = controller_with_capabilities(
+        root.path(),
+        shinki_emu_abi::CAP_CPU_SURFACE | required,
+    );
+    let output = root.path().join("native-output");
+    fs::create_dir(&output).unwrap();
+    fs::write(output.join("match"), b"public native fixture").unwrap();
+    fs::write(output.join("shinki-patch-result.json"), serde_json::to_vec(
+        &serde_json::json!({
+            "schema": "shinki.emu.file_patch.v1",
+            "profile": {
+                "plugin_id": "patch-fixture",
+                "required_capabilities": required,
+                "configuration": {"launch_mode": "title"}
+            }
+        })
+    ).unwrap()).unwrap();
+    app.add_game_directory(&output).unwrap();
+    settle(&mut app, |app| !app.startup_busy());
+    let id = path_id(&fs::canonicalize(&output).unwrap());
+    assert!(app.candidates.contains_key(&id));
+    drop(app);
+    let mut reopened = ShinkiEmuManagerController::open_library(
+        root.path().join("manager"),
+        FrameMailbox::new(),
+        Vec::new(),
+    ).unwrap();
+    reopened.set_host_wake(Arc::new(|| {}));
+    reopened.prepare_library().unwrap();
+    settle(&mut reopened, |app| !app.startup_busy());
+    reopened.registry.register_provider(|| {
+        let mut fixture = Fixture::new("patch-fixture", "fixture", "fixture");
+        fixture.marker = Some("match");
+        fixture.config = true;
+        test_native::install(0, fixture)
+    }).unwrap();
+    settle(&mut reopened, |app| app.registry.descriptor("patch-fixture").is_some());
+    reopened.prepare_library().unwrap();
+    settle(&mut reopened, |app| !app.startup_busy());
+    assert!(reopened.launch(&id).unwrap_err().contains("SHINKI_EMU_CORE_UPDATE_REQUIRED"));
+    assert!(reopened.active.is_none());
+}
+
+#[test]
+fn malformed_receipt_requirements_block_import_and_retained_receipt_launch() {
+    for required in [
+        serde_json::json!(256),
+        serde_json::json!(-1),
+        serde_json::json!(1.5),
+        serde_json::json!("192"),
+    ] {
+        let root = tempfile::tempdir().unwrap();
+        let (mut app, _, _) = controller(root.path());
+        let output = root.path().join("native-output");
+        fs::create_dir(&output).unwrap();
+        fs::write(output.join("match"), b"public native fixture").unwrap();
+        let receipt = output.join("shinki-patch-result.json");
+        let mut document = serde_json::json!({
+            "schema": "shinki.emu.file_patch.v1",
+            "profile": {
+                "plugin_id": "patch-fixture",
+                "required_capabilities": required,
+                "configuration": {"launch_mode": "title"}
+            }
+        });
+        fs::write(&receipt, serde_json::to_vec(&document).unwrap()).unwrap();
+        app.add_game_directory(&output).unwrap();
+        assert!(rejected_import(&mut app).contains("SHINKI_EMU_PATCH_INVALID_REQUEST"));
+        let id = path_id(&fs::canonicalize(&output).unwrap());
+        assert!(app.library.game(&id).unwrap().is_none());
+        assert_eq!(app.library.list_games().unwrap().len(), 1);
+        assert!(!app.candidates.contains_key(&id));
+        drop(app);
+        let launch_host = root.path().join("launch-host");
+        fs::create_dir(&launch_host).unwrap();
+        let (mut app, _, _) = controller(&launch_host);
+
+        document["profile"].as_object_mut().unwrap().remove("required_capabilities");
+        fs::write(&receipt, serde_json::to_vec(&document).unwrap()).unwrap();
+        app.add_game_directory(&output).unwrap();
+        settle(&mut app, |app| !app.startup_busy());
+        assert!(app.candidates.contains_key(&id));
+        document["profile"]["required_capabilities"] = required;
+        fs::write(receipt, serde_json::to_vec(&document).unwrap()).unwrap();
+        assert!(app.launch(&id).unwrap_err().contains("SHINKI_EMU_PATCH_INVALID_REQUEST"));
+        assert!(app.active.is_none());
+    }
+}
+
+#[test]
+#[ignore = "requires a real conversion receipt and read-only installed beta3/updated RFVP libraries; never opens a game"]
+fn native_profile_checks_real_rfvp_descriptors_without_version_string_inference() {
+    let output = std::env::var_os("SHINKI_RFVP_PROFILE_OUTPUT")
+        .expect("SHINKI_RFVP_PROFILE_OUTPUT");
+    let profile = shinki_emu_patch::read_output_profile(
+        Path::new(&output),
+        &AtomicBool::new(false),
+    ).unwrap().expect("actual native conversion receipt");
+    assert_eq!(profile.plugin_id, "rfvp");
+    assert_eq!(
+        profile.required_capabilities,
+        shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY | shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY,
+    );
+    assert_eq!(profile.configuration["script_encoding"], "gbk");
+    assert_eq!(profile.configuration["font_path"], "font/HanaMinA.ttf");
+    assert!(!profile.configuration.contains_key("translation_table"));
+    for (variable, accepted) in [
+        ("SHINKI_RFVP_OLD_CORE", false),
+        ("SHINKI_RFVP_NATIVE_CORE", true),
+    ] {
+        let path = std::env::var_os(variable).expect(variable);
+        let loaded = shinki_emu_manager_core::LoadedFamilyPlugin::load(Path::new(&path)).unwrap();
+        let descriptor = loaded.manager_descriptor();
+        let result = file_patch::require_profile_capabilities(&profile, descriptor);
+        assert_eq!(result.is_ok(), accepted, "{variable}: {result:?}");
+        if !accepted {
+            assert!(result.unwrap_err().contains("SHINKI_EMU_CORE_UPDATE_REQUIRED"));
+        }
+    }
 }

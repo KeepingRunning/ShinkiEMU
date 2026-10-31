@@ -23,6 +23,8 @@ Manager is available in Simplified Chinese, English and Japanese. Choose **Setti
 
 Game titles, descriptions and patch notes come from metadata. Manager shows the entry for the current language, falls back to English when a Japanese entry is missing, and falls back to Simplified Chinese when English is missing too. The anti-resale notice is always bilingual (Chinese and English).
 
+Metadata request failures belong to the selected installation. Starting a retry clears its previous failure state while the request is pending; changing the interface language does not change whether a request failed.
+
 ## Add games and install cores
 
 In Settings, add the directories containing your legally obtained game installations, then scan the library. Select the detected game and check the selected core and game-specific configuration before starting. An engine probe identifies a format; encrypted resources can still require a private profile. Keep all keys local.
@@ -64,9 +66,19 @@ The default metadata source is:
 
 Settings controls network permission and manual synchronization. A rejected or damaged snapshot does not replace a valid cached snapshot. Match your VNDB release rID, core, platform, architecture and variant (desktop/device/simulator) when reading a report. A result on another platform or architecture is not your result. Submit reproducible observations through the [issue forms](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new/choose).
 
+Release selection keeps the full release title, platform list and known release date separate from the stable VNDB rID. Each installed copy has its own pin; refreshing releases keeps that pin even if the provider omits it. Release details are cached for the current session. After restart, an existing pin still appears with its saved title (or just its rID for older records); platforms and date remain unknown until fetched.
+
 ## Patches
 
 Reviewed **Luau recipes** run only when explicitly selected. The patch page defaults to **New directory**, which keeps the source game unchanged. **In-place overwrite** writes through private staging, moves changed and removed original files to `<game>/.shinki/backup/<id>/`, records their hashes in `manifest.json`, and re-probes the same game. **Restore latest patch** checks that patched files still match the manifest before restoring; if you edited a patched file, restoration refuses to overwrite it. The receipt is `<game>/.shinki/patch-result.json` in in-place mode. External and hosted catalog patches with artifacts offer an HTTPS download action: Manager verifies size and SHA256 before publishing the file under `<game>/.shinki/patch/`, then selects that directory as patch input. Downloads never execute on their own; only a separately selected trusted Luau recipe can run. Check licenses, authorizations and applicable releases; an empty release list means “release not restricted,” not “every edition tested.” See [patch contributions](metadata.md).
+
+In **New directory** mode on Windows, macOS and Linux, **Choose output** opens a folder picker. Choose the parent location, or create a folder there using the system's folder controls. Manager displays the full proposed output path below that location: `localized-output`, or `localized-output-1`, `localized-output-2`, etc. if a name is already occupied. Check this path before starting. Selection never creates the conversion directory; only a successful conversion publishes it. Cancelling the picker leaves the previous selection unchanged. Existing files and directories are never overwritten, including anything created at the proposed path after selection. Output cannot overlap the game or patch input. **In-place overwrite** does not use the output selection. On iOS the selected parent receives a new `localized-output` child; Android uses a new app-private export directory.
+
+Some converted games require native core semantics such as isolated script saves
+and a consistent configured font. Manager checks the selected loaded core before
+importing or launching those outputs. If it requests a core update, install the
+updated core before retrying; a matching version label alone is not sufficient.
+Ordinary recipes without semantic requirements keep their existing behavior.
 
 ## Data and saves
 

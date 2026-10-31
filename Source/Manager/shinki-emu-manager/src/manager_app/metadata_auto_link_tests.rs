@@ -70,12 +70,6 @@ impl Harness {
             .map(|identity| identity.remote_id)
     }
 
-    fn status(&self, game_id: &str) -> &str {
-        self.app
-            .metadata_status
-            .get(game_id)
-            .map_or("", String::as_str)
-    }
 
     fn candidates(&self, game_id: &str) -> usize {
         self.app
@@ -140,7 +134,6 @@ fn unique_normalized_match_is_fetched_and_linked() {
     assert_eq!(h.vndb_remote_id("first").as_deref(), Some("v1"));
     let identity = h.app.library.external_identities("first").unwrap();
     assert_eq!(identity[0].provenance, "metadata-provider");
-    assert_eq!(h.status("first"), "已自动关联：Sakura no Uta");
     assert_eq!(h.candidates("first"), 0);
     assert!(h.app.auto_link_attempted.contains("first"));
     assert!(h.app.auto_link.is_none());
@@ -164,11 +157,9 @@ fn ambiguous_or_missing_matches_keep_candidates_and_continue_the_batch() {
     );
     assert!(h.vndb_remote_id("a").is_none());
     assert_eq!(h.candidates("a"), 2);
-    assert_eq!(h.status("a"), "未能自动关联，找到 2 个候选，请手动选择");
     let second = h.submitted().unwrap();
     assert_eq!(search_title(&second), "Kanon");
     h.complete(second, Ok(MetadataPayload::Search(Vec::new())));
-    assert_eq!(h.status("b"), "未在 VNDB 找到匹配作品");
     assert!(h.submitted().is_none());
     assert!(h.app.auto_link_attempted.contains("a"));
     assert!(h.app.auto_link_attempted.contains("b"));
@@ -262,7 +253,10 @@ fn two_installed_copies_link_one_work_and_stay_independent() {
     h.app.selected_case_id = Some("retail".into());
     h.app.releases.insert(
         "retail".into(),
-        vec![("r10".into(), "初回限定版".into()), ("r11".into(), "通常版".into())],
+        vec![
+            MetadataRelease { release_id: "r10".into(), title: Some("初回限定版".into()), released: None, platforms: Vec::new() },
+            MetadataRelease { release_id: "r11".into(), title: Some("通常版".into()), released: None, platforms: Vec::new() },
+        ],
     );
     h.app.pin_release("r10").unwrap();
     h.app
@@ -336,10 +330,26 @@ fn request_error_stops_the_batch_without_marking() {
     assert!(h.app.auto_link_queue.is_empty());
     assert!(h.app.auto_link_attempted.is_empty());
     assert_eq!(h.app.diagnostic, "SHINKI_EMU_METADATA_RATE_LIMITED");
+    h.app.selected_case_id = Some("a".into());
+    assert!(h.app.model().unwrap().selection.metadata_error);
+    h.app.selected_case_id = Some("b".into());
+    assert!(!h.app.model().unwrap().selection.metadata_error);
+    h.app.selected_case_id = Some("a".into());
 
     h.app.enqueue_auto_link().unwrap();
     let retried = h.submitted().unwrap();
     assert_eq!(search_title(&retried), "Air");
+    assert!(!h.app.model().unwrap().selection.metadata_error);
+    assert!(h.app.model().unwrap().selection.metadata_busy);
+    h.complete(retried, Err("SHINKI_EMU_METADATA_RATE_LIMITED".into()));
+    assert!(h.app.model().unwrap().selection.metadata_error);
+    h.app.search_metadata("vndb", "Air").unwrap();
+    let manual = h.submitted().unwrap();
+    assert!(!h.app.model().unwrap().selection.metadata_error);
+    h.complete(manual, Ok(MetadataPayload::Search(Vec::new())));
+    let selection = h.app.model().unwrap().selection;
+    assert!(!selection.metadata_error);
+    assert!(!selection.metadata_busy);
 }
 
 #[test]
@@ -361,7 +371,6 @@ fn manual_request_removes_a_waiting_game_from_the_queue() {
         Ok(MetadataPayload::Search(vec![record("v3", "Kanon", &[])])),
     );
     assert!(h.vndb_remote_id("b").is_none());
-    assert_eq!(h.status("b"), "找到 1 个作品，请选择关联");
     assert!(!h.app.auto_link_attempted.contains("b"));
 }
 
@@ -380,4 +389,45 @@ fn stored_vndb_descriptions_are_shown_without_formatting() {
         .unwrap()
         .unwrap();
     assert_eq!(shown.description.as_deref(), Some("Summer story."));
+}
+
+#[test]
+fn release_fetch_completion_targets_its_install_and_failed_refresh_keeps_pin() {
+    let mut h = harness(true);
+    h.add_game("retail", "Air");
+    h.add_game("download", "Air");
+    h.app.selected_case_id = Some("retail".into());
+    h.app.apply_metadata_payload(
+        Some("retail"),
+        MetadataProviderId::Vndb,
+        MetadataPayload::Fetch {
+            record: Box::new(record("v1", "Air", &[])),
+            cover: None,
+        },
+    ).unwrap();
+    assert!(h.app.fetch_releases().unwrap().selection.metadata_busy);
+    let command = h.submitted().unwrap();
+    assert!(matches!(&command.kind, MetadataCommandKind::FetchReleases(id) if id == "v1"));
+    h.app.selected_case_id = Some("download".into());
+    let title = "同じ空の下で、もう一度出会う物語 ～初回限定版～".repeat(3);
+    h.complete(command, Ok(MetadataPayload::Releases(vec![MetadataRelease {
+        release_id: "r10".into(),
+        title: Some(title.clone()),
+        released: Some("2000-09-08".into()),
+        platforms: vec!["win".into(), "linux".into()],
+    }])));
+    assert!(h.app.model().unwrap().selection.releases.is_empty());
+    h.app.selected_case_id = Some("retail".into());
+    let selected = h.app.pin_release("r10").unwrap().selection;
+    assert_eq!(selected.releases[0].title, title);
+    assert_eq!(selected.releases[0].platforms, ["win", "linux"]);
+    assert_eq!(selected.releases[0].released.as_deref(), Some("2000-09-08"));
+    h.app.fetch_releases().unwrap();
+    let command = h.submitted().unwrap();
+    h.complete(command, Err("SHINKI_EMU_METADATA_RATE_LIMITED".into()));
+    let selected = h.app.model().unwrap().selection;
+    assert_eq!(selected.pinned_release, "r10");
+    assert_eq!(selected.releases[0].title, title);
+    assert!(!selected.metadata_busy);
+    assert_eq!(h.app.library.game_release("download").unwrap(), None);
 }

@@ -12,8 +12,9 @@ cargo xtask build --target x86_64-pc-windows-msvc --manager --release
 cargo xtask build --target x86_64-pc-windows-msvc --all-cores --release
 cargo xtask check --target x86_64-pc-windows-msvc --core rfvp
 cargo xtask test --core rfvp
-cargo xtask package --target x86_64-pc-windows-msvc --core rfvp --version 0.1.0-beta.1 --out .work/rfvp-package
-cargo xtask release --component rfvp --target x86_64-pc-windows-msvc --version 0.1.0-beta.1
+cargo xtask package --target x86_64-pc-windows-msvc --core rfvp --out .work/rfvp-package
+cargo xtask release --component rfvp --target x86_64-pc-windows-msvc
+cargo xtask release --component rfvp --dry-run
 cargo xtask metadata validate
 cargo xtask metadata build --out .work/metadata-snapshot
 cargo xtask ci --target aarch64-apple-ios --component manager --report .work/ios-report.json
@@ -26,6 +27,11 @@ cargo xtask ci --target aarch64-apple-ios --component manager --report .work/ios
 Native requirements are scoped per component. Only consumers prepare the pinned vcpkg subtitle/FFmpeg trees or DXC runtime. Subtitle lookup runs locked Cargo metadata for the selected core's own manifest and enabled build features, then uses triplets from that exact RoukakuEngine Git checkout with the workspace-owned, baseline-pinned libass manifest; it does not infer optional dependencies from the desktop Manager graph or a neighboring checkout. Android uses JDK 27, SDK 37.2, NDK 30.0.16248370 and private cargo-ndk 4.1.2. No command installs system packages.
 
 Android FFmpeg bindings use the target's versioned API 28 triple and NDK sysroot in both `BINDGEN_EXTRA_CLANG_ARGS_<target>` forms (hyphens and underscores). Bindgen prefers the hyphenated form, preserving the API level when cargo-ndk 4.1.2 replaces the underscored form with sysroot-only flags.
+Android Manager builds import `cargo ndk-env --json` and run Cargo directly. This preserves Cargo's artifact and build-script JSON, including every embedded core's resource/license manifest; cargo-ndk's build wrapper consumes those messages.
+Portable resource filenames preserve printable ASCII punctuation and internal spaces, except Windows-reserved characters. Leading/trailing spaces, control characters, traversal and Windows device aliases remain rejected; package copy/archive/extraction preserves resource bytes.
+ZIP persistence keeps the validated parent directory's canonical absolute path, including Windows extended-path syntax required by tempfile's direct Win32 rename. Public archive names and complete identity hashes stay unchanged; no-replace and reparse/path checks remain enforced before canonicalization. External tools do not receive this internal path.
+Embedded core license inputs use the same checked asset traversal as native resources, preserving inventoried notice directories as well as individual license files.
+Android packaging preserves underscore-prefixed runtime directories and verifies every APK bundled-manifest file against the staged bytes. Public Android system libraries, including GLES1 and camera2ndk, are resolved by the OS; NDK import stubs are not APK runtime inputs. Source-runtime preparation disables Python bytecode writes to keep the verified host interpreter unchanged across ABI preparation.
 
 Apple RFVP and the iOS Manager prepare static libass 0.17.5 on a native macOS/Xcode host with the same vcpkg baseline and pinned RoukakuEngine triplet overlay. The built-in Apple triplets map both Darwin architectures and all three iOS triples to target-isolated installs. No Apple GStreamer tree is needed. Static Manager dependencies and exact Git pins must match `static_manager_targets` in the inventory; dynamic export features stay disabled. iOS packages include all five Rust cores' licenses and an `embedded-cores.json` source inventory.
 
@@ -34,6 +40,8 @@ Impacto's pinned `libatrac9` and `magic_enum` sources live under `.work/native-d
 Linux SDL headers come from the pinned source archive and run its configure
 step to generate the native `SDL_config.h`; the Visual C++ archive contains
 Windows-only configuration headers and is used only on Windows.
+
+`deps --core <id>` also prepares a core listed in the target's `static_manager_targets`; this does not enable standalone dynamic-core installation. Linux's SDL source archive supplies `LICENSE.txt`, while the pinned Windows VC header archive supplies `COPYING.txt`. Android Renpy uses the official target CPython 3.12.8 source/runtime stage documented by its fork, separately from the host Cython interpreter.
 
 Every native download is SHA256-pinned in `build/dependencies.toml`. Extraction is staged, rejects unsafe paths/links/collisions, and publishes only a complete tree. A local verification record binds every file to the archive recipe. A verified existing tree is reused without downloading; modified trees fail without overwriting their files. Bytecode writes are disabled for the task-owned build interpreter so builds do not mutate the verified installation.
 
@@ -47,7 +55,7 @@ Packaging consumes release build receipts. Output must be new; staging is in the
 
 Release archives are deterministic, include build provenance and have corresponding-source ZIPs containing downloaded source archives and their vcpkg ports/patches. Source downloads must match the installed package's SPDX SHA512 values; port recipes and patches must match its recorded SHA256 values. Release sources must be committed, and aggregated platforms must share the same product revision. License or source prerequisites stop publication. A core marked `publish_blocked` may compile but its binary is not uploaded. Resolve its concrete distribution review before changing that field.
 
-`release` writes GitHub only with `--publish` and `GH_TOKEN` or `GITHUB_TOKEN`. It refuses replacement assets with different bytes. Catalog entries are created only after reading back published assets and verifying SHA256 and size, through a normal PR in this repository. Tags are `manager-v<semver>` or `core-<core-slug>-v<semver>`. Dispatch builds only upload Actions artifacts. CI records manifest-declared unsupported rows as `blocked`, with `artifact: null`; supported build/package failures remain failures.
+`release` writes GitHub only with `--publish` and `GH_TOKEN` or `GITHUB_TOKEN`. Existing published tags/assets stay immutable. Manager/self-owned cores use their own SemVer; external core versions are verified upstream tag/branch plus a digest of full upstream/adapter provenance and their increasing publication sequence. Omit `--version` for external cores; a supplied incompatible version is rejected. `release --dry-run` verifies the real refs without building/publishing. Fan-out resolves each component independently. Indexed `cores-v2.json` adds typed identities while `cores.json` preserves the legacy v1 install catalog. See the [identity encoding and ordering contract](../docs/en/build-and-release.md#package-and-release). CI records declared unsupported rows as `blocked`, with `artifact: null`; supported build/package failures remain failures.
 
 Manual `ci.yml` dispatch accepts `since`, using the existing
 `cargo xtask matrix --json --ci --since <ref>` input classifier. The matrix

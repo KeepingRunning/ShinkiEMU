@@ -28,6 +28,8 @@ pub enum FamilyCapability {
     RenderExtent,
     TextReplacement,
     AsyncTextReplacement,
+    NativeScriptIdentity,
+    ConfiguredFontPriority,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

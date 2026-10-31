@@ -482,3 +482,73 @@ fn recipe_cannot_write_game_state_namespace() {
         fixture.unchanged();
     }
 }
+
+#[test]
+fn native_capability_requirements_survive_real_conversion_and_receipt_loading() {
+    for required in [
+        0,
+        shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY | shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY,
+    ] {
+        let fixture = Fixture::new();
+        fixture.recipe(&format!(
+            r#"ctx.copy("source","assets.bin","assets.bin"); return {{
+                plugin_id="public.fixture", configuration={{script_encoding="utf8"}},
+                required_capabilities={required}
+            }}"#
+        ));
+        let result = apply(fixture.request(), Arc::new(AtomicBool::new(false)), |_| {}).unwrap();
+        assert_eq!(
+            fs::read(result.output.join("assets.bin")).unwrap(),
+            b"alpha|beta"
+        );
+        let loaded = shinki_emu_patch::read_output_profile(&result.output, &AtomicBool::new(false))
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.required_capabilities, required);
+        let receipt_path = result.output.join("shinki-patch-result.json");
+        let mut receipt: serde_json::Value =
+            serde_json::from_slice(&fs::read(&receipt_path).unwrap()).unwrap();
+        if required == 0 {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct LegacyProfile {
+                plugin_id: String,
+                configuration: std::collections::BTreeMap<String, String>,
+            }
+            let legacy: LegacyProfile = serde_json::from_value(receipt["profile"].clone()).unwrap();
+            assert_eq!(legacy.plugin_id, loaded.plugin_id);
+            assert_eq!(legacy.configuration, loaded.configuration);
+        }
+        receipt["profile"]["required_capabilities"] = serde_json::json!(required | 2);
+        fs::write(receipt_path, serde_json::to_vec(&receipt).unwrap()).unwrap();
+        assert!(
+            shinki_emu_patch::read_output_profile(&result.output, &AtomicBool::new(false),)
+                .is_err()
+        );
+        assert_eq!(
+            fs::read(result.output.join("assets.bin")).unwrap(),
+            b"alpha|beta"
+        );
+        fixture.unchanged();
+    }
+}
+
+#[test]
+fn unsupported_or_invalid_required_capabilities_never_publish_partial_output() {
+    for required in ["2", "194", "-1", "192.5", "1e-200", "\"192\""] {
+        let fixture = Fixture::new();
+        fixture.recipe(&format!(
+            r#"ctx.copy("source","assets.bin","partial"); return {{
+                plugin_id="public.fixture", configuration={{}},
+                required_capabilities={required}
+            }}"#
+        ));
+        let error = apply(fixture.request(), Arc::new(AtomicBool::new(false)), |_| {})
+            .err()
+            .unwrap();
+        assert_eq!(error.kind(), PatchErrorKind::Script);
+        assert!(!fixture.output.exists());
+        fixture.unchanged();
+        fixture.no_staging();
+    }
+}

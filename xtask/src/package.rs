@@ -20,13 +20,18 @@ pub fn portable(name: &str) -> Result<()> {
         bail!("empty package path");
     }
     for p in name.split('/') {
-        let stem = p.split('.').next().unwrap_or("").to_ascii_uppercase();
+        let stem = p
+            .split('.')
+            .next()
+            .unwrap_or("")
+            .trim_end()
+            .to_ascii_uppercase();
         if p.is_empty()
             || !p.as_bytes()[0].is_ascii_alphanumeric() && p.as_bytes()[0] != b'_'
             || !p
                 .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b"_.+-@~".contains(&b))
-            || p.ends_with('.')
+                .all(|b| b.is_ascii() && !b.is_ascii_control() && !b"\\:<>|?*\"".contains(&b))
+            || p.ends_with(['.', ' '])
             || ["CON", "PRN", "AUX", "NUL"].contains(&stem.as_str())
             || (stem.len() == 4
                 && (stem.starts_with("COM") || stem.starts_with("LPT"))
@@ -227,10 +232,13 @@ pub fn zip_entries(entries: &[(PathBuf, String)], out: &Path) -> Result<()> {
     let parent = out.parent().context("archive parent")?;
     fs::create_dir_all(parent)?;
     plain(parent)?;
+    // tempfile persists through Win32 directly; retain canonical extended paths.
+    let parent = fs::canonicalize(parent)?;
+    let out = parent.join(out.file_name().context("archive filename")?);
     let mut entries = entries.to_vec();
     entries.sort_by(|a, b| a.1.cmp(&b.1));
     let mut seen = BTreeSet::new();
-    let mut tmp = tempfile::NamedTempFile::new_in(parent)?;
+    let mut tmp = tempfile::NamedTempFile::new_in(&parent)?;
     {
         let mut zip = zip::ZipWriter::new(tmp.as_file_mut());
         for (source, name) in entries {
@@ -264,7 +272,17 @@ pub fn zip_entries(entries: &[(PathBuf, String)], out: &Path) -> Result<()> {
         }
         zip.finish()?;
     }
-    tmp.persist_noclobber(out).map_err(|e| e.error)?;
+    tmp.persist_noclobber(&out)
+        .map_err(|e| e.error)
+        .with_context(|| {
+            format!(
+                "persisting ZIP {} (path bytes {}; parent {} exists={})",
+                out.display(),
+                out.as_os_str().len(),
+                parent.display(),
+                parent.is_dir()
+            )
+        })?;
     Ok(())
 }
 #[derive(Debug, Serialize, Deserialize)]
@@ -280,6 +298,8 @@ pub struct CorePackage {
     pub plugin_id: String,
     pub library: String,
     pub version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<shinki_emu_metadata::CoreIdentity>,
     pub abi: String,
     pub files: Vec<FileRecord>,
 }
@@ -346,10 +366,14 @@ pub(crate) fn write_provenance(result: &BuildResult, path: &Path) -> Result<()> 
 pub fn stage_core(
     result: &BuildResult,
     version: &str,
+    identity: Option<&shinki_emu_metadata::CoreIdentity>,
     out: &Path,
     search: &[PathBuf],
 ) -> Result<PathBuf> {
-    semver::Version::parse(version)?;
+    shinki_emu_metadata::validate_core_version(version, identity)?;
+    if identity.is_some_and(|id| id.adapter.commit != result.source_commit || result.source_dirty) {
+        bail!("core package identity does not match a clean build receipt");
+    }
     let m = result
         .core_build
         .as_ref()
@@ -395,6 +419,9 @@ pub fn stage_core(
         .collect();
     let mut runtimes = std::collections::BTreeMap::<String, PathBuf>::new();
     let mut add_runtime = |path: PathBuf| -> Result<()> {
+        if result.target.contains("apple") && entries.iter().any(|(source, _)| source == &path) {
+            return Ok(());
+        }
         let name = path
             .file_name()
             .and_then(|s| s.to_str())
@@ -482,7 +509,11 @@ pub fn stage_core(
         copy_entries(&entries, &dir)?;
         let staged_library = dir.join(library);
         if crate::apple::supported(&result.target) {
-            crate::apple::sign_binary(&staged_library)?;
+            for (_, relative) in &entries {
+                if is_runtime(Path::new(relative)) {
+                    crate::apple::sign_binary(&dir.join(relative))?;
+                }
+            }
         }
         let mut packaged_result = result.clone();
         packaged_result.library = staged_library;
@@ -502,6 +533,7 @@ pub fn stage_core(
             plugin_id: m.plugin_id.clone(),
             library: library.into(),
             version: version.into(),
+            identity: identity.cloned(),
             abi: shinki_emu_build::ABI.into(),
             files,
         };
@@ -517,7 +549,7 @@ pub fn verify_core(dir: &Path) -> Result<CorePackage> {
         bail!("invalid core package protocol");
     }
     portable(&m.plugin_id)?;
-    semver::Version::parse(&m.version)?;
+    shinki_emu_metadata::validate_core_version(&m.version, m.identity.as_ref())?;
     portable(&m.library)?;
     if m.library.contains('/') || Path::new(&m.library).file_stem() != dir.file_name() {
         bail!("core library/stem mismatch");
@@ -576,15 +608,19 @@ pub(crate) fn search_dirs(inv: &Inventory, result: &BuildResult) -> Result<Vec<P
         && let Some(p) = &native.native_library
     {
         dirs.push(p.parent().context("native library parent")?.to_owned());
+        dirs.push(p.parent().context("native library parent")?.join("lib"));
     }
-    if selected.native_vcpkg {
+    for native in dependencies::native_cores(inv, &result.target, &result.component) {
         dirs.push(if result.target == "x86_64-unknown-linux-gnu" {
-            dependencies::linux_runtime(inv, &result.target, &result.component)
+            dependencies::linux_runtime(inv, &result.target, &native.id)
         } else {
-            inv.root
-                .join(".work/native-vcpkg")
-                .join(&result.component)
-                .join("installed/x64-windows/bin")
+            dependencies::native_install(inv, &result.target, &native.id)?
+                .join(dependencies::native_triplet(inv, &result.target)?)
+                .join(if result.target.contains("windows") {
+                    "bin"
+                } else {
+                    "lib"
+                })
         });
     }
     // MSVC runtime redistributables are explicit SDK redistributable inputs, never System32.
@@ -634,6 +670,29 @@ pub(crate) fn licenses(
 ) -> Result<Vec<(PathBuf, String)>> {
     let selected = dependencies::needs(inv, &result.target, &result.component)?;
     let mut entries = vec![];
+    if selected.ffmpeg {
+        let share = dependencies::ffmpeg_install(inv, &result.target)?.join("share");
+        entries.push((
+            share.join("ffmpeg/copyright"),
+            "licenses/ffmpeg/copyright".into(),
+        ));
+        for entry in fs::read_dir(share)? {
+            let entry = entry?;
+            if entry.file_name() == "ffmpeg" {
+                continue;
+            }
+            let copyright = entry.path().join("copyright");
+            if copyright.is_file() {
+                entries.push((
+                    copyright,
+                    format!(
+                        "licenses/ffmpeg/{}/copyright",
+                        entry.file_name().to_string_lossy()
+                    ),
+                ));
+            }
+        }
+    }
     if selected.subtitle
         && (result.target == "x86_64-unknown-linux-gnu" || crate::apple::supported(&result.target))
     {
@@ -662,16 +721,10 @@ pub(crate) fn licenses(
             ));
         }
     }
-    let native_share = inv
-        .root
-        .join(".work/native-vcpkg")
-        .join(&result.component)
-        .join(if result.target == "x86_64-unknown-linux-gnu" {
-            "installed/x64-linux-dynamic/share"
-        } else {
-            "installed/x64-windows/share"
-        });
-    if selected.native_vcpkg && native_share.is_dir() {
+    for native in dependencies::native_cores(inv, &result.target, &result.component) {
+        let native_share = dependencies::native_install(inv, &result.target, &native.id)?
+            .join(dependencies::native_triplet(inv, &result.target)?)
+            .join("share");
         for item in fs::read_dir(native_share)? {
             let path = item?.path().join("copyright");
             if path.is_file() {
@@ -682,7 +735,7 @@ pub(crate) fn licenses(
                     .to_string_lossy();
                 entries.push((
                     path.clone(),
-                    format!("licenses/native-vcpkg/{port}/copyright"),
+                    format!("licenses/native-vcpkg/{}/{port}/copyright", native.id),
                 ));
             }
         }
@@ -764,7 +817,8 @@ pub fn package(
     out: &Path,
 ) -> Result<PathBuf> {
     inv.require_buildable(component, target)?;
-    semver::Version::parse(version)?;
+    let resolved = crate::release::resolve_version(inv, component, version)?;
+    let version = resolved.as_str();
     let mut result = build::load_receipt(inv, target, component)?;
     reject_overlap(&result.library, out)?;
     if result.profile != "release" {
@@ -815,7 +869,7 @@ pub fn package(
             entries.extend(static_core_entries(inv, &result, temp.path())?);
             copy_entries(&entries, stage)?;
             drop(temp);
-            fs::create_dir(stage.join("cores"))?;
+            fs::create_dir_all(stage.join("cores"))?;
             fs::write(
                 stage.join("README.md"),
                 format!(
@@ -909,19 +963,14 @@ pub fn package(
                 .licenses
                 .push(BuildAsset { source, dest });
         }
-        if dependencies::needs(inv, target, component)?.ffmpeg {
-            result
-                .core_build
-                .as_mut()
-                .unwrap()
-                .licenses
-                .push(BuildAsset {
-                    source: dependencies::ffmpeg_install(inv, target)?
-                        .join("share/ffmpeg/copyright"),
-                    dest: "licenses/ffmpeg/copyright".into(),
-                });
-        }
-        stage_core(&result, version, out, &search_dirs(inv, &result)?)
+        let identity = c.source.as_ref().map(crate::cores::CoreSource::identity);
+        stage_core(
+            &result,
+            version,
+            identity.as_ref(),
+            out,
+            &search_dirs(inv, &result)?,
+        )
     }
 }
 /// Resolve license inputs from the actual Cargo checkouts used for embedding.
@@ -963,24 +1012,57 @@ pub(crate) fn static_core_entries(
         }
         for license in &core.licenses {
             let path = Path::new(license);
-            if let Ok(relative) = path.strip_prefix(checkout_relative) {
-                entries.push((
-                    source_root.join(relative),
-                    format!(
+            let asset = if let Ok(relative) = path.strip_prefix(checkout_relative) {
+                BuildAsset {
+                    source: source_root.join(relative),
+                    dest: format!(
                         "licenses/{}/{}",
                         core.id,
                         relative.to_string_lossy().replace('\\', "/")
                     ),
-                ));
+                }
             } else {
                 // Some inventory assets belong to the product, not the fork.
-                entries.push((inv.root.join(path), license.clone()));
+                BuildAsset {
+                    source: inv.root.join(path),
+                    dest: license.clone(),
+                }
+            };
+            entries.extend(asset_entries(&asset)?);
+        }
+        let native = result
+            .embedded_core_builds
+            .iter()
+            .find(|build| build.plugin_id == core.id);
+        if core.artifact_kind == "native-shared" && native.is_none() {
+            bail!(
+                "embedded native core {} has no recorded build manifest",
+                core.id
+            );
+        }
+        if let Some(native) = native {
+            native.validate()?;
+            for asset in &native.resources {
+                for (source, destination) in asset_entries(asset)? {
+                    entries.push((source, format!("cores/{}/{destination}", core.id)));
+                }
+            }
+            for asset in &native.licenses {
+                for (source, destination) in asset_entries(asset)? {
+                    entries.push((
+                        source,
+                        format!("licenses/embedded/{}/{destination}", core.id),
+                    ));
+                }
             }
         }
         embedded.push(serde_json::json!({
             "id": core.id,
             "package": core.package,
             "source": core.source,
+            "identity": core.source.as_ref().map(crate::cores::CoreSource::identity),
+            "version": core.source.as_ref().map_or_else(|| package["version"].as_str().context("embedded core version").map(str::to_owned), |source| Ok(source.identity().version()))?,
+            "display_version": core.source.as_ref().map(|source| source.identity().display_version()),
         }));
     }
     let manifest = scratch.join("embedded-cores.json");
@@ -1240,7 +1322,7 @@ fn package_android(
             .find(|(_, name)| name.ends_with(".apk"))
             .context("signed APK missing")?
             .0;
-        verify_android_apk(&apk)?;
+        verify_android_apk(&apk, stage)?;
         fs::write(
             stage.join("android.json"),
             serde_json::to_vec_pretty(&serde_json::json!({
@@ -1260,7 +1342,7 @@ fn package_android(
     Ok(out.to_owned())
 }
 
-fn verify_android_apk(apk: &Path) -> Result<()> {
+fn verify_android_apk(apk: &Path, staged: &Path) -> Result<()> {
     let sdk = std::env::var_os("ANDROID_HOME")
         .or_else(|| std::env::var_os("ANDROID_SDK_ROOT"))
         .map(PathBuf::from)
@@ -1299,6 +1381,39 @@ fn verify_android_apk(apk: &Path) -> Result<()> {
                 .create_new(true)
                 .open(destination)?;
             io::copy(&mut entry, &mut output)?;
+        }
+    }
+    let manifest_path = "assets/bundled.manifest";
+    let expected_manifest = fs::read_to_string(staged.join(manifest_path))?;
+    let mut packaged_manifest = String::new();
+    archive
+        .by_name(manifest_path)?
+        .read_to_string(&mut packaged_manifest)?;
+    if packaged_manifest != expected_manifest || packaged_manifest.len() > 1024 * 1024 {
+        bail!(
+            "APK bundled resource manifest differs from its staged input or exceeds the host limit"
+        );
+    }
+    let mut buffer = [0u8; 16384];
+    for relative in expected_manifest.lines().filter(|line| !line.is_empty()) {
+        portable(relative)?;
+        let name = format!("assets/{relative}");
+        let mut asset = archive
+            .by_name(&name)
+            .with_context(|| format!("APK bundled resource missing: {relative}"))?;
+        if asset.is_dir() || asset.size() > 32 * 1024 * 1024 {
+            bail!("APK bundled resource exceeds the host file contract: {relative}");
+        }
+        let mut hash = Sha256::new();
+        loop {
+            let count = asset.read(&mut buffer)?;
+            if count == 0 {
+                break;
+            }
+            hash.update(&buffer[..count]);
+        }
+        if hex::encode(hash.finalize()) != sha256(&staged.join(&name))? {
+            bail!("APK bundled resource differs from its staged input: {relative}");
         }
     }
     for (target, abi) in ANDROID_TARGETS {

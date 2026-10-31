@@ -44,7 +44,11 @@ pub fn pick_file(title: &str, filters: &[FileFilter<'_>], done: PickDone) {
     imp::pick_file(title, filters, done);
 }
 
-/// Name a directory that does not exist yet; the caller creates it.
+/// Choose a location for a new directory without creating it. Desktop selects
+/// its parent and proposes an unused `default_name` child; mobile platforms
+/// resolve a writable destination through their native/sandbox services.
+/// The returned path is a proposal, not a reservation: callers must publish
+/// without replacing anything that appeared there after selection.
 pub fn pick_new_directory(title: &str, default_name: &str, done: PickDone) {
     imp::pick_new_directory(title, default_name, done);
 }

@@ -70,6 +70,14 @@ impl CoreBuildManifest {
                     .native_library
                     .as_ref()
                     .is_some_and(|p| p.is_absolute() && p.is_file()) => {}
+            "native-static"
+                if self.native_library.as_ref().is_some_and(|path| {
+                    path.is_absolute()
+                        && path.is_file()
+                        && path
+                            .extension()
+                            .is_some_and(|extension| extension == "a" || extension == "lib")
+                }) => {}
             _ => bail!("artifact_kind and native_library disagree"),
         }
         for (assets, prefix) in [
@@ -169,6 +177,142 @@ pub fn configure_native_environment(work_root: &Path, command: &mut Command) -> 
     Ok(())
 }
 
+/// Manifest-mode installations must not prune another target's dependency set.
+pub fn native_vcpkg_install_root(root: &Path, core: &str, triplet: &str) -> PathBuf {
+    root.join(core).join(format!("installed-{triplet}"))
+}
+
+/// Resolve one native core's installation within the Manager's shared build environment.
+pub fn native_vcpkg_installation(core: &str) -> Result<PathBuf> {
+    println!("cargo:rerun-if-env-changed=SHINKI_EMU_NATIVE_VCPKG_ROOT");
+    let root = env::var_os("SHINKI_EMU_NATIVE_VCPKG_ROOT")
+        .context("SHINKI_EMU_NATIVE_VCPKG_ROOT is required; run cargo xtask deps")?;
+    println!("cargo:rerun-if-env-changed=SHINKI_EMU_VCPKG_TRIPLET");
+    let triplet = env::var("SHINKI_EMU_VCPKG_TRIPLET")
+        .context("SHINKI_EMU_VCPKG_TRIPLET is required; run cargo xtask deps")?;
+    let installed = native_vcpkg_install_root(Path::new(&root), core, &triplet);
+    if !installed.is_dir() {
+        bail!("native vcpkg installation missing: {}", installed.display());
+    }
+    Ok(installed)
+}
+
+/// Merge the native build's archives and publish its prepared static link closure to Cargo.
+pub fn link_apple_static_core(
+    core: &str,
+    native: &Path,
+    installations: &[PathBuf],
+) -> Result<PathBuf> {
+    fn archives(
+        directory: &Path,
+        staged: &Path,
+        result: &mut std::collections::BTreeSet<PathBuf>,
+    ) -> Result<()> {
+        for entry in fs::read_dir(directory)? {
+            let entry = entry?;
+            if entry.file_type()?.is_dir() {
+                if entry.path() != staged {
+                    archives(&entry.path(), staged, result)?;
+                }
+            } else if entry
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "a")
+            {
+                result.insert(fs::canonicalize(entry.path())?);
+            }
+        }
+        Ok(())
+    }
+    let target = env::var("TARGET")?;
+    let architecture = match target.split('-').next() {
+        Some("aarch64") => "arm64",
+        Some("x86_64") => "x86_64",
+        _ => bail!("unsupported Apple static target {target}"),
+    };
+    if !target.contains("apple") {
+        bail!("Apple static linking requires an Apple target");
+    }
+    let mut inputs = std::collections::BTreeSet::new();
+    archives(native, &native.join("install"), &mut inputs)?;
+    if inputs.is_empty() {
+        bail!("native core {core} produced no static archives");
+    }
+    let name = format!("shinki_{}_closure", core.replace(['.', '-'], "_"));
+    let output = native
+        .parent()
+        .context("native output parent")?
+        .join(format!("lib{name}.a"));
+    run(Command::new("xcrun")
+        .args(["libtool", "-static", "-arch_only", architecture, "-o"])
+        .arg(&output)
+        .args(inputs))?;
+    println!(
+        "cargo:rustc-link-search=native={}",
+        output.parent().unwrap().display()
+    );
+    println!("cargo:rustc-link-lib=static={name}");
+    link_static_installations(installations)?;
+    println!("cargo:rustc-link-lib=c++");
+    println!("cargo:rustc-link-lib=framework=Foundation");
+    Ok(output)
+}
+
+/// Link the installed native archives and their target pkg-config closure on Android.
+pub fn link_android_static_core(native: &Path, installations: &[PathBuf]) -> Result<()> {
+    if !env::var("TARGET")?.ends_with("-linux-android") {
+        bail!("Android static linking requires an Android target");
+    }
+    link_static_installations(&[native.join("install")])?;
+    link_static_installations(installations)?;
+    println!("cargo:rustc-link-lib=c++_shared");
+    for library in [
+        "android", "log", "dl", "m", "EGL", "GLESv3", "OpenSLES", "mediandk",
+    ] {
+        println!("cargo:rustc-link-lib={library}");
+    }
+    Ok(())
+}
+
+fn link_static_installations(installations: &[PathBuf]) -> Result<()> {
+    for installation in installations {
+        let libraries = installation.join("lib");
+        println!("cargo:rustc-link-search=native={}", libraries.display());
+        let mut entries = fs::read_dir(&libraries)?.collect::<std::io::Result<Vec<_>>>()?;
+        entries.sort_by_key(|entry| entry.file_name());
+        for entry in entries {
+            let path = entry.path();
+            if path.extension().is_some_and(|extension| extension == "a") {
+                let stem = path
+                    .file_stem()
+                    .and_then(|value| value.to_str())
+                    .context("archive name")?;
+                let library = stem.strip_prefix("lib").context("native archive prefix")?;
+                println!("cargo:rustc-link-lib=static={library}");
+            }
+        }
+        for directory in [
+            installation.join("lib/pkgconfig"),
+            installation.join("share/pkgconfig"),
+        ] {
+            if !directory.is_dir() {
+                continue;
+            }
+            for entry in fs::read_dir(directory)? {
+                let path = entry?.path();
+                if path.extension().is_some_and(|extension| extension == "pc") {
+                    pkg_config::Config::new().statik(true).probe(
+                        path.file_stem()
+                            .and_then(|value| value.to_str())
+                            .context("pkg-config name")?,
+                    )?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Configure an OUT_DIR-owned native tree, then build the requested real targets.
 /// Cross builds must supply an explicit CMake toolchain; no host/target guessing.
 pub fn configure_cmake(
@@ -199,7 +343,6 @@ pub fn configure_cmake(
         "VCToolsInstallDir",
         "VCPKG_ROOT",
         "BISON_EXECUTABLE",
-        "SHINKI_EMU_VCPKG_INSTALLED",
         "SHINKI_EMU_VCPKG_TRIPLET",
         "SHINKI_EMU_NATIVE_DOWNLOADS",
         "HOST",
@@ -244,6 +387,8 @@ pub fn configure_cmake(
         .arg("-DVCPKG_MANIFEST_INSTALL=OFF");
     if let Some(generator) = env::var_os("CMAKE_GENERATOR") {
         configure.arg("-G").arg(generator);
+    } else if target.ends_with("-linux-android") {
+        configure.args(["-G", "Ninja"]);
     } else if cfg!(windows)
         && target.ends_with("windows-msvc")
         && env::var_os("VCToolsInstallDir").is_some()
@@ -263,19 +408,6 @@ pub fn configure_cmake(
         configure.arg(format!(
             "-DCMAKE_TOOLCHAIN_FILE={}",
             dunce::simplified(Path::new(&toolchain)).display()
-        ));
-    }
-    if let Some(installed) = env::var_os("SHINKI_EMU_VCPKG_INSTALLED") {
-        let installed = PathBuf::from(installed);
-        if !installed.is_dir() {
-            bail!(
-                "native vcpkg installation missing: {}; run cargo xtask deps",
-                installed.display()
-            );
-        }
-        configure.arg(format!(
-            "-DVCPKG_INSTALLED_DIR={}",
-            dunce::simplified(&installed).display()
         ));
     }
     if let Ok(triplet) = env::var("SHINKI_EMU_VCPKG_TRIPLET") {

@@ -43,6 +43,7 @@ Publishing a core release opens a catalog PR with one entry for each released pl
 cargo xtask metadata schema
 cargo xtask metadata validate
 cargo xtask metadata build --root Metadata --out .work/metadata-snapshot
+cargo xtask metadata resolve-core --plugin-id rfvp --platform windows-x86_64 --abi shinki.emu.native.c.v3
 cargo xtask metadata intake --kind compatibility --event event.json --out .work/compat-candidate
 cargo xtask metadata intake --kind patch --event event.json --out .work/patch-candidate
 ```
@@ -51,4 +52,8 @@ Schema exports default to `Metadata/schema` and come from Rust DTOs. Edit source
 
 Snapshot output contains `compatibility.json`, `cores.json`, `presets.json`, `patches.json`, recipe-only `patches/catalog.json`, reviewed scripts and `index.json`. Recipe titles in the executable catalog use `zh-CN`. Core release entries come from `Metadata/engines/cores/<plugin_id>/<platform>/<version>.json` and only reference this repository's release downloads. Index SHA256 hashes/sizes and source commit cover generated files. Commit time supplies the timestamp, making the same committed input deterministic. Limits are 8 MiB per file, 64 MiB total and 4096 files; large attachments remain outside this budget.
 
+The index also covers `cores-v2.json` (`shinki.emu.cores.v2`), containing both authentic legacy entries and new external `identity` records. `cores.json` remains legacy v1 and retains published downloads for older Managers. New consumers prefer indexed v2 and fall back to v1 only when v2 is absent. Upstream/adapter identities, safe filenames and sequence-based latest selection are defined in [Build and release](build-and-release.md#package-and-release).
+
 Manager and the portal consume the same snapshot at `https://project-shinkirou.github.io/data/shinkiemu/v1/`. Keep `Metadata/` as the single source; do not hand-edit a second compatibility/core status table. See [User guide](user-guide.md) and [Build and release](build-and-release.md).
+
+Complete external core identifiers can reach 88 bytes. The index therefore adds `compatibility-v5.json` (`shinki.emu.compatibility.v5`, core version limit 88; Manager version limit remains 64). New consumers prefer that indexed file. `compatibility.json` remains v4 with only reports whose core version fits its original 64-character limit, preserving a valid entire snapshot for old Managers; source reports are retained unchanged.

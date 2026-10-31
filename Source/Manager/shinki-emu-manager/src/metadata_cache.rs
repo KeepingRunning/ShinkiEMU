@@ -19,8 +19,10 @@ pub(crate) const METADATA_DIRECTORY: &str = "metadata";
 const STAGING_DIRECTORY: &str = "metadata.staging";
 const PREVIOUS_DIRECTORY: &str = "metadata.old";
 const COMPATIBILITY_FILE: &str = "compatibility.json";
+const COMPATIBILITY_V5_FILE: &str = "compatibility-v5.json";
 const PRESETS_FILE: &str = "presets.json";
 const CORES_FILE: &str = "cores.json";
+const CORES_V2_FILE: &str = "cores-v2.json";
 const PATCH_CATALOG_FILE: &str = "patches/catalog.json";
 const PATCHES_FILE: &str = "patches.json";
 const PATCH_DIRECTORY: &str = "patches";
@@ -57,7 +59,7 @@ impl MetadataCatalog {
             }
             if matches!(
                 file.path.as_str(),
-                COMPATIBILITY_FILE | PRESETS_FILE | CORES_FILE | PATCHES_FILE
+                COMPATIBILITY_FILE | COMPATIBILITY_V5_FILE | PRESETS_FILE | CORES_FILE | CORES_V2_FILE | PATCHES_FILE
             ) {
                 contents.insert(file.path.as_str(), bytes);
             }
@@ -67,11 +69,13 @@ impl MetadataCatalog {
                 .get(name)
                 .ok_or_else(|| format!("SHINKI_EMU_METADATA_CACHE_INVALID: {name}"))
         };
-        let compatibility = parse_compatibility_database(required(COMPATIBILITY_FILE)?)
+        let compatibility_file = if contents.contains_key(COMPATIBILITY_V5_FILE) { COMPATIBILITY_V5_FILE } else { COMPATIBILITY_FILE };
+        let compatibility = parse_compatibility_database(required(compatibility_file)?)
             .map_err(|error| error.to_string())?;
         let presets =
             parse_preset_database(required(PRESETS_FILE)?).map_err(|error| error.to_string())?;
-        let cores = parse_core_catalog(required(CORES_FILE)?).map_err(|error| error.to_string())?;
+        let core_file = if contents.contains_key(CORES_V2_FILE) { CORES_V2_FILE } else { CORES_FILE };
+        let cores = parse_core_catalog(required(core_file)?).map_err(|error| error.to_string())?;
         let patches = shinki_emu_metadata::parse_patch_catalog(required(PATCHES_FILE)?)
             .map_err(|error| error.to_string())?;
         let recipes = if index

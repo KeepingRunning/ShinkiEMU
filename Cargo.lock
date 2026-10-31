@@ -7061,7 +7061,7 @@ dependencies = [
 [[package]]
 name = "na_mpeg2_decoder"
 version = "0.1.1"
-source = "git+https://github.com/Project-Shinkirou/rfvp?rev=9a5c20026e3638ef5714c2ad7062634648c8dfcf#9a5c20026e3638ef5714c2ad7062634648c8dfcf"
+source = "git+https://github.com/Project-Shinkirou/rfvp?rev=f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03#f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03"
 dependencies = [
  "byteorder",
  "log 0.4.34",
@@ -9712,7 +9712,7 @@ dependencies = [
 [[package]]
 name = "rfvp"
 version = "0.7.0"
-source = "git+https://github.com/Project-Shinkirou/rfvp?rev=9a5c20026e3638ef5714c2ad7062634648c8dfcf#9a5c20026e3638ef5714c2ad7062634648c8dfcf"
+source = "git+https://github.com/Project-Shinkirou/rfvp?rev=f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03#f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03"
 dependencies = [
  "ab_glyph",
  "anyhow",
@@ -9746,6 +9746,7 @@ dependencies = [
  "mp4",
  "na_mpeg2_decoder 0.1.1",
  "ndk-context",
+ "objc2-metal 0.3.2",
  "parking_lot 0.12.5",
  "petitset",
  "pollster 0.4.0",
@@ -9765,7 +9766,7 @@ dependencies = [
  "video-sys",
  "wgpu 30.0.1",
  "winit 0.30.13",
- "wmv-decoder 0.2.0 (git+https://github.com/Project-Shinkirou/rfvp?rev=9a5c20026e3638ef5714c2ad7062634648c8dfcf)",
+ "wmv-decoder 0.2.0 (git+https://github.com/Project-Shinkirou/rfvp?rev=f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03)",
 ]
 
 [[package]]
@@ -11008,6 +11009,7 @@ dependencies = [
  "cc",
  "dunce",
  "object 0.40.0",
+ "pkg-config",
  "serde",
  "serde_json",
  "tempfile",
@@ -11094,8 +11096,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "shinki-emu-impacto"
+version = "0.1.0"
+source = "git+https://github.com/Project-Shinkirou/impacto?rev=910a820ba3ea8d4dd8d6e19c560df1d5a3bc5157#910a820ba3ea8d4dd8d6e19c560df1d5a3bc5157"
+dependencies = [
+ "shinki-emu-abi",
+ "shinki-emu-build",
+]
+
+[[package]]
 name = "shinki-emu-manager"
-version = "0.1.0-beta.5"
+version = "0.1.0-beta.6"
 dependencies = [
  "android-activity 0.6.1",
  "cap-fs-ext",
@@ -11134,7 +11145,6 @@ dependencies = [
  "roukaku-text",
  "rustls",
  "rustls-platform-verifier",
- "semver",
  "serde",
  "serde_json",
  "sha2 0.11.1",
@@ -11144,12 +11154,14 @@ dependencies = [
  "shinki-emu-dlsite",
  "shinki-emu-dmm",
  "shinki-emu-ethornell-rs",
+ "shinki-emu-impacto",
  "shinki-emu-manager-core",
  "shinki-emu-manager-ui-slint",
  "shinki-emu-metadata",
  "shinki-emu-musica",
  "shinki-emu-musica-keys",
  "shinki-emu-patch",
+ "shinki-emu-renpy",
  "shinki-emu-rfvp",
  "shinki-emu-sdk",
  "shinki-emu-sena-rs",
@@ -11161,6 +11173,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "toml 1.1.8+spec-1.1.0",
  "tracing",
  "url",
  "wgpu 30.0.1",
@@ -11328,6 +11341,7 @@ dependencies = [
  "serde-pickle",
  "serde_json",
  "sha2 0.11.1",
+ "shinki-emu-abi",
  "shinki-emu-metadata",
  "tempfile",
  "time",
@@ -11337,9 +11351,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "shinki-emu-renpy"
+version = "0.1.0"
+source = "git+https://github.com/Project-Shinkirou/renpy?rev=a52d9d9c006223c2b5a276c05e1b97ffeecbe66f#a52d9d9c006223c2b5a276c05e1b97ffeecbe66f"
+dependencies = [
+ "anyhow",
+ "serde_json",
+ "sha2 0.10.9",
+ "shinki-emu-abi",
+ "shinki-emu-build",
+]
+
+[[package]]
 name = "shinki-emu-rfvp"
 version = "0.6.0"
-source = "git+https://github.com/Project-Shinkirou/rfvp?rev=9a5c20026e3638ef5714c2ad7062634648c8dfcf#9a5c20026e3638ef5714c2ad7062634648c8dfcf"
+source = "git+https://github.com/Project-Shinkirou/rfvp?rev=f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03#f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03"
 dependencies = [
  "anyhow",
  "parking_lot 0.12.5",
@@ -16108,7 +16134,7 @@ dependencies = [
 [[package]]
 name = "wmv-decoder"
 version = "0.2.0"
-source = "git+https://github.com/Project-Shinkirou/rfvp?rev=9a5c20026e3638ef5714c2ad7062634648c8dfcf#9a5c20026e3638ef5714c2ad7062634648c8dfcf"
+source = "git+https://github.com/Project-Shinkirou/rfvp?rev=f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03#f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03"
 dependencies = [
  "byteorder",
  "log 0.4.34",
