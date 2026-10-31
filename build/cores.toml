@@ -377,7 +377,7 @@ repo = "https://github.com/Project-Shinkirou/impacto"
 branch = "shinki-android-ports"
 rev = "910a820ba3ea8d4dd8d6e19c560df1d5a3bc5157"
 upstream = "https://github.com/CommitteeOfZero/impacto"
-release_sequence = 1
+release_sequence = 2
 upstream_identity = { repo = "https://github.com/CommitteeOfZero/impacto", ref_kind = "tag", ref_name = "0.10.8.930", commit = "3706ddd89d4ad4aed0e32e127355c4251f22e574" }
 [[cores.blocked]]
 target = "aarch64-linux-android"
