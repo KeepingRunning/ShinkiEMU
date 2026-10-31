@@ -180,6 +180,7 @@ Shinki Musica is included in the iOS Manager's static registry and inventory, wi
 Artemis desktop packages support both macOS architectures using fork `5243005cf0aaaeac89b1803e57381e9c0b14b95c`. The staged core dylib's install ID is normalized to `@rpath/<filename>` before signing; the source build artifact is unchanged. This isolated packaging behavior comes from `f6f72cc` as exercised by Apple candidate `e295f536`; universal/framework/Python bundle changes and unverified iOS or other-core pins are not part of this desktop cutover. Each isolated release candidate runs new exact-head desktop gates.
 
 Manager packages with embedded FFmpeg include the FFmpeg notice and every transitive port notice from the selected target's private installation under `licenses/ffmpeg/`; the same collector is used for standalone core packages.
+OHOS uses this shared collector once; it does not append a second copy of the same FFmpeg copyright. The strict destination-collision checks remain in force, and all transitive notices keep their source paths.
 
 Native static cores record `native-static` archives and runtime assets in their Cargo build manifests. Manager receipts retain those dependency manifests, and packaging stages their assets under `cores/<id>/Resources` rather than discarding them. Dependency preparation selects each embedded native core independently; `SHINKI_EMU_NATIVE_VCPKG_ROOT` contains its per-core installation. Apple static linking combines native-build archives and publishes the prepared port libraries/frameworks to Cargo.
 
