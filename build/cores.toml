@@ -18,8 +18,8 @@ static_manager_targets = ["aarch64-linux-android", "x86_64-linux-android", "aarc
 publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/rfvp"
-branch = "shinki-android-isolation"
-rev = "9a5c20026e3638ef5714c2ad7062634648c8dfcf"
+branch = "shinki-sakura-native"
+rev = "67361cb1047092a282de74fe0c1668f590f9e5af"
 upstream = "https://github.com/xmoezzz/rfvp"
 [[cores.blocked]]
 target = "aarch64-unknown-linux-ohos"
