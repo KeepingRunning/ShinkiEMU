@@ -203,7 +203,7 @@ publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/kirikiroid2-web"
 branch = "shinki-apple-ports"
-rev = "d0deddb07fa825c1f0104cf423a083b47b41f368"
+rev = "bf53f10a3a8b7bbf36ea3c95b16ce746aeee76fc"
 upstream = "https://github.com/fenghengzhi/kirikiroid2-web"
 [[cores.blocked]]
 target = "aarch64-apple-ios"
