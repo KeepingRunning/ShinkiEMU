@@ -11,6 +11,12 @@ pub const CAP_RENDER_EXTENT: u64 = 16;
 /// Text replacement uses the nonblocking v1 host service. Requires CAP_TEXT_HOOK.
 /// CAP_TEXT_HOOK without this bit explicitly selects synchronous replacement.
 pub const CAP_ASYNC_TEXT: u64 = 32;
+/// Validates an explicit converted-script hash and isolates its saves/read state;
+/// markerless games retain their existing native storage namespace.
+pub const CAP_NATIVE_SCRIPT_IDENTITY: u64 = 64;
+/// A configured font is the primary face for script, restored and UI text,
+/// ahead of authored or restored family choices, including ruby.
+pub const CAP_CONFIGURED_FONT_PRIORITY: u64 = 128;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 64;
 pub const MAX_RENDER_EXTENT: u32 = 16384;
 pub const RENDER_PRESERVE_ASPECT: u32 = 1;
