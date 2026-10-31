@@ -29,8 +29,8 @@ pub(super) fn pick_new_directory(title: &str, default_name: &str, done: PickDone
 }
 
 fn new_directory_in(parent: &std::path::Path, default_name: &str) -> Result<PathBuf, String> {
-    let metadata = std::fs::metadata(parent)
-        .map_err(|error| format!("SHINKI_EMU_PATCH_PATH: {error}"))?;
+    let metadata =
+        std::fs::metadata(parent).map_err(|error| format!("SHINKI_EMU_PATCH_PATH: {error}"))?;
     if !metadata.is_dir() {
         return Err("SHINKI_EMU_PATCH_PATH: output location must be a directory".into());
     }
@@ -124,8 +124,14 @@ mod tests {
         assert_eq!(output, parent.path().join("localized-output-3"));
         assert!(!output.exists());
         assert_eq!(fs::read_dir(parent.path()).unwrap().count(), 3);
-        assert_eq!(fs::read(parent.path().join("localized-output-1")).unwrap(), b"user file");
-        assert_eq!(fs::read(parent.path().join("localized-output-2/keep")).unwrap(), b"user data");
+        assert_eq!(
+            fs::read(parent.path().join("localized-output-1")).unwrap(),
+            b"user file"
+        );
+        assert_eq!(
+            fs::read(parent.path().join("localized-output-2/keep")).unwrap(),
+            b"user data"
+        );
     }
 
     #[test]
