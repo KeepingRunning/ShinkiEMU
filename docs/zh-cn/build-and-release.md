@@ -14,6 +14,8 @@ ShinkiEMU 自身在游戏目录内写入的文件一律放在 `<game>/.shinki/` 
 克隆仓库时递归取得子模块，并准备 Rust/Cargo 和目标平台的原生工具链。Windows 原生构建需要 x64 MSVC 开发者环境、CMake、Ninja 和 Git。Android 使用 JDK 27、NDK 30.0.16248370 和 cargo-ndk 4.1.2。工具版本与下载输入在 `build/dependencies.toml`；核心 manifest、features、许可在 `build/cores.toml`；目标与 runner 定义在 `build/targets.toml`。
 
 Ren’Py 另需固定的官方 SDK，设置 `RENPY_SDK_ROOT`、`RENPY_PYTHON_DEV`、`RENPY_SDL_INCLUDE`，并准备与 CPython 3.12.7 匹配的官方 Cython 3.2.4 编译器。这些属于上游编译和运行依赖。SDK 输入以 fork 的 `shinki/sdk.json` 为准。
+POSIX SDL 2.0.20 源码从 SDL 官方 GitHub Release 下载，SHA256 仍为 `c56aba1d7b5b0e7e999e4a7698c70b63a3394ff9704b5f6e1c57e0c16f04dd06`，归档内容和 SDK ABI 不变。Android Ren’Py 源码构建还需要 LLVM 18/Clang 18、LLD、ccache 及原生开发包；CI 和 Release 安装同一份既有依赖清单，只有 Android SDK/NDK 不够。
+
 
 工作区统一使用 Rust 2024 edition，最低 Rust 版本为 1.99，固定工具链为 Rust 1.99.1。Android 打包使用 Gradle 9.8.2、AGP 9.4.1 内置 Kotlin、JDK 27、platform 37.2、build-tools 37.0.0 和稳定版 NDK r30（30.0.16248370）。CMVS 不依赖 Win32，以动态核心构建 Windows x64、Linux x64 和两种 macOS 架构；Android 与 iOS 需等 Manager 静态嵌入。
 
@@ -115,7 +117,7 @@ cargo xtask build --target x86_64-linux-android --manager --release
 cargo xtask package --target aarch64-linux-android --manager --version 0.1.0-beta.2 --out .work/android-test
 ```
 
-每次构建都以 `cargo ndk --locked` 编译，静态链接 `static_manager_targets` 含该三元组的核心（RFVP、Siglus、Shinki Musica、Artemis），并在构建记录所指 target 目录的 `android-inputs/` 中收集 JNI 运行依赖、元数据和许可。打包需要**两个三元组**来自同一源码提交的 release 构建记录。Gradle 随后生成含 `arm64-v8a`、`x86_64` 和 `assets/metadata/` 的通用 APK；xtask 检查签名及每个原生库的依赖闭包。没有签名密钥时，输出为 `ShinkiEMU-<version>-android-universal-debug-signed.apk`，这是 debug 签名的 CI 测试包，不是正式安装包。测试密钥生成在 `GRADLE_USER_HOME` 中。证书验证器的 Kotlin 组件由 Gradle 从官方 Maven archive 获取，版本与 `Cargo.lock` 中的 Android shim 同步，不再从 Cargo 源码目录复制 AAR。
+每次构建先读取 `cargo ndk-env` 的工具链环境，再直接调用 `Cargo --locked` 编译，静态链接 `static_manager_targets` 含该三元组的核心（RFVP、Siglus、Shinki Musica、Artemis、Impacto、Ren’Py），并在构建记录所指 target 目录的 `android-inputs/` 中收集 JNI 运行依赖、元数据和许可。打包需要**两个三元组**来自同一源码提交的 release 构建记录。Gradle 随后生成含 `arm64-v8a`、`x86_64` 和 `assets/metadata/` 的通用 APK；xtask 检查签名及每个原生库的依赖闭包。没有签名密钥时，输出为 `ShinkiEMU-<version>-android-universal-debug-signed.apk`，这是 debug 签名的 CI 测试包，不是正式安装包。测试密钥生成在 `GRADLE_USER_HOME` 中。证书验证器的 Kotlin 组件由 Gradle 从官方 Maven archive 获取，版本与 `Cargo.lock` 中的 Android shim 同步，不再从 Cargo 源码目录复制 AAR。
 
 首次下载 Gradle 依赖后，可设置 `SHINKI_EMU_GRADLE_OFFLINE=1` 传入 `--offline`；每次打包都使用新的输出目录。`cargo xtask ci --target aarch64-linux-android --component manager --report .work/android-ci.json` 构建两个 ABI，并报告实际 APK 路径。CI 先为两个三元组准备依赖，只运行一次该命令：`matrix --json --ci` 去掉了 `x86_64-linux-android` 的 Manager 行，那一行生成的是同一个通用 APK。Release 发布一个通用的 release 签名 APK，并保留对应的 sources ZIP。
 
@@ -160,7 +162,7 @@ cargo xtask package --target aarch64-apple-ios-sim --manager --version 0.1.0-bet
 
 macOS 包含真实的 `ShinkiEMU.app`，可执行文件位于 `Contents/MacOS`，元数据和许可位于 `Contents/Resources`，`ci`/`release` 生成 ZIP。Apple bundle 也包含 ShinkiEMU 应用图标。iOS Manager 在主线程使用 Slint 的 winit/UIKit 后端和 Metal 渲染器，原生 Files 选择器保留安全作用域授权及书签，应用数据存入自身 Library 沙箱。iOS 重启需由用户关闭再打开应用。共享平台会激活真实的 AVAudioSession；Manager 编译成功不代表可以在 iOS 安装任意下载的核心二进制，核心自身的嵌入与构建限制仍在清单中。
 
-RFVP、Siglus、Sena、Ethornell 和 ReMinori 在两种 macOS 架构上构建动态核心，并在 iOS 真机和两种模拟器架构的 Manager 中静态注册。iOS 不加载下载的核心 dylib；Android Manager 静态注册 RFVP、Siglus、Shinki Musica 和 Artemis。构建会核对 Manager 依赖与 `build/cores.toml` 的提交 pin，安装包包含 `embedded-cores.json` 和各静态核心的许可文件。
+RFVP、Siglus、Sena、Ethornell 和 ReMinori 在两种 macOS 架构上构建动态核心，并在 iOS 真机和两种模拟器架构的 Manager 中静态注册。iOS 不加载下载的核心 dylib；Android Manager 静态注册 RFVP、Siglus、Shinki Musica、Artemis、Impacto 和 Ren’Py，不包含 KiriKiri。构建会核对 Manager 依赖与 `build/cores.toml` 的提交 pin，安装包包含 `embedded-cores.json` 和各静态核心的许可文件。
 
 Shinki Musica 已加入 iOS Manager 的静态注册表和核心清单，FFmpeg 依赖按目标隔离。独立提交 `72ac926e1d15a452dc81ca84f3e82776aa302a26` 的精确提交 CI，以及真机目标和两种模拟器目标的原生编译、打包、签名、依赖闭包和许可检查均已通过。后续 Manager 将此移植与原生存档合并时，仍须运行新集成提交的完整门禁。iOS 不支持单独安装动态核心；设备启动验收已获豁免。
 
@@ -169,8 +171,6 @@ Shinki Musica 已加入 iOS Manager 的静态注册表和核心清单，FFmpeg �
 原生静态核心通过 Cargo 构建清单记录 `native-static` 归档和运行资源。Manager 的构建记录会保留这些依赖清单，打包时将资源放入 `cores/<id>/Resources`。依赖准备按嵌入核心分别选择，`SHINKI_EMU_NATIVE_VCPKG_ROOT` 下保存各核心的安装树。Apple 静态链接会合并原生构建归档，并向 Cargo 提供目标安装树中的库及系统 framework。
 
 原生 vcpkg 清单按 `.work/native-vcpkg/<core>/installed-<triplet>/<triplet>` 隔离安装树，准备一个 ABI 时不会删掉另一个 ABI 的依赖。构建辅助库和 xtask 共用路径映射。Android 静态链接包含核心自带的原生库、目标 vcpkg 归档及 pkg-config 的私有依赖，APK 保留 NDK 的 C++ 共享运行库。Windows 构建机上的依赖安装必须跨工作树串行执行，避免争用 vcpkg 工具目录的构建锁。
-
-`feat/apple-musica` 候选分支将 Shinki Musica 加入 iOS Manager 的静态注册表和核心清单，复用 `cc34d86` 的按目标隔离的静态 FFmpeg 构建路径。三条 iOS 核心记录保留阻塞状态，直到模拟器、真机打包和筛选后的远程 CI 通过；加入静态依赖不代表平台验收通过。
 
 RFVP 的 Apple 字幕依赖在原生 macOS/Xcode 上按固定 vcpkg 清单构建 libass 0.17.5。每个目标单独安装静态库，triplet 分别为 `arm64-osx`、`x64-osx`、`arm64-ios`、`arm64-ios-simulator`、`x64-ios`。`build/vcpkg/apple-triplets/` 中的 overlay triplet 固定部署目标（macOS 13.0、iOS 16.0），并让 libass 用 CoreText 代替 fontconfig；`deps` 会清掉 `*_DEPLOYMENT_TARGET` 环境变量，避免 macOS 构建机工具被编成 iOS 目标。pkg-config 将私有静态依赖和 Apple framework 传给 Rust。RFVP 的 Apple WMV/MPEG 解码使用原生 Rust 实现，不依赖 GStreamer；CoreAudio 由系统提供。FFmpeg、C++ 原生核心和 CMVS 在 Apple 上的阻塞原因保持不变。
 

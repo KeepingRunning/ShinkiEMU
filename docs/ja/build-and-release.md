@@ -14,6 +14,8 @@ ShinkiEMU 自身がゲームディレクトリ内に書き込むファイルは�
 リポジトリはサブモジュールを含めて再帰的にクローンし、Rust/Cargo とターゲットプラットフォームのネイティブツールチェーンを用意します。Windows のネイティブビルドには、x64 MSVC 開発者環境、CMake、Ninja、Git が必要です。Android では JDK 27、NDK 30.0.16248370、cargo-ndk 4.1.2 を使います。ツールのバージョンとダウンロード入力は `build/dependencies.toml`、コアの manifest、features、ライセンスは `build/cores.toml`、ターゲットと runner の定義は `build/targets.toml` にあります。
 
 Ren’Py にはさらに、固定バージョンの公式 SDK が必要です。`RENPY_SDK_ROOT`、`RENPY_PYTHON_DEV`、`RENPY_SDL_INCLUDE` を設定し、CPython 3.12.7 に対応する公式の Cython 3.2.4 コンパイラーを用意してください。これらは上流のビルドと実行に必要な依存関係です。SDK の入力は fork の `shinki/sdk.json` に従います。
+POSIX SDL 2.0.20 のソースは SDL 公式 GitHub Release から取得します。SHA256 は `c56aba1d7b5b0e7e999e4a7698c70b63a3394ff9704b5f6e1c57e0c16f04dd06` のままで、アーカイブの内容と SDK ABI は変わりません。Android Ren’Py のソースビルドには LLVM 18/Clang 18、LLD、ccache とネイティブ開発パッケージも必要です。CI と Release は同じ既存の依存関係一覧を使います。Android SDK/NDK だけでは足りません。
+
 
 CMVS は Win32 に依存せず、Windows x64、Linux x64、macOS の両アーキテクチャ向けに動的コアとしてビルドします。Android と iOS は Manager への静的組み込みを待っています。RoukakuEngine は公開リビジョン `8392cf161800f7684af7704eb95f7a5526d2015d` に固定されています。
 
@@ -99,7 +101,7 @@ Linux の CI とリリースのジョブでは、報告された Manager の ZIP
 
 ### Android Manager テスト APK
 
-JDK 17（`JAVA_HOME` を設定し、その `bin` を `PATH` に追加）、Android SDK platform 36、build-tools 36.0.0、NDK 30.0.15729638、cargo-ndk 4.1.2 を使います。`ANDROID_HOME` は SDK のルート、`ANDROID_NDK_HOME` はその中の `ndk/30.0.15729638` を指します。ビルド番号が一致し、`-beta2` サフィックスが付いた NDK revision も使用できます。SDK パッケージが足りない場合は、その SDK の `sdkmanager --sdk_root=<sdk> --channel=3 "platforms;android-36" "build-tools;36.0.0" "ndk;30.0.15729638"` を明示的に実行します。`CARGO_HOME`、`CARGO_TARGET_DIR`、`TEMP`/`TMP`、`GRADLE_USER_HOME` は空き容量の十分なドライブに置いてください。
+JDK 27（`JAVA_HOME` を設定し、その `bin` を `PATH` に追加）、Android SDK platform 37.2、build-tools 37.0.0、NDK 30.0.16248370、cargo-ndk 4.1.2 を使います。`ANDROID_HOME` は SDK のルート、`ANDROID_NDK_HOME` はその中の `ndk/30.0.16248370` を指します。固定された安定版 NDK revision のみを受け付けます。SDK パッケージが足りない場合は、その SDK の `sdkmanager --sdk_root=<sdk> --channel=0 "platforms;android-37.2" "build-tools;37.0.0" "ndk;30.0.16248370"` を明示的に実行します。`CARGO_HOME`、`CARGO_TARGET_DIR`、`TEMP`/`TMP`、`GRADLE_USER_HOME` は空き容量の十分なドライブに置いてください。
 
 ```sh
 rustup target add aarch64-linux-android x86_64-linux-android
@@ -110,7 +112,7 @@ cargo xtask build --target x86_64-linux-android --manager --release
 cargo xtask package --target aarch64-linux-android --manager --version 0.1.0-beta.2 --out .work/android-test
 ```
 
-各ビルドは `cargo ndk --locked` でコンパイルし、`static_manager_targets` にそのトリプルを含むコア（RFVP、Siglus、Shinki Musica、Artemis）を静的リンクし、ビルド記録が指す target ディレクトリの `android-inputs/` に、JNI ランタイムの依存関係、証明書検証用の AAR、メタデータ、ライセンスを集めます。パッケージングには、**両方のトリプル**について同じソースコミットから作られた release のビルド記録が必要です。続いて Gradle が `arm64-v8a`、`x86_64`、`assets/metadata/` を含むユニバーサル APK を生成し、xtask が署名と各ネイティブライブラリの依存関係の閉包を確認します。署名鍵がない場合の出力は `ShinkiEMU-<version>-android-universal-debug-signed.apk` です。これは debug 署名の CI テスト用パッケージで、正式なインストーラーではありません。テスト用の鍵は `GRADLE_USER_HOME` 内に生成されます。
+各ビルドは `cargo ndk-env` のツールチェーン環境を取り込み、Cargo を `--locked` で直接実行します。`static_manager_targets` にそのトリプルを含むコア（RFVP、Siglus、Shinki Musica、Artemis、Impacto、Ren’Py）を静的リンクし、ビルド記録が指す target ディレクトリの `android-inputs/` に、JNI ランタイムの依存関係、証明書検証用の AAR、メタデータ、ライセンスを集めます。KiriKiri は含まれません。パッケージングには、**両方のトリプル**について同じソースコミットから作られた release のビルド記録が必要です。続いて Gradle が `arm64-v8a`、`x86_64`、`assets/metadata/` を含むユニバーサル APK を生成し、xtask が署名と各ネイティブライブラリの依存関係の閉包を確認します。署名鍵がない場合の出力は `ShinkiEMU-<version>-android-universal-debug-signed.apk` です。これは debug 署名の CI テスト用パッケージで、正式なインストーラーではありません。テスト用の鍵は `GRADLE_USER_HOME` 内に生成されます。
 
 Gradle の依存関係を一度ダウンロードしたあとは、`SHINKI_EMU_GRADLE_OFFLINE=1` を設定すると `--offline` が渡されます。パッケージングのたびに新しい出力ディレクトリを使ってください。`cargo xtask ci --target aarch64-linux-android --component manager --report .work/android-ci.json` は両方の ABI をビルドし、実際の APK のパスを報告します。CI は両方のトリプルの依存関係を準備したうえで、このコマンドを 1 回だけ実行します。`matrix --json --ci` が、同じユニバーサル APK を作るだけの `x86_64-linux-android` の Manager 行を除くためです。Release はユニバーサルな release 署名 APK を 1 つだけアップロードし、対応する sources ZIP も公開します。
 

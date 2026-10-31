@@ -136,7 +136,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends nasm pkg-config
+          sudo apt-get install -y --no-install-recommends nasm pkg-config build-essential cmake ninja-build ccache clang-18 llvm-18 lld-18 autoconf autoconf-archive automake libtool-bin python3-jinja2 patch unzip zip bc libssl-dev libbz2-dev liblzma-dev libavcodec-dev libavformat-dev libswresample-dev libswscale-dev libfreetype6-dev libfribidi-dev libsdl2-dev libsdl2-image-dev libsdl2-gfx-dev libsdl2-mixer-dev libsdl2-ttf-dev libjpeg-dev libharfbuzz-dev libassimp-dev
       - name: Android SDK
         if: contains(matrix.target, 'android')
         shell: bash
@@ -164,6 +164,14 @@ jobs:
             }
           }
           else { cargo xtask deps --target $env:TARGET --core $env:COMPONENT }
+      - name: Preserve failed Renpy host NASM configuration
+        if: failure() && matrix.component == 'manager' && contains(matrix.target, 'android')
+        uses: actions/upload-artifact@v7
+        with:
+          name: renpy-nasm-host-config-${{ matrix.component }}-${{ matrix.target }}
+          path: .work/renpy-build/tmp/build/nasm.host/nasm-2.14.02/config.log
+          include-hidden-files: true
+          if-no-files-found: warn
       - name: Build and package
         env:
           TARGET: ${{ matrix.target }}
