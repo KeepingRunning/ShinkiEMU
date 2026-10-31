@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import struct
 import sys
 import tempfile
 import zipfile
@@ -57,6 +58,65 @@ def digest(path):
         return hashlib.file_digest(source, 'sha256').hexdigest()
 
 
+def registration_tables(ar, library, contracts):
+    """Read actual ELF64 RELA pointers in SDL's compiled JNINativeMethod arrays."""
+    members = command(ar, 't', library).splitlines()
+    if len(members) != 1:
+        raise ValueError('Krkr closure must contain its one resolved native object')
+    data = subprocess.run([str(ar), 'p', str(library), members[0]], check=True,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout
+    if data[:6] != b'\x7fELF\x02\x01':
+        raise ValueError('Krkr closure is not a little-endian ELF64 object')
+    header = struct.unpack_from('<16sHHIQQQIHHHHHH', data)
+    sections = [struct.unpack_from('<IIQQQQIIQQ', data, header[6] + i * header[11])
+                for i in range(header[12])]
+
+    def string(section, offset):
+        start = sections[section][4] + offset
+        return data[start:data.index(b'\0', start)].decode('utf-8')
+
+    tables = {}
+    relocations = {}
+    for index, section in enumerate(sections):
+        if section[1] != 2:  # SHT_SYMTAB
+            continue
+        symbols = [struct.unpack_from('<IBBHQQ', data, offset)
+                   for offset in range(section[4], section[4] + section[5], section[9])]
+        for symbol in symbols:
+            name = string(section[6], symbol[0])
+            if name in {'SDLActivity_tab', 'SDLInputConnection_tab',
+                        'SDLAudioManager_tab', 'SDLControllerManager_tab'}:
+                tables[name] = symbol
+        for relocation in sections:
+            if relocation[1] != 4 or relocation[6] != index:  # SHT_RELA
+                continue
+            for offset in range(relocation[4], relocation[4] + relocation[5], relocation[9]):
+                address, info, addend = struct.unpack_from('<QQq', data, offset)
+                target = symbols[info >> 32]
+                relocations[(relocation[7], address)] = (target, addend, section[6])
+    if len(tables) != 4:
+        raise ValueError(f'Actual SDL RegisterNatives arrays missing: {sorted(tables)}')
+    proof = {}
+    for name, symbol in sorted(tables.items()):
+        if symbol[5] % 24:
+            raise ValueError(f'Invalid JNINativeMethod array size: {name}')
+        methods = []
+        for offset in range(symbol[4], symbol[4] + symbol[5], 24):
+            fields = [relocations[(symbol[3], offset + field)] for field in (0, 8, 16)]
+            method = string(fields[0][0][3], fields[0][0][4] + fields[0][1])
+            signature = string(fields[1][0][3], fields[1][0][4] + fields[1][1])
+            implementation = string(fields[2][2], fields[2][0][0])
+            if not fields[2][0][3] or not implementation.startswith('shinki_krkr_'):
+                raise ValueError(f'SDL registration does not reference its private implementation: {method}')
+            expected = {'class': f'Lorg/krkrsd/app/{name.removesuffix("_tab")};',
+                        'name': method, 'signature': signature, 'native': True}
+            if expected not in contracts:
+                raise ValueError(f'Compiled SDL registration differs from staged DEX contract: {expected}')
+            methods.append({'name': method, 'signature': signature, 'implementation': implementation})
+        proof[name] = methods
+    return proof
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     selection = parser.add_mutually_exclusive_group(required=True)
@@ -79,6 +139,7 @@ def main():
     dexdump = sdk / 'build-tools/37.0.0' / ('dexdump' + suffix)
     aapt = sdk / 'build-tools/37.0.0' / ('aapt2' + suffix)
     readelf = nm.with_name('llvm-readelf' + suffix)
+    ar = nm.with_name('llvm-ar' + suffix)
     prefix = 'assets/cores/kirikiroid2-web/Resources/'
     proof = {'apk': str(apk.resolve()), 'sha256': digest(apk), 'device_launch': 'not run (waived)', 'abis': {}}
     with zipfile.ZipFile(apk) as archive, tempfile.TemporaryDirectory(prefix='krkr-apk-') as temporary:
@@ -149,6 +210,7 @@ def main():
                 raise ValueError('Krkr lacks an actual target native-static receipt')
             library = Path(native['native_library'])
             defined = symbols(nm, library)
+            registrations = registration_tables(ar, library, contracts)
             public = {'shinki_emu_kirikiroid2_web_query', 'shinki_emu_kirikiroid2_web_set_resource_root',
                       'shinki_emu_kirikiroid2_web_android_initialize'}
             if not public.issubset(defined) or any(name not in public and not name.startswith('shinki_krkr_') for name in defined):
@@ -162,7 +224,8 @@ def main():
             if not public.issubset(linked):
                 raise ValueError(f'Manager did not link the actual Krkr query/host: {target}')
             proof['abis'][abi] = {'source_commit': built['source_commit'], 'archive': str(library),
-                                  'archive_sha256': digest(library), 'private_symbols': len(defined) - len(public)}
+                                  'archive_sha256': digest(library), 'private_symbols': len(defined) - len(public),
+                                  'compiled_register_natives': registrations}
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(proof, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(proof, indent=2))

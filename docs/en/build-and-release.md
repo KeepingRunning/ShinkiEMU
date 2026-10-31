@@ -144,9 +144,9 @@ the native-static resource manifest into private Java packages; the existing
 MainActivity supplies lifecycle callbacks. No second Activity entry point or
 exported JNI_OnLoad is installed. CI runs
 `python3 Tools/verify-krkr-android.py --ci-report .work/ci-report.json --out .work/krkr-android-proof.json`
-against the real APK, checking every original SDL RegisterNatives signature
-and the Cocos/host declarations in DEX, both native query/symbol closures,
-the single entry Activity, resources and authentic notices. This inspection
+against the real APK, checking compiled SDL RegisterNatives arrays and their
+private implementation relocations against DEX, the Cocos/host declarations,
+both native query/symbol closures, the single entry Activity, resources and authentic notices. This inspection
 does not launch a device or establish runtime gameplay compatibility.
 
 After the first Gradle dependency download, set `SHINKI_EMU_GRADLE_OFFLINE=1` to pass `--offline`; use a new package output directory each time. `cargo xtask ci --target aarch64-linux-android --component manager --report .work/android-ci.json` builds both ABIs and reports the actual APK path. CI prepares dependencies for both triples and runs this command once: `matrix --json --ci` drops the `x86_64-linux-android` Manager row, which would build the same universal APK. Release publishes one universal, release-signed `.apk` and retains the matching sources ZIP.
