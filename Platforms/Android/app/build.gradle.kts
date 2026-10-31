@@ -91,6 +91,11 @@ android {
         res.directories.add(generatedRoot.dir("res").asFile.absolutePath)
     }
 
+    androidResources {
+        // The complete inventoried runtime includes underscore-prefixed modules.
+        ignoreAssetsPattern = ""
+    }
+
     packaging {
         jniLibs {
             // NativeActivity and dladdr need ordinary extracted filesystem paths.
