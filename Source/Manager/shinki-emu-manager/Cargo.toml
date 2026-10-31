@@ -97,8 +97,8 @@ shinki-emu-siglus_rs = { git = "https://github.com/Project-Shinkirou/siglus_rs",
 shinki-emu-musica = { path = "../../Families/shinki-emu-musica", default-features = false, features = ["ffmpeg-vcpkg"] }
 shinki-emu-art3m1s-core = { git = "https://github.com/Project-Shinkirou/art3m1s-core", rev = "5243005cf0aaaeac89b1803e57381e9c0b14b95c", default-features = false, features = ["static-core"] }
 shinki-emu-impacto = { git = "https://github.com/Project-Shinkirou/impacto", rev = "6c57ed2be9e14566d2aea03724e2160d80c2e8a9", default-features = false, features = ["static"] }
-shinki-emu-kirikiroid2-web = { git = "https://github.com/Project-Shinkirou/kirikiroid2-web", rev = "56d48f6e5cd4b3f6c17a05008053a7a00189e149", default-features = false }
-shinki-emu-renpy = { git = "https://github.com/Project-Shinkirou/renpy", rev = "793af1e57219d01508c2c86ce5286450d408a12d", default-features = false, features = ["static"] }
+shinki-emu-kirikiroid2-web = { git = "https://github.com/Project-Shinkirou/kirikiroid2-web", rev = "71631c1e5420f3f9a10ff5cf0fbf7226f97f83b0", default-features = false }
+shinki-emu-renpy = { git = "https://github.com/Project-Shinkirou/renpy", rev = "fb8c2f77b14cbb26a11054c366267962401620bb", default-features = false, features = ["static"] }
 shinki-emu-sena-rs = { git = "https://github.com/Project-Shinkirou/sena-rs", rev = "22ac45acc6a436516333a85a4ac3b8470e1cc574", default-features = false }
 shinki-emu-ethornell-rs = { git = "https://github.com/Project-Shinkirou/ethornell-rs", rev = "f8362be7d2f4d634c25a98a317dfe56ffae56346", default-features = false }
 shinki-emu-ReMinori = { git = "https://github.com/Project-Shinkirou/ReMinori", rev = "0eec31a7d1412ea9061ee1cff2d64ab6133bda00", default-features = false }
