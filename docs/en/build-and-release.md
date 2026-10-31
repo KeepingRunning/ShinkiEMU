@@ -147,6 +147,17 @@ exported JNI_OnLoad is installed. CI runs
 against the real APK, checking compiled SDL RegisterNatives arrays and their
 private implementation relocations against DEX, the Cocos/host declarations,
 both native query/symbol closures, the single entry Activity, resources and authentic notices.
+Activity attributes are checked on their own manifest element; nested intent
+actions and metadata names are not counted as Activities. Extra Activities,
+unnamed Activity declarations and Activity aliases are rejected.
+The packaged Manager ELF must byte-match the receipt's actual library after
+the pinned NDK's `llvm-strip --strip-unneeded`, matching Gradle's packaging
+transformation without depending on an optional ELF build-ID note.
+The SDL table reader handles ELF extended section counts and symbol indices
+in the large resolved closure. Final linked queries may be local to the
+Manager's shared object; they must still be defined there. Cocos native
+declarations must match DEX and retain their original private implementations.
+The Spine census includes both local and external defined symbols.
 The checker also inspects native exit/environment implementations and verifies
 original UI resource hashes and both-ABI Spine membership. This inspection
 does not launch a device or establish runtime gameplay compatibility.

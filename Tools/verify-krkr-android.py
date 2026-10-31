@@ -44,9 +44,10 @@ def dex_methods(text):
     return methods
 
 
-def symbols(nm, binary):
+def symbols(nm, binary, external=True):
     result = set()
-    for line in command(nm, '--defined-only', '--extern-only', '--format=posix', binary).splitlines():
+    scope = ['--extern-only'] if external else []
+    for line in command(nm, '--defined-only', *scope, '--format=posix', binary).splitlines():
         fields = line.split()
         if len(fields) >= 2 and len(fields[1]) == 1:
             result.add(fields[0])
@@ -68,8 +69,10 @@ def registration_tables(ar, library, contracts):
     if data[:6] != b'\x7fELF\x02\x01':
         raise ValueError('Krkr closure is not a little-endian ELF64 object')
     header = struct.unpack_from('<16sHHIQQQIHHHHHH', data)
+    first_section = struct.unpack_from('<IIQQQQIIQQ', data, header[6])
+    section_count = header[12] or first_section[5]  # ELF extended e_shnum.
     sections = [struct.unpack_from('<IIQQQQIIQQ', data, header[6] + i * header[11])
-                for i in range(header[12])]
+                for i in range(section_count)]
 
     def string(section, offset):
         start = sections[section][4] + offset
@@ -82,16 +85,24 @@ def registration_tables(ar, library, contracts):
             continue
         symbols = [struct.unpack_from('<IBBHQQ', data, offset)
                    for offset in range(section[4], section[4] + section[5], section[9])]
+        extended = next((entry for entry in sections if entry[1] == 18 and entry[6] == index), None)
+        if extended:
+            symbols = [symbol[:3] + (struct.unpack_from('<I', data, extended[4] + i * 4)[0],) + symbol[4:]
+                       if symbol[3] == 0xffff else symbol for i, symbol in enumerate(symbols)]
         for symbol in symbols:
             name = string(section[6], symbol[0])
             if name in {'SDLActivity_tab', 'SDLInputConnection_tab',
                         'SDLAudioManager_tab', 'SDLControllerManager_tab'}:
                 tables[name] = symbol
+        table_fields = {(symbol[3], offset) for symbol in tables.values()
+                        for offset in range(symbol[4], symbol[4] + symbol[5], 8)}
         for relocation in sections:
             if relocation[1] != 4 or relocation[6] != index:  # SHT_RELA
                 continue
             for offset in range(relocation[4], relocation[4] + relocation[5], relocation[9]):
                 address, info, addend = struct.unpack_from('<QQq', data, offset)
+                if (relocation[7], address) not in table_fields:
+                    continue
                 target = symbols[info >> 32]
                 relocations[(relocation[7], address)] = (target, addend, section[6])
     if len(tables) != 4:
@@ -138,7 +149,7 @@ def main():
     nm = ndk / 'toolchains/llvm/prebuilt' / host / 'bin' / ('llvm-nm' + suffix)
     dexdump = sdk / 'build-tools/37.0.0' / ('dexdump' + suffix)
     aapt = sdk / 'build-tools/37.0.0' / ('aapt2' + suffix)
-    readelf = nm.with_name('llvm-readelf' + suffix)
+    strip = nm.with_name('llvm-strip' + suffix)
     ar = nm.with_name('llvm-ar' + suffix)
     objdump = nm.with_name('llvm-objdump' + suffix)
     prefix = 'assets/cores/kirikiroid2-web/Resources/'
@@ -190,14 +201,18 @@ def main():
         activity_indent = None
         for line in manifest.splitlines():
             indent = len(line) - len(line.lstrip())
-            if re.search(r'E: activity(?:\s|$)', line):
-                activity_indent = indent
+            if re.search(r'E: activity-alias(?:\s|$)', line):
+                raise ValueError('APK adds an Activity alias')
+            if re.search(r'E:\s', line):
+                activity_indent = indent if re.search(r'E: activity(?:\s|$)', line) else None
+                if activity_indent is not None:
+                    activities.append(None)
             elif activity_indent is not None and indent <= activity_indent and line.strip():
                 activity_indent = None
             if activity_indent is not None and 'android:name' in line:
                 found = re.search(r'=\s*"([^"]+)"', line)
                 if found:
-                    activities.append(found.group(1))
+                    activities[-1] = found.group(1)
         if activities != ['org.shinkirou.shinkiemu.MainActivity']:
             raise ValueError(f'APK entry Activities changed: {activities}')
         proof['entry_activities'] = activities
@@ -214,9 +229,10 @@ def main():
                 raise ValueError('APK ABI build receipts name different product commits')
             packaged_library = Path(temporary) / f'manager-{abi}.so'
             packaged_library.write_bytes(archive.read(f'lib/{abi}/libshinki_emu_manager.so'))
-            build_id = lambda path: re.search(r'Build ID:\s*(\w+)', command(readelf, '--notes', path))
-            original_id, packaged_id = build_id(Path(built['library'])), build_id(packaged_library)
-            if not original_id or not packaged_id or original_id.group(1) != packaged_id.group(1):
+            stripped_library = Path(temporary) / f'manager-{abi}-stripped.so'
+            command(strip, '--strip-unneeded', '-o', stripped_library, built['library'])
+            packaged_sha256 = digest(packaged_library)
+            if digest(stripped_library) != packaged_sha256:
                 raise ValueError(f'APK Manager ELF differs from its actual build receipt: {abi}')
             native = next(core for core in built['embedded_core_builds'] if core['plugin_id'] == 'kirikiroid2-web')
             if native['artifact_kind'] != 'native-static' or native['target'] != target:
@@ -231,6 +247,14 @@ def main():
             for marker in ('shinki_krkr_SDL_Init', 'shinki_krkr_shinki_krkr_sdl_on_load'):
                 if marker not in defined:
                     raise ValueError(f'Krkr original SDL implementation missing: {marker}')
+            cocos_jni = []
+            for contract in contracts:
+                if contract['native'] and contract['class'].startswith('Lorg/krkrc2dx/lib/'):
+                    original_class = contract['class'][1:-1].replace('org/krkrc2dx/', 'org/cocos2dx/')
+                    implementation = 'shinki_krkr_Java_' + original_class.replace('/', '_') + '_' + contract['name']
+                    if implementation not in defined:
+                        raise ValueError(f'Krkr original Cocos JNI implementation missing: {implementation}')
+                    cocos_jni.append({**contract, 'implementation': implementation})
             if not any(name.startswith('shinki_krkr_avcodec_') for name in defined):
                 raise ValueError('Krkr private FFmpeg implementation missing')
             for implementation in ('_ZN7cocos2d8Director', '_ZN4oboe', 'alSourcePlay'):
@@ -238,7 +262,8 @@ def main():
                     raise ValueError(f'Krkr real renderer/audio implementation missing: {implementation}')
             if any(name.endswith('_JNI_OnLoad') for name in defined):
                 raise ValueError('Krkr retained a second JNI_OnLoad instead of its explicit private loader')
-            spine = sorted(name for name in defined if re.search(r'spAnimation|spSkeleton|spine|SkeletonRenderer', name, re.IGNORECASE))
+            all_defined = symbols(nm, library, external=False)
+            spine = sorted(name for name in all_defined if re.search(r'spAnimation|spSkeleton|spine|SkeletonRenderer', name, re.IGNORECASE))
             if spine:
                 raise ValueError(f'Actual Krkr static closure includes Spine runtime; applicable grant or unused-module exclusion required: {spine[:8]}')
             exit_symbols = [name for name in defined if 'TVPExitApplication' in name]
@@ -251,12 +276,14 @@ def main():
                 raise ValueError('Embedded Krkr exit implementation still references process termination')
             if 'pthread_getspecific' in env_code:
                 raise ValueError('Cocos getEnv still reuses a cached environment across host attachment scopes')
-            linked = symbols(nm, Path(built['library']))
+            linked = symbols(nm, Path(built['library']), external=False)
             if not public.issubset(linked):
                 raise ValueError(f'Manager did not link the actual Krkr query/host: {target}')
             proof['abis'][abi] = {'source_commit': built['source_commit'], 'archive': str(library),
                                   'archive_sha256': digest(library), 'private_symbols': len(defined) - len(public),
+                                  'packaged_manager_sha256': packaged_sha256,
                                   'compiled_register_natives': registrations, 'spine_runtime_symbols': spine,
+                                  'compiled_cocos_jni_implementations': cocos_jni,
                                   'embedded_exit_no_process_fallback': True, 'cocos_getenv_no_cached_environment': True}
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(proof, indent=2) + '\n', encoding='utf-8')
