@@ -11097,7 +11097,7 @@ dependencies = [
 [[package]]
 name = "shinki-emu-kirikiroid2-web"
 version = "0.1.0"
-source = "git+https://github.com/Project-Shinkirou/kirikiroid2-web?rev=500551f33951de91ccd5298512d9d79fa83f225b#500551f33951de91ccd5298512d9d79fa83f225b"
+source = "git+https://github.com/Project-Shinkirou/kirikiroid2-web?rev=2df43c718c895cad8a803d49df53af0ffd831876#2df43c718c895cad8a803d49df53af0ffd831876"
 dependencies = [
  "flate2",
  "serde_json",

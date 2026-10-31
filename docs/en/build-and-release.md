@@ -150,6 +150,9 @@ both native query/symbol closures, the single entry Activity, resources and auth
 The checker also inspects native exit/environment implementations and verifies
 original UI resource hashes and both-ABI Spine membership. This inspection
 does not launch a device or establish runtime gameplay compatibility.
+Packaging compares the complete bundled manifest and every listed asset's bytes
+with its staged input. AAPT's default underscore-directory exclusion is disabled;
+the package checker enforces this host's 16 MiB per-asset extraction limit.
 
 After the first Gradle dependency download, set `SHINKI_EMU_GRADLE_OFFLINE=1` to pass `--offline`; use a new package output directory each time. `cargo xtask ci --target aarch64-linux-android --component manager --report .work/android-ci.json` builds both ABIs and reports the actual APK path. CI prepares dependencies for both triples and runs this command once: `matrix --json --ci` drops the `x86_64-linux-android` Manager row, which would build the same universal APK. Release publishes one universal, release-signed `.apk` and retains the matching sources ZIP.
 
