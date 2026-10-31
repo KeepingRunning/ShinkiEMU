@@ -384,3 +384,44 @@ fn stored_vndb_descriptions_are_shown_without_formatting() {
         .unwrap();
     assert_eq!(shown.description.as_deref(), Some("Summer story."));
 }
+
+#[test]
+fn release_fetch_completion_targets_its_install_and_failed_refresh_keeps_pin() {
+    let mut h = harness(true);
+    h.add_game("retail", "Air");
+    h.add_game("download", "Air");
+    h.app.selected_case_id = Some("retail".into());
+    h.app.apply_metadata_payload(
+        Some("retail"),
+        MetadataProviderId::Vndb,
+        MetadataPayload::Fetch {
+            record: Box::new(record("v1", "Air", &[])),
+            cover: None,
+        },
+    ).unwrap();
+    assert!(h.app.fetch_releases().unwrap().selection.metadata_busy);
+    let command = h.submitted().unwrap();
+    assert!(matches!(&command.kind, MetadataCommandKind::FetchReleases(id) if id == "v1"));
+    h.app.selected_case_id = Some("download".into());
+    let title = "同じ空の下で、もう一度出会う物語 ～初回限定版～".repeat(3);
+    h.complete(command, Ok(MetadataPayload::Releases(vec![MetadataRelease {
+        release_id: "r10".into(),
+        title: Some(title.clone()),
+        released: Some("2000-09-08".into()),
+        platforms: vec!["win".into(), "linux".into()],
+    }])));
+    assert!(h.app.model().unwrap().selection.releases.is_empty());
+    h.app.selected_case_id = Some("retail".into());
+    let selected = h.app.pin_release("r10").unwrap().selection;
+    assert_eq!(selected.releases[0].title, title);
+    assert_eq!(selected.releases[0].platforms, ["win", "linux"]);
+    assert_eq!(selected.releases[0].released.as_deref(), Some("2000-09-08"));
+    h.app.fetch_releases().unwrap();
+    let command = h.submitted().unwrap();
+    h.complete(command, Err("SHINKI_EMU_METADATA_RATE_LIMITED".into()));
+    let selected = h.app.model().unwrap().selection;
+    assert_eq!(selected.pinned_release, "r10");
+    assert_eq!(selected.releases[0].title, title);
+    assert!(!selected.metadata_busy);
+    assert_eq!(h.app.library.game_release("download").unwrap(), None);
+}

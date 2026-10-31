@@ -174,7 +174,7 @@ impl ShinkiEmuManagerController {
                         .iter()
                         .position(|release| release.release_id == pinned.release_id)
                 {
-                    releases.push(previous.remove(index));
+                    releases.push(previous.swap_remove(index));
                 }
                 self.releases.insert(game_id.into(), releases);
             }
