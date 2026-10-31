@@ -16,6 +16,16 @@ export struct Choice {
     label: string,
 }
 
+// A VNDB release. `id` is the stable rID, so two releases with the same title
+// stay apart. Platform and date stay separate fields: a release may lack
+// either, and the card wraps long localized titles instead of eliding them.
+export struct Release {
+    id: string,
+    title: string,
+    platforms: string,
+    released: string,
+}
+
 export global App {
     in-out property <string> page: "library";
     in-out property <string> settings-category: "appearance";
@@ -144,7 +154,7 @@ export global Selection {
     in-out property <color> tint;
     in-out property <[Choice]> emulator-choices;
     in-out property <CompatInfo> compat;
-    in-out property <[Choice]> releases;
+    in-out property <[Release]> releases;
     in-out property <string> pinned-release;
     // Other installed copies of the same VNDB work; `id` is their game id.
     in-out property <[Choice]> other-versions;
@@ -152,6 +162,9 @@ export global Selection {
     in-out property <BangumiProgress> bangumi;
     in-out property <string> bangumi-summary;
     in-out property <bool> metadata-busy;
+    // The last metadata request for this game failed. Typed so the release
+    // section never has to compare localized status text.
+    in-out property <bool> metadata-error;
     in-out property <string> metadata-status;
     in-out property <[MatchReview]> matches;
     callback choose-emulator(string);

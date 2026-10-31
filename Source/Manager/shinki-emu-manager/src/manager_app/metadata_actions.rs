@@ -236,15 +236,25 @@ impl ShinkiEmuManagerController {
             self.diagnostic.clear();
             return self.model();
         }
-        let Some(release) = self.releases.get(&game.game_id).and_then(|values| {
-            values
-                .iter()
-                .find(|(id, _)| id == release_id)
-                .map(|(id, title)| GameRelease {
-                    release_id: id.clone(),
-                    title: title.clone(),
-                })
-        }) else {
+        let Some(release) = self
+            .releases
+            .get(&game.game_id)
+            .and_then(|values| {
+                values
+                    .iter()
+                    .find(|release| release.release_id == release_id)
+                    .map(|release| GameRelease {
+                        release_id: release.release_id.clone(),
+                        title: release.title.clone().unwrap_or_default(),
+                    })
+            })
+            .or_else(|| {
+                self.pinned_releases
+                    .get(&game.game_id)
+                    .filter(|release| release.release_id == release_id)
+                    .cloned()
+            })
+        else {
             return Err("SHINKI_EMU_VNDB_RELEASE_INVALID".into());
         };
         self.library

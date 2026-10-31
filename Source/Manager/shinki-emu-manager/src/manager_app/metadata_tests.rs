@@ -204,3 +204,144 @@ fn network_permission_gates_metadata_and_translation_and_persists() {
     assert!(app.network_allowed);
     assert!(app.model().unwrap().network.allowed);
 }
+
+fn releases(app: &mut ShinkiEmuManagerController, game_id: &str, json: &str) {
+    app.apply_metadata_payload(
+        Some(game_id),
+        MetadataProviderId::Vndb,
+        MetadataPayload::Releases(serde_json::from_str(json).unwrap()),
+    )
+    .unwrap();
+}
+
+#[test]
+fn release_selection_preserves_localized_details_and_duplicate_title_identity() {
+    let root = tempfile::tempdir().unwrap();
+    let mut app = controller(root.path());
+    add_game(&mut app, "first");
+    let title = "樱花飘落的季节、与你重逢的故事 ～初回限定纪念特别发行版本～".repeat(4);
+    let payload = serde_json::json!([
+        {"release_id":"r10", "title":title, "released":"2026-10-31", "platforms":["win","linux"]},
+        {"release_id":"r11", "title":title, "released":"2025-01-01", "platforms":["mac"]}
+    ]);
+    releases(&mut app, "first", &payload.to_string());
+    let selection = app.model().unwrap().selection;
+    assert_eq!(selection.releases.len(), 2);
+    assert_eq!(selection.releases[0].title, title);
+    assert_eq!(selection.releases[0].platforms, ["win", "linux"]);
+    assert_eq!(selection.releases[0].released.as_deref(), Some("2026-10-31"));
+    assert_eq!(selection.releases[1].title, title);
+    assert_eq!(selection.releases[1].platforms, ["mac"]);
+    assert_eq!(selection.releases[1].released.as_deref(), Some("2025-01-01"));
+    let pinned = app.pin_release("r11").unwrap().selection;
+    assert_eq!(pinned.pinned_release, "r11");
+    assert_eq!(app.library.game_release("first").unwrap().unwrap().title, title);
+    assert_eq!(app.pin_release("r12").unwrap_err(), "SHINKI_EMU_VNDB_RELEASE_INVALID");
+    assert_eq!(app.model().unwrap().selection.pinned_release, "r11");
+}
+
+#[test]
+fn release_selection_keeps_unknown_metadata_empty_and_allows_unpin() {
+    let root = tempfile::tempdir().unwrap();
+    let mut app = controller(root.path());
+    add_game(&mut app, "first");
+    releases(&mut app, "first", "[]");
+    assert!(app.model().unwrap().selection.releases.is_empty());
+    releases(&mut app, "first",
+        r#"[{"release_id":"r10","title":null,"released":null,"platforms":[]}]"#);
+    let selection = app.pin_release("r10").unwrap().selection;
+    assert_eq!(selection.releases[0].release_id, "r10");
+    assert!(selection.releases[0].title.is_empty());
+    assert!(selection.releases[0].platforms.is_empty());
+    assert_eq!(selection.releases[0].released, None);
+    assert!(app.pin_release("").unwrap().selection.pinned_release.is_empty());
+    assert_eq!(app.library.game_release("first").unwrap(), None);
+}
+
+#[test]
+fn pinned_release_keeps_cached_details_when_refresh_omits_it() {
+    let root = tempfile::tempdir().unwrap();
+    let mut app = controller(root.path());
+    add_game(&mut app, "first");
+    releases(&mut app, "first",
+        r#"[{"release_id":"r10","title":"初回限定版","released":"2000-09-08","platforms":["win"]}]"#);
+    let pinned = app.pin_release("r10").unwrap().selection;
+    releases(&mut app, "first", "[]");
+    let refreshed = app.model().unwrap().selection;
+    assert_eq!(refreshed.pinned_release, "r10");
+    assert_eq!(refreshed.releases, pinned.releases);
+    releases(&mut app, "first",
+        r#"[{"release_id":"r10","title":"初回限定版・更新","released":null,"platforms":[]}]"#);
+    let refreshed = app.model().unwrap().selection;
+    assert_eq!(refreshed.pinned_release, "r10");
+    assert_eq!(refreshed.releases.len(), 1);
+    assert_eq!(refreshed.releases[0].title, "初回限定版・更新");
+    assert_eq!(refreshed.releases[0].released, None);
+    assert!(refreshed.releases[0].platforms.is_empty());
+}
+
+#[test]
+fn older_persisted_pin_is_selectable_without_inventing_release_details() {
+    let root = tempfile::tempdir().unwrap();
+    {
+        let mut app = controller(root.path());
+        add_game(&mut app, "first");
+        app.library.set_game_release("first", Some(&GameRelease {
+            release_id: "r10".into(),
+            title: String::new(),
+        })).unwrap();
+    }
+    let mut app = controller(root.path());
+    app.selected_case_id = Some("first".into());
+    releases(&mut app, "first", "[]");
+    let selection = app.model().unwrap().selection;
+    assert_eq!(selection.pinned_release, "r10");
+    assert_eq!(selection.releases.len(), 1);
+    assert_eq!(selection.releases[0].release_id, "r10");
+    assert!(selection.releases[0].title.is_empty());
+    assert!(selection.releases[0].platforms.is_empty());
+    assert_eq!(selection.releases[0].released, None);
+    assert_eq!(app.pin_release("r10").unwrap().selection.releases, selection.releases);
+    assert!(app.pin_release("").unwrap().selection.releases.is_empty());
+}
+
+#[test]
+fn release_cache_and_pins_are_isolated_between_installed_copies() {
+    let root = tempfile::tempdir().unwrap();
+    let mut app = controller(root.path());
+    for id in ["retail", "download"] {
+        add_game(&mut app, id);
+        app.apply_metadata_payload(
+            Some(id), MetadataProviderId::Vndb,
+            MetadataPayload::Fetch { record: Box::new(record()), cover: None },
+        ).unwrap();
+    }
+    releases(&mut app, "retail",
+        r#"[{"release_id":"r10","title":"Retail","released":"2000-09-08","platforms":["win"]}]"#);
+    releases(&mut app, "download",
+        r#"[{"release_id":"r11","title":"Download","released":null,"platforms":[]}]"#);
+    app.selected_case_id = Some("retail".into());
+    let retail = app.pin_release("r10").unwrap().selection;
+    app.selected_case_id = Some("download".into());
+    assert_eq!(app.pin_release("r10").unwrap_err(), "SHINKI_EMU_VNDB_RELEASE_INVALID");
+    assert!(app.model().unwrap().selection.pinned_release.is_empty());
+    let download = app.pin_release("r11").unwrap().selection;
+    releases(&mut app, "retail", "[]");
+    assert_eq!(app.model().unwrap().selection.releases, download.releases);
+    app.pin_release("").unwrap();
+    app.selected_case_id = Some("retail".into());
+    let selection = app.model().unwrap().selection;
+    assert_eq!(selection.pinned_release, "r10");
+    assert_eq!(selection.releases, retail.releases);
+    drop(app);
+    let mut app = controller(root.path());
+    app.selected_case_id = Some("retail".into());
+    let selection = app.model().unwrap().selection;
+    assert_eq!(selection.pinned_release, "r10");
+    assert_eq!(selection.releases[0].title, "Retail");
+    assert_eq!(selection.releases[0].released, None);
+    assert!(selection.releases[0].platforms.is_empty());
+    app.selected_case_id = Some("download".into());
+    assert!(app.model().unwrap().selection.pinned_release.is_empty());
+    assert!(app.model().unwrap().selection.releases.is_empty());
+}

@@ -647,7 +647,7 @@ export component PatchPage {
                     label: @tr("输出目录");
                     value: Patch.state.output-directory;
                     empty-text: @tr("尚未选择");
-                    hint: @tr("必须是不存在或为空的目录");
+                    hint: @tr("选择父目录；将在其中新建输出目录（重名时自动加编号，不覆盖现有文件）");
                     pick => { Patch.pick-directory("output"); }
                 }
             }

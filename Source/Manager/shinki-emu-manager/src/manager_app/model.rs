@@ -4,7 +4,7 @@ use shinki_emu_manager_ui_slint::{
     ExcludedViewModel, FiltersViewModel, GameCardViewModel, GameSettingsViewModel,
     LibraryViewModel, MatchViewModel, NoticeViewModel, NoticesViewModel, OnboardingViewModel,
     PatchGameViewModel, PatchViewModel, PlaySessionViewModel, SelectedGameViewModel,
-    SelectionViewModel, SessionViewModel, SettingsViewModel, describe_error,
+    ReleaseViewModel, SelectionViewModel, SessionViewModel, SettingsViewModel, describe_error,
 };
 use shinki_emu_manager_ui_slint::tr;
 use shinki_emu_manager_ui_slint::i18n::pick;
@@ -399,16 +399,7 @@ impl ShinkiEmuManagerController {
             },
             emulator_choices: self.emulator_choices(&game.game_id),
             compat: self.compat_view(&game.game_id, linked, now_ms),
-            releases: self
-                .releases
-                .get(&game.game_id)
-                .into_iter()
-                .flatten()
-                .map(|(id, label)| ChoiceViewModel {
-                    id: id.clone(),
-                    label: label.clone(),
-                })
-                .collect(),
+            releases: self.release_views(&game.game_id),
             pinned_release: self
                 .pinned_releases
                 .get(&game.game_id)
@@ -454,6 +445,34 @@ impl ShinkiEmuManagerController {
                 })
                 .collect(),
         })
+    }
+
+    fn release_views(&self, game_id: &str) -> Vec<ReleaseViewModel> {
+        let mut releases: Vec<_> = self
+            .releases
+            .get(game_id)
+            .into_iter()
+            .flatten()
+            .map(|release| ReleaseViewModel {
+                release_id: release.release_id.clone(),
+                title: release.title.clone().unwrap_or_default(),
+                platforms: release.platforms.clone(),
+                released: release.released.clone(),
+            })
+            .collect();
+        // Older persisted pins contain only an id and, since schema 7, a title.
+        if let Some(pinned) = self.pinned_releases.get(game_id)
+            && !releases
+                .iter()
+                .any(|release| release.release_id == pinned.release_id)
+        {
+            releases.push(ReleaseViewModel {
+                release_id: pinned.release_id.clone(),
+                title: pinned.title.clone(),
+                ..Default::default()
+            });
+        }
+        releases
     }
 
     fn game_settings_view(&mut self, game: &GameRecord) -> Result<GameSettingsViewModel, String> {
