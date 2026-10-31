@@ -30,6 +30,8 @@ android {
     buildToolsVersion = "37.0.0"
     ndkVersion = "30.0.16248370"
 
+    buildFeatures { aidl = true }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -89,6 +91,13 @@ android {
         jniLibs.directories.add(generatedRoot.dir("jniLibs").asFile.absolutePath)
         assets.directories.add(generatedRoot.dir("assets").asFile.absolutePath)
         res.directories.add(generatedRoot.dir("res").asFile.absolutePath)
+        java.srcDir(generatedRoot.dir("assets/cores/kirikiroid2-web/Resources/android-host/java"))
+        aidl.srcDir(generatedRoot.dir("assets/cores/kirikiroid2-web/Resources/android-host/java"))
+    }
+
+    androidResources {
+        // The complete inventoried runtime includes underscore-prefixed modules.
+        ignoreAssetsPattern = ""
     }
 
     androidResources {
@@ -156,6 +165,9 @@ val rustlsPlatformVerifierVersion = providers.of(RustlsVersion::class.java) {
 }
 
 dependencies {
+    implementation(fileTree(generatedRoot.dir("assets/cores/kirikiroid2-web/Resources/android-host/libs")) {
+        include("*.jar")
+    })
     // The Kotlin verifier component must match Cargo's resolved Android shim.
     // Minify stays off; enabling it also requires keeping its JNI-referenced classes.
     implementation(rustlsPlatformVerifierVersion.map {
