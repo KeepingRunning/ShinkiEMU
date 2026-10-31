@@ -109,7 +109,7 @@ shinki-emu-siglus_rs = { git = "https://github.com/Project-Shinkirou/siglus_rs",
 shinki-emu-musica = { path = "../../Families/shinki-emu-musica", default-features = false, features = ["ffmpeg-vcpkg"] }
 shinki-emu-art3m1s-core = { git = "https://github.com/Project-Shinkirou/art3m1s-core", rev = "5243005cf0aaaeac89b1803e57381e9c0b14b95c", default-features = false, features = ["static-core"] }
 shinki-emu-impacto = { git = "https://github.com/Project-Shinkirou/impacto", rev = "011a78682362c9ba770fff0cf18a7835692e9053", default-features = false, features = ["static"] }
-shinki-emu-renpy = { git = "https://github.com/Project-Shinkirou/renpy", rev = "e6a1b9bfd7065de6ff002769aa1c32ab5347438f", default-features = false, features = ["static"] }
+shinki-emu-renpy = { git = "https://github.com/Project-Shinkirou/renpy", rev = "fcc4a51d242312de251341ef0dd52fcf12740864", default-features = false, features = ["static"] }
 # Slint gates winit/femtovg out of its Android graph; the Manager renders
 # through the android-activity backend with the wgpu-30 Skia renderer, and the
 # NativeActivity glue is the single activity backend linked into the process.
