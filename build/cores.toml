@@ -202,7 +202,7 @@ publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/kirikiroid2-web"
 branch = "shinki-android-manager-embed"
-rev = "b201c4627e9f85fe05d07824765c361d8e66b984"
+rev = "55278196a54809df5d0dad7f0ffbc0dfbf740021"
 upstream = "https://github.com/fenghengzhi/kirikiroid2-web"
 [[cores.blocked]]
 target = "aarch64-linux-android"

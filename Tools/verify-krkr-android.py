@@ -140,6 +140,7 @@ def main():
     aapt = sdk / 'build-tools/37.0.0' / ('aapt2' + suffix)
     readelf = nm.with_name('llvm-readelf' + suffix)
     ar = nm.with_name('llvm-ar' + suffix)
+    objdump = nm.with_name('llvm-objdump' + suffix)
     prefix = 'assets/cores/kirikiroid2-web/Resources/'
     proof = {'apk': str(apk.resolve()), 'sha256': digest(apk), 'device_launch': 'not run (waived)', 'abis': {}}
     with zipfile.ZipFile(apk) as archive, tempfile.TemporaryDirectory(prefix='krkr-apk-') as temporary:
@@ -167,6 +168,18 @@ def main():
         for suffix_required in ('.csb', '.ttf'):
             if not any(name.startswith(prefix) and name.endswith(suffix_required) for name in names):
                 raise ValueError(f'APK lacks original Cocos resource {suffix_required}')
+        original_resources = args.root / 'ThirdParty/kirikiri2/ui/cocos-studio'
+        resource_hashes = {}
+        for resource in sorted(original_resources.rglob('*')):
+            if resource.is_file():
+                relative = resource.relative_to(original_resources).as_posix()
+                content = archive.read(prefix + relative)
+                if hashlib.sha256(content).hexdigest() != digest(resource):
+                    raise ValueError(f'APK changed an original Cocos resource: {relative}')
+                resource_hashes[relative] = digest(resource)
+        if not resource_hashes:
+            raise ValueError('Exact Krkr source resources are unavailable')
+        proof['original_resources_sha256'] = resource_hashes
         for notice in ('LICENSE', 'FMOD.txt', 'libbpg-MIT.txt', 'UnRAR.txt', 'minizip-zlib.txt',
                        'LICENSE_cocos2d-x.txt', 'LICENSE_cocosdenshion.txt',
                        'LICENSE_com.android.vending.expansion.zipfile.txt', 'SDL-LICENSE.txt'):
@@ -220,12 +233,31 @@ def main():
                     raise ValueError(f'Krkr original SDL implementation missing: {marker}')
             if not any(name.startswith('shinki_krkr_avcodec_') for name in defined):
                 raise ValueError('Krkr private FFmpeg implementation missing')
+            for implementation in ('_ZN7cocos2d8Director', '_ZN4oboe', 'alSourcePlay'):
+                if not any(implementation in name for name in defined):
+                    raise ValueError(f'Krkr real renderer/audio implementation missing: {implementation}')
+            if any(name.endswith('_JNI_OnLoad') for name in defined):
+                raise ValueError('Krkr retained a second JNI_OnLoad instead of its explicit private loader')
+            spine = sorted(name for name in defined if re.search(r'spAnimation|spSkeleton|spine|SkeletonRenderer', name, re.IGNORECASE))
+            if spine:
+                raise ValueError(f'Actual Krkr static closure includes Spine runtime; applicable grant or unused-module exclusion required: {spine[:8]}')
+            exit_symbols = [name for name in defined if 'TVPExitApplication' in name]
+            env_symbols = [name for name in defined if name.endswith('9JniHelper6getEnvEv')]
+            if len(exit_symbols) != 1 or len(env_symbols) != 1:
+                raise ValueError('Krkr exit/environment implementations are missing or ambiguous')
+            exit_code = command(objdump, '--reloc', '--disassemble-symbols=' + exit_symbols[0], library)
+            env_code = command(objdump, '--reloc', '--disassemble-symbols=' + env_symbols[0], library)
+            if re.search(r'\b(exit|_exit|quick_exit|abort)\b', exit_code):
+                raise ValueError('Embedded Krkr exit implementation still references process termination')
+            if 'pthread_getspecific' in env_code:
+                raise ValueError('Cocos getEnv still reuses a cached environment across host attachment scopes')
             linked = symbols(nm, Path(built['library']))
             if not public.issubset(linked):
                 raise ValueError(f'Manager did not link the actual Krkr query/host: {target}')
             proof['abis'][abi] = {'source_commit': built['source_commit'], 'archive': str(library),
                                   'archive_sha256': digest(library), 'private_symbols': len(defined) - len(public),
-                                  'compiled_register_natives': registrations}
+                                  'compiled_register_natives': registrations, 'spine_runtime_symbols': spine,
+                                  'embedded_exit_no_process_fallback': True, 'cocos_getenv_no_cached_environment': True}
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(proof, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(proof, indent=2))
