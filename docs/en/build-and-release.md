@@ -112,6 +112,10 @@ The GTK dialog ABI `libgtk-3.so.0` is also supplied by the distribution
 (Ubuntu 24.04 package `libgtk-3-0t64`). Pinned OpenSSL libraries are bundled:
 the vcpkg curl build requires OpenSSL symbols newer than Ubuntu 24.04 supplies,
 so matching `libssl.so.3`/`libcrypto.so.3` cannot be treated as system ABI files.
+Linux disables Cocos' unused `BUILD_EDITOR_SPINE` module; the core/plugin
+consumers, CocoStudio UI and MotionPlayer/Emote remain intact. The original
+Spine license stays in the untouched source tar, not the binary's used-module
+notice set. This Linux-only choice does not change Android or Apple builds.
 KiriKiri2 Linux bundles the pinned Cocos FMOD runtime as `libfmod.so.6`,
 using relative `$ORIGIN` lookup. It is a third-party runtime, not a system ABI.
 The project owner authorized its redistribution on 2026-10-31. The package's

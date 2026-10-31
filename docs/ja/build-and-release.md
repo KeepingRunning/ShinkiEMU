@@ -92,6 +92,7 @@ KiriKiri2 は、ディストリビューションの OpenGL ディスパッチ�
 X11 と OpenMP には、ディストリビューションの `libX11.so.6` と `libgomp.so.1`（Ubuntu パッケージ `libx11-6 libgomp1`）を使います。
 gdiplus の文字描画には、ディストリビューションの `libpangocairo-1.0.so.0` と `libpangoft2-1.0.so.0`（Ubuntu パッケージ `libpangocairo-1.0-0 libpangoft2-1.0-0`）も必要です。
 GTK ダイアログにはディストリビューションの `libgtk-3.so.0`（Ubuntu 24.04 の `libgtk-3-0t64`）を使います。vcpkg curl が Ubuntu 24.04 より新しい OpenSSL シンボルを必要とするため、対応する固定版の `libssl.so.3` と `libcrypto.so.3` はシステム ABI とせず同梱します。
+Linux では未使用の `BUILD_EDITOR_SPINE` だけを無効にし、CocoStudio UI と MotionPlayer/Emote の実装は維持します。元の Spine ライセンスは完全な上流ソース tar に残し、バイナリが使うモジュールの表記から除きます。Android と Apple の構成は変更しません。
 KiriKiri2 Linux は、固定された Cocos の FMOD ランタイムを `libfmod.so.6` として同梱し、相対 `$ORIGIN` パスで読み込みます。システム ABI には分類しません。プロジェクト所有者は 2026-10-31 に再配布を承認しました。パッケージの `licenses/kirikiroid2-web/FMOD.txt` に Firelight の帰属表示と正確なバイナリ・アーカイブの出所を記録します。Cocos のソースは MIT ですが、FMOD を MIT に変更しません。ソースバンドルには元の依存アーカイブ、実際の FMOD ヘッダー・ビルド済み入力と再ビルド手順を含め、FMOD の実装ソースや過去の EULA を作成しません。
 
 RFVP は、ネイティブの動画デコードのために、ディストリビューションが提供する GStreamer 1.x（1.14 以上）、GLib 2.x（2.56 以上）、および base、good、libav プラグインも必要とします。これらはシステムの実行要件として宣言され、コアには同梱されません。Ubuntu では `libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libglib2.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav` をインストールします。パッケージ内の `build.json` の `system_dependencies` には、実際に依存するシステムの SONAME が記録されます。

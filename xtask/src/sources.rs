@@ -1006,6 +1006,7 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
         instructions.push_str(
             "\n## Cocos and FMOD Linux inputs\n\n\
              Cocos2d-x 3.17.2 source is MIT licensed with its original per-file and third-party notices retained. \
+             Linux disables Cocos' unused BUILD_EDITOR_SPINE module. Its original Spine license remains in the full upstream source tar for that uncompiled component; the binary notice set does not claim Spine is linked. \
              Its separately supplied FMOD runtime remains a proprietary Firelight component; see ThirdParty/kirikiri2/shinki/licenses/FMOD.txt for original attribution, exact input hashes and the project owner's redistribution authorization.\n\n\
              The checksum-matched cocos2d-x-3rd-party-libs-bin.tar.gz in .work/vcpkg-downloads contains the original FMOD headers and prebuilt Linux runtime, not FMOD implementation source. \
              DownloadDeps.cmake in the pinned fork supplies the exact archive URL and SHA512. Rebuild the supplied Cocos/core source against those headers and that binary; no FMOD implementation source is invented or substituted. \
