@@ -129,6 +129,26 @@ cargo xtask package --target aarch64-linux-android --manager --version 0.1.0-bet
 
 Each build uses `cargo ndk` with `--locked`, statically links the cores whose `static_manager_targets` include the triple (RFVP, Siglus, Shinki Musica, Artemis) and stages the JNI runtime closure, metadata and licenses under its recorded target directory's `android-inputs/`. Packaging requires release receipts for **both** triples from the same source commit. Gradle then creates a universal APK containing `arm64-v8a`, `x86_64` and `assets/metadata/`; xtask checks its signature and every native library's dependency closure. Without signing secrets the output is `ShinkiEMU-<version>-android-universal-debug-signed.apk`: a debug-signed CI test APK, not a release installer. The test key is generated inside `GRADLE_USER_HOME`. The Kotlin verifier component is resolved from the official Maven archive using the Android shim version in `Cargo.lock`, not copied from Cargo's source directory.
 
+KiriKiri is also statically embedded on both Android ABIs. Its native-static
+manifest stages the original Cocos resources and dependency notices into APK
+assets. Before query registration, Manager supplies the extracted app-private
+resource directory. The adapter retains the original VM, EGL/Cocos renderer and
+audio path; its resolved native archive closure is symbol-isolated from the
+Manager's SDL, JNI, Lua and FFmpeg implementations. Android dynamic core
+downloads/installations remain unsupported; a standalone native ZIP is not a
+Manager integration.
+
+The Android host initializes Krkr's private JavaVM/classloader services before
+static query registration. The original SDL/Cocos Java helpers compile from
+the native-static resource manifest into private Java packages; the existing
+MainActivity supplies lifecycle callbacks. No second Activity entry point or
+exported JNI_OnLoad is installed. CI runs
+`python3 Tools/verify-krkr-android.py --ci-report .work/ci-report.json --out .work/krkr-android-proof.json`
+against the real APK, checking every original SDL RegisterNatives signature
+and the Cocos/host declarations in DEX, both native query/symbol closures,
+the single entry Activity, resources and authentic notices. This inspection
+does not launch a device or establish runtime gameplay compatibility.
+
 After the first Gradle dependency download, set `SHINKI_EMU_GRADLE_OFFLINE=1` to pass `--offline`; use a new package output directory each time. `cargo xtask ci --target aarch64-linux-android --component manager --report .work/android-ci.json` builds both ABIs and reports the actual APK path. CI prepares dependencies for both triples and runs this command once: `matrix --json --ci` drops the `x86_64-linux-android` Manager row, which would build the same universal APK. Release publishes one universal, release-signed `.apk` and retains the matching sources ZIP.
 
 All Manager packages derive their application icon from `Assets/Branding/shinkiemu-icon.svg`. Rust renders the Windows executable's ICO resource, macOS ICNS, iOS app icon set, Android adaptive launcher mipmaps, and Linux hicolor PNGs. Linux ZIPs also contain `share/applications/shinkiemu.desktop`; install that file and `share/icons/hicolor` under your applications and icon directories. The desktop runtime restores the Manager icon after a game replaces its window icon.

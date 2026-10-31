@@ -274,6 +274,8 @@ const STATIC_CORES: &[(&str, shinki_emu_abi::Query)] = &[
     ("shinki.emu.musica", shinki_emu_musica::musica_query),
     #[cfg(target_os = "android")]
     ("art3m1s-core", shinki_emu_art3m1s_core::artemis_query),
+    #[cfg(target_os = "android")]
+    ("kirikiroid2-web", shinki_emu_kirikiroid2_web::query),
     #[cfg(target_os = "ios")]
     ("sena-rs", shinki_emu_sena_rs::shinki_emu_query),
     #[cfg(target_os = "ios")]
@@ -287,6 +289,17 @@ fn initialize(
     directories: &[PathBuf],
     progress: &mut dyn FnMut(usize, usize),
 ) -> Result<BTreeMap<String, String>, String> {
+    #[cfg(target_os = "android")]
+    {
+        let resources = crate::platform::bundled_resource_dir()
+            .ok_or("SHINKI_EMU_DATA_DIRECTORY_UNAVAILABLE")?
+            .join("cores/kirikiroid2-web/Resources");
+        let path = resources.to_str().ok_or("KRKR_RESOURCE_ROOT_ENCODING")?;
+        let status = shinki_emu_kirikiroid2_web::set_resource_root(path);
+        if status != shinki_emu_abi::OK {
+            return Err(format!("KRKR_RESOURCE_ROOT ({status})"));
+        }
+    }
     #[cfg(any(target_os = "android", target_os = "ios", target_env = "ohos"))]
     for (id, query) in STATIC_CORES {
         unsafe { registry.register_static(*query) }.map_err(|error| error.to_string())?;

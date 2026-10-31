@@ -155,6 +155,16 @@ jobs:
           TARGET: ${{ matrix.target }}
           COMPONENT: ${{ matrix.component }}
         run: cargo xtask ci --target $env:TARGET --component $env:COMPONENT --report .work/ci-report.json
+      - name: Verify Krkr Android static host contract
+        if: contains(matrix.target, 'android') && matrix.component == 'manager'
+        shell: bash
+        run: python3 Tools/verify-krkr-android.py --ci-report .work/ci-report.json --out .work/krkr-android-proof.json
+      - uses: actions/upload-artifact@v7
+        if: contains(matrix.target, 'android') && matrix.component == 'manager'
+        with:
+          name: krkr-android-static-host-proof
+          path: .work/krkr-android-proof.json
+          if-no-files-found: error
       - name: Smoke packaged Linux Manager
         if: matrix.target == 'x86_64-unknown-linux-gnu' && matrix.component == 'manager'
         shell: bash
