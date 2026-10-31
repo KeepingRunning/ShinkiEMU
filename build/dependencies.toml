@@ -113,7 +113,7 @@ required = ["include/SDL.h", "COPYING.txt"]
 
 [native.sdl2-posix]
 version = "2.0.20"
-url = "https://www.libsdl.org/release/SDL2-2.0.20.tar.gz"
+url = "https://github.com/libsdl-org/SDL/releases/download/release-2.0.20/SDL2-2.0.20.tar.gz"
 sha256 = "c56aba1d7b5b0e7e999e4a7698c70b63a3394ff9704b5f6e1c57e0c16f04dd06"
 file_name = "SDL2-2.0.20.tar.gz"
 format = "tar-gz"
