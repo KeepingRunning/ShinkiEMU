@@ -28,9 +28,9 @@ pub fn portable(name: &str) -> Result<()> {
             .to_ascii_uppercase();
         if p.is_empty()
             || !p.as_bytes()[0].is_ascii_alphanumeric() && p.as_bytes()[0] != b'_'
-            || !p.bytes().all(|b| {
-                b.is_ascii() && !b.is_ascii_control() && !b"\\:<>|?*\"".contains(&b)
-            })
+            || !p
+                .bytes()
+                .all(|b| b.is_ascii() && !b.is_ascii_control() && !b"\\:<>|?*\"".contains(&b))
             || p.ends_with(['.', ' '])
             || ["CON", "PRN", "AUX", "NUL"].contains(&stem.as_str())
             || (stem.len() == 4
