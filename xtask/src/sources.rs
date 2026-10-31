@@ -943,7 +943,7 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
     }
     if selected.native_vcpkg {
         instructions.push_str(&format!(
-            "$env:VCPKG_ROOT = \"$PWD/.work/vcpkg\"\n$env:SHINKI_EMU_NATIVE_VCPKG_ROOT = \"$PWD/.work/native-vcpkg\"\n$env:SHINKI_EMU_VCPKG_INSTALLED = \"$PWD/.work/native-vcpkg/{component}/installed\"\n$env:SHINKI_EMU_VCPKG_TRIPLET = \"{}\"\n",
+            "$env:VCPKG_ROOT = \"$PWD/.work/vcpkg\"\n$env:SHINKI_EMU_NATIVE_VCPKG_ROOT = \"$PWD/.work/native-vcpkg\"\n$env:SHINKI_EMU_VCPKG_TRIPLET = \"{}\"\n",
             dependencies::native_triplet(inv, target)?
         ));
     }
