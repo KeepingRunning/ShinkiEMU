@@ -158,20 +158,27 @@ fn paths_reject_traversal_ads_devices_and_collisions() {
     assert_eq!(fs::read_to_string(source).unwrap(), "original");
 }
 #[test]
-fn resource_filenames_with_internal_spaces_survive_packaging() {
+fn portable_resource_punctuation_survives_packaging() {
     let temp = tempfile::tempdir().unwrap();
     let source = temp.path().join("source");
     let bytes = b"<assembly>runtime resource</assembly>";
     fs::write(&source, bytes).unwrap();
-    let relative = "lib/python3.12/site-packages/setuptools/command/launcher manifest.xml";
+    let names = [
+        "lib/python3.12/site-packages/setuptools/command/launcher manifest.xml",
+        "lib/python3.12/site-packages/setuptools/script (dev).tmpl",
+        "Resources/data/file #1 + (copy) [final].txt",
+    ];
     let stage = temp.path().join("stage");
     fs::create_dir(&stage).unwrap();
-    copy_entries(&[(source, relative.into())], &stage).unwrap();
+    let entries = names.map(|name| (source.clone(), name.to_owned()));
+    copy_entries(&entries, &stage).unwrap();
     let archive = temp.path().join("resources.zip");
     zip_entries(&tree(&stage).unwrap(), &archive).unwrap();
     let extracted = temp.path().join("extracted");
     extract_zip(&archive, &extracted).unwrap();
-    assert_eq!(fs::read(extracted.join(relative)).unwrap(), bytes);
+    for name in names {
+        assert_eq!(fs::read(extracted.join(name)).unwrap(), bytes);
+    }
 }
 #[test]
 fn atomic_publication_preserves_existing_and_racing_outputs_and_cleans_staging() {
