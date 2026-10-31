@@ -23,6 +23,8 @@ Manager is available in Simplified Chinese, English and Japanese. Choose **Setti
 
 Game titles, descriptions and patch notes come from metadata. Manager shows the entry for the current language, falls back to English when a Japanese entry is missing, and falls back to Simplified Chinese when English is missing too. The anti-resale notice is always bilingual (Chinese and English).
 
+Metadata request failures belong to the selected installation. Starting a retry clears its previous failure state while the request is pending; changing the interface language does not change whether a request failed.
+
 ## Add games and install cores
 
 In Settings, add the directories containing your legally obtained game installations, then scan the library. Select the detected game and check the selected core and game-specific configuration before starting. An engine probe identifies a format; encrypted resources can still require a private profile. Keep all keys local.

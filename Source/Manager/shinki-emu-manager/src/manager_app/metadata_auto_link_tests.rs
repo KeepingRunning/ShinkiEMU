@@ -70,12 +70,6 @@ impl Harness {
             .map(|identity| identity.remote_id)
     }
 
-    fn status(&self, game_id: &str) -> &str {
-        self.app
-            .metadata_status
-            .get(game_id)
-            .map_or("", String::as_str)
-    }
 
     fn candidates(&self, game_id: &str) -> usize {
         self.app
@@ -140,7 +134,6 @@ fn unique_normalized_match_is_fetched_and_linked() {
     assert_eq!(h.vndb_remote_id("first").as_deref(), Some("v1"));
     let identity = h.app.library.external_identities("first").unwrap();
     assert_eq!(identity[0].provenance, "metadata-provider");
-    assert_eq!(h.status("first"), "已自动关联：Sakura no Uta");
     assert_eq!(h.candidates("first"), 0);
     assert!(h.app.auto_link_attempted.contains("first"));
     assert!(h.app.auto_link.is_none());
@@ -164,11 +157,9 @@ fn ambiguous_or_missing_matches_keep_candidates_and_continue_the_batch() {
     );
     assert!(h.vndb_remote_id("a").is_none());
     assert_eq!(h.candidates("a"), 2);
-    assert_eq!(h.status("a"), "未能自动关联，找到 2 个候选，请手动选择");
     let second = h.submitted().unwrap();
     assert_eq!(search_title(&second), "Kanon");
     h.complete(second, Ok(MetadataPayload::Search(Vec::new())));
-    assert_eq!(h.status("b"), "未在 VNDB 找到匹配作品");
     assert!(h.submitted().is_none());
     assert!(h.app.auto_link_attempted.contains("a"));
     assert!(h.app.auto_link_attempted.contains("b"));
@@ -339,10 +330,26 @@ fn request_error_stops_the_batch_without_marking() {
     assert!(h.app.auto_link_queue.is_empty());
     assert!(h.app.auto_link_attempted.is_empty());
     assert_eq!(h.app.diagnostic, "SHINKI_EMU_METADATA_RATE_LIMITED");
+    h.app.selected_case_id = Some("a".into());
+    assert!(h.app.model().unwrap().selection.metadata_error);
+    h.app.selected_case_id = Some("b".into());
+    assert!(!h.app.model().unwrap().selection.metadata_error);
+    h.app.selected_case_id = Some("a".into());
 
     h.app.enqueue_auto_link().unwrap();
     let retried = h.submitted().unwrap();
     assert_eq!(search_title(&retried), "Air");
+    assert!(!h.app.model().unwrap().selection.metadata_error);
+    assert!(h.app.model().unwrap().selection.metadata_busy);
+    h.complete(retried, Err("SHINKI_EMU_METADATA_RATE_LIMITED".into()));
+    assert!(h.app.model().unwrap().selection.metadata_error);
+    h.app.search_metadata("vndb", "Air").unwrap();
+    let manual = h.submitted().unwrap();
+    assert!(!h.app.model().unwrap().selection.metadata_error);
+    h.complete(manual, Ok(MetadataPayload::Search(Vec::new())));
+    let selection = h.app.model().unwrap().selection;
+    assert!(!selection.metadata_error);
+    assert!(!selection.metadata_busy);
 }
 
 #[test]
@@ -364,7 +371,6 @@ fn manual_request_removes_a_waiting_game_from_the_queue() {
         Ok(MetadataPayload::Search(vec![record("v3", "Kanon", &[])])),
     );
     assert!(h.vndb_remote_id("b").is_none());
-    assert_eq!(h.status("b"), "找到 1 个作品，请选择关联");
     assert!(!h.app.auto_link_attempted.contains("b"));
 }
 

@@ -81,6 +81,19 @@ pub(super) fn run_extension_command(command: crate::ExtensionCommand) -> Result<
 use session::ActiveFamilySession;
 use support::*;
 
+enum MetadataStatus {
+    Message(String),
+    Error(String),
+}
+
+impl MetadataStatus {
+    fn text(&self) -> &str {
+        match self {
+            Self::Message(message) | Self::Error(message) => message,
+        }
+    }
+}
+
 struct PendingMetadata {
     game_id: Option<String>,
     core: Option<String>,
@@ -123,7 +136,7 @@ struct ShinkiEmuManagerController {
     defaults_plugin: Option<String>,
     metadata: MetadataRuntime,
     metadata_sequence: u64,
-    metadata_status: BTreeMap<String, String>,
+    metadata_status: BTreeMap<String, MetadataStatus>,
     pending_metadata: BTreeMap<String, PendingMetadata>,
     match_candidates: BTreeMap<String, (String, MetadataRecord)>,
     /// Games waiting for an automatic VNDB search, submitted one at a time.

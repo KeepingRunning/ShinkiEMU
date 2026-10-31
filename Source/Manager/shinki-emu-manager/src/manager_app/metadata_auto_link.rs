@@ -108,7 +108,7 @@ impl ShinkiEmuManagerController {
             ) {
                 Ok(request_id) => {
                     self.metadata_status
-                        .insert(game_id.clone(), tr!("正在 VNDB 自动匹配…").into());
+                        .insert(game_id.clone(), MetadataStatus::Message(tr!("正在 VNDB 自动匹配…").into()));
                     self.auto_link = Some(AutoLinkRequest {
                         request_id,
                         game_id,
@@ -135,7 +135,7 @@ impl ShinkiEmuManagerController {
         match (stage, result) {
             (_, Err(error)) => {
                 self.metadata_status
-                    .insert(game_id, tr!("请求失败，请检查错误信息后重试").into());
+                    .insert(game_id, MetadataStatus::Error(tr!("请求失败，请检查错误信息后重试").into()));
                 self.stop_auto_link(error);
                 return Ok(());
             }
@@ -149,7 +149,7 @@ impl ShinkiEmuManagerController {
                 if let Some(remote_id) = matched {
                     if !self.network_allowed {
                         self.metadata_status
-                            .insert(game_id, tr!("找到 {count} 个作品，请选择关联", count = count));
+                            .insert(game_id, MetadataStatus::Message(tr!("找到 {count} 个作品，请选择关联", count = count)));
                         self.auto_link_queue.clear();
                         return Ok(());
                     }
@@ -162,7 +162,7 @@ impl ShinkiEmuManagerController {
                     ) {
                         Ok(request_id) => {
                             self.metadata_status
-                                .insert(game_id.clone(), tr!("正在自动关联…").into());
+                                .insert(game_id.clone(), MetadataStatus::Message(tr!("正在自动关联…").into()));
                             self.auto_link = Some(AutoLinkRequest {
                                 request_id,
                                 game_id,
@@ -175,11 +175,11 @@ impl ShinkiEmuManagerController {
                 }
                 self.metadata_status.insert(
                     game_id.clone(),
-                    if count == 0 {
+                    MetadataStatus::Message(if count == 0 {
                         tr!("未在 VNDB 找到匹配作品").into()
                     } else {
                         tr!("未能自动关联，找到 {count} 个候选，请手动选择", count = count)
-                    },
+                    }),
                 );
                 self.mark_auto_link_attempted(&game_id)?;
             }
@@ -187,7 +187,7 @@ impl ShinkiEmuManagerController {
                 let title =
                     self.link_metadata(&game_id, MetadataProviderId::Vndb, *record, cover)?;
                 self.metadata_status
-                    .insert(game_id.clone(), tr!("已自动关联：{title}", title = title));
+                    .insert(game_id.clone(), MetadataStatus::Message(tr!("已自动关联：{title}", title = title)));
                 self.mark_auto_link_attempted(&game_id)?;
             }
             (_, Ok(_)) => return Err("SHINKI_EMU_METADATA_RESPONSE_UNEXPECTED".into()),

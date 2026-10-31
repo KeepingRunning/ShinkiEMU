@@ -420,13 +420,17 @@ impl ShinkiEmuManagerController {
             metadata_status: self
                 .metadata_status
                 .get(&game.game_id)
-                .cloned()
+                .map(|status| status.text().to_owned())
                 .or_else(|| {
                     metadata.map(|record| {
                         tr!("已关联 {provider}：{title}", provider = record.provider.as_str(), title = record.title)
                     })
                 })
                 .unwrap_or_default(),
+            metadata_error: matches!(
+                self.metadata_status.get(&game.game_id),
+                Some(MetadataStatus::Error(_))
+            ),
             matches: self
                 .match_candidates
                 .iter()

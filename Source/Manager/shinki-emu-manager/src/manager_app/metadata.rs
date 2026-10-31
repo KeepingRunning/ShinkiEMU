@@ -87,6 +87,7 @@ impl ShinkiEmuManagerController {
                 core: None,
             },
         );
+        self.metadata_status.remove(&game.game_id);
         if prefix != metadata_auto_link::AUTO_LINK_PREFIX {
             self.auto_link_queue.retain(|id| *id != game.game_id);
         }
@@ -122,7 +123,7 @@ impl ShinkiEmuManagerController {
                 Err(error) => {
                     if let Some(game_id) = game_id {
                         self.metadata_status
-                            .insert(game_id, tr!("请求失败，请检查错误信息后重试").into());
+                            .insert(game_id, MetadataStatus::Error(tr!("请求失败，请检查错误信息后重试").into()));
                     }
                     self.diagnostic = error;
                     self.diagnostic_severity = "error";
@@ -144,11 +145,11 @@ impl ShinkiEmuManagerController {
                     game_id.ok_or_else(|| "SHINKI_EMU_METADATA_REQUEST_UNKNOWN".to_owned())?;
                 self.metadata_status.insert(
                     game_id.into(),
-                    if records.is_empty() {
+                    MetadataStatus::Message(if records.is_empty() {
                         tr!("没有找到作品，请尝试原名、译名或其他关键词").into()
                     } else {
                         tr!("找到 {count} 个作品，请选择关联", count = records.len())
-                    },
+                    }),
                 );
                 self.store_match_candidates(game_id, provider, records);
                 self.diagnostic.clear();
@@ -158,7 +159,7 @@ impl ShinkiEmuManagerController {
                     game_id.ok_or_else(|| "SHINKI_EMU_METADATA_REQUEST_UNKNOWN".to_owned())?;
                 let linked_title = self.link_metadata(game_id, provider, *record, cover)?;
                 self.metadata_status
-                    .insert(game_id.into(), tr!("已关联：{title}", title = linked_title));
+                    .insert(game_id.into(), MetadataStatus::Message(tr!("已关联：{title}", title = linked_title)));
                 self.diagnostic.clear();
             }
             MetadataPayload::Releases(mut releases) => {
