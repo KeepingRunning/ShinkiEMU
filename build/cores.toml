@@ -232,10 +232,10 @@ target = "x86_64-apple-ios"
 reason = "cocos2dx vcpkg port does not support iOS triplets; port pending."
 [[cores.blocked]]
 target = "aarch64-linux-android"
-reason = "opencv4 Android build lacks cpu-features.h in CI; port pending."
+reason = "Android Manager beta.6 does not embed KiriKiri; static embedding remains in development for a later Manager release. Standalone Android core packages do not establish Manager support."
 [[cores.blocked]]
 target = "x86_64-linux-android"
-reason = "opencv4 Android build lacks cpu-features.h in CI; port pending."
+reason = "Android Manager beta.6 does not embed KiriKiri; static embedding remains in development for a later Manager release. Standalone Android core packages do not establish Manager support."
 [[cores.blocked]]
 target = "aarch64-unknown-linux-ohos"
 reason = "Native OpenHarmony host and core adapter are not implemented; OHOS_SDK_NATIVE is additionally required."

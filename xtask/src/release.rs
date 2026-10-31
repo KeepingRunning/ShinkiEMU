@@ -758,6 +758,30 @@ pub fn publish(inv: &Inventory, component: &str, version: &str) -> Result<()> {
     } else {
         notes
     };
+    if component == "manager" {
+        let android = inv
+            .cores
+            .iter()
+            .filter(|core| {
+                core.static_manager_targets
+                    .iter()
+                    .any(|target| target == "aarch64-linux-android")
+            })
+            .map(|core| core.id.as_str())
+            .collect::<Vec<_>>();
+        let cores = android.join(", ");
+        notes.push_str(&format!(
+            "\nAndroid Manager embeds {} cores: {cores}.\nAndroid Manager 内置 {} 个核心：{cores}。\nAndroid Manager は{}コアを組み込みます：{cores}。\n",
+            android.len(),
+            android.len(),
+            android.len(),
+        ));
+        if !android.contains(&"kirikiroid2-web") {
+            notes.push_str(
+                "\nKiriKiri is not included in this Android Manager; static embedding remains in development for a later Manager release. A standalone Android core ZIP does not establish Manager support.\n\n本版 Android Manager 不包含 KiriKiri；其静态接入仍在开发，将随后续 Manager 版本交付。独立 Android 核心 ZIP 不代表 Manager 可用。\n\n本版 Android Manager に KiriKiri は含まれません。静的組み込みは後続の Manager リリースに向けて開発中です。単独の Android コア ZIP は Manager での利用を保証しません。\n",
+            );
+        }
+    }
     if id.identity.is_some() {
         notes.push_str(
             "\nCompatibility: these upstream-identity packages require ShinkiEMU Manager 0.1.0-beta.6 or a later compatible Manager. Manager 0.1.0-beta.5 and earlier reject this package format. Until a compatible Manager release is available, use the existing legacy packages. The legacy core v1 and compatibility v4 catalogs remain available. Device/game/account launch checks were waived, not verified.\n\n兼容性：这些上游身份核心包需要 ShinkiEMU Manager 0.1.0-beta.6 或后续兼容版本。beta.5 及更早版本会拒绝此格式；兼容的 Manager 尚未发布时，请继续使用旧核心包。旧版核心 v1 与兼容性 v4 目录继续提供。设备、游戏和账号启动检查已豁免，未作验证。\n\n互換性：この upstream 識別子付きコアパッケージには ShinkiEMU Manager 0.1.0-beta.6 以降の対応版が必要です。beta.5 以前ではこの形式をインストールできません。対応 Manager が公開されるまでは既存の旧パッケージを使用してください。旧 core v1 と compatibility v4 のカタログは維持します。端末・ゲーム・アカウントの起動確認は免除されており、検証済みではありません。\n",

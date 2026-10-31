@@ -4,6 +4,10 @@ Musica uses the original eden/Perseus `.sav` slots and matching `.png` thumbnail
 
 Musica is also statically embedded in the iOS Manager for the device and both simulator architectures, alongside its Android and experimental OHOS integrations. iOS does not support installing a separate dynamic core. The integrated release requires its own exact-head build, package, signature, native-dependency and corresponding-source gates; isolated-port results do not replace those gates.
 
+The Android Manager embeds six cores: RFVP, Siglus, Musica, Artemis, Impacto and Ren’Py, for both ARM64 and x86_64. KiriKiri is not included; its Android static embedding remains in development for a later Manager release. A standalone Android core ZIP is not evidence of Manager support. The existing iOS core set is retained; the newer KiriKiri/Ren’Py iOS ports are not included.
+
+External core packages now retain the original upstream ref/commit and the adapter identity. This Manager consumes the typed package/catalog format; beta.5 and earlier continue using the unchanged legacy packages and catalogs.
+
 On desktop, **Choose output** opens the native folder picker. Select the parent location and review the proposed new `localized-output[-N]` directory. Selection does not create that directory; a successful conversion publishes it without overwriting an occupied path.
 
 Converted-game profiles can require native core capabilities. Manager checks the actual loaded descriptor before adding or binding the converted game, then checks the retained receipt again before launch. Missing requirements request a core update; malformed or unknown masks are rejected. Legacy profiles require no additional bits.
