@@ -173,6 +173,8 @@ pub struct SelectionViewModel {
     pub bangumi_summary: String,
     pub metadata_busy: bool,
     pub metadata_status: String,
+    /// Request state, independent of the localized status message.
+    pub metadata_error: bool,
     pub matches: Vec<MatchViewModel>,
 }
 
