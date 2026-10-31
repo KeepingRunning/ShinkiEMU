@@ -161,16 +161,22 @@ impl ShinkiEmuManagerController {
                     .insert(game_id.into(), tr!("已关联：{title}", title = linked_title));
                 self.diagnostic.clear();
             }
-            MetadataPayload::Releases(releases) => {
+            MetadataPayload::Releases(mut releases) => {
                 let game_id =
                     game_id.ok_or_else(|| "SHINKI_EMU_METADATA_REQUEST_UNKNOWN".to_owned())?;
-                self.releases.insert(
-                    game_id.into(),
-                    releases
-                        .into_iter()
-                        .map(|release| (release.release_id, release.title.unwrap_or_default()))
-                        .collect(),
-                );
+                // A refreshed list must not discard the selected release's cached details.
+                if let Some(pinned) = self.pinned_releases.get(game_id)
+                    && !releases
+                        .iter()
+                        .any(|release| release.release_id == pinned.release_id)
+                    && let Some(previous) = self.releases.get_mut(game_id)
+                    && let Some(index) = previous
+                        .iter()
+                        .position(|release| release.release_id == pinned.release_id)
+                {
+                    releases.push(previous.swap_remove(index));
+                }
+                self.releases.insert(game_id.into(), releases);
             }
             MetadataPayload::BangumiPlaySynced => self.diagnostic.clear(),
             MetadataPayload::Synced(outcome) => {

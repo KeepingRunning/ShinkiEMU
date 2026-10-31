@@ -26,7 +26,7 @@ use shinki_emu_manager_ui_slint::{
 };
 use shinki_emu_metadata::{
     BangumiPlayStatus, BangumiPlayUpdate, CompatibilityEntry, CoverAsset,
-    DEFAULT_METADATA_BASE_URL, MetadataProviderId, MetadataRecord, MetadataSearchQuery,
+    DEFAULT_METADATA_BASE_URL, MetadataProviderId, MetadataRecord, MetadataRelease, MetadataSearchQuery,
     plain_description, unique_exact_match,
 };
 use shinki_emu_translation::{OpenAiApi, SecretResolver, TranslationProfile, TranslationProvider};
@@ -138,7 +138,7 @@ struct ShinkiEmuManagerController {
     bangumi_play_status: String,
     bangumi_rating: i32,
     bangumi_note: String,
-    releases: BTreeMap<String, Vec<(String, String)>>,
+    releases: BTreeMap<String, Vec<MetadataRelease>>,
     translation_enabled: bool,
     translation_models: Vec<String>,
     translation_status: String,
