@@ -70,6 +70,12 @@ Reviewed **Luau recipes** run only when explicitly selected. The patch page defa
 
 In **New directory** mode on Windows, macOS and Linux, **Choose output** opens a folder picker. Choose the parent location, or create a folder there using the system's folder controls. Manager displays the full proposed output path below that location: `localized-output`, or `localized-output-1`, `localized-output-2`, etc. if a name is already occupied. Check this path before starting. Selection never creates the conversion directory; only a successful conversion publishes it. Cancelling the picker leaves the previous selection unchanged. Existing files and directories are never overwritten, including anything created at the proposed path after selection. Output cannot overlap the game or patch input. **In-place overwrite** does not use the output selection. On iOS the selected parent receives a new `localized-output` child; Android uses a new app-private export directory.
 
+Some converted games require native core semantics such as isolated script saves
+and a consistent configured font. Manager checks the selected loaded core before
+importing or launching those outputs. If it requests a core update, install the
+updated core before retrying; a matching version label alone is not sufficient.
+Ordinary recipes without semantic requirements keep their existing behavior.
+
 ## Data and saves
 
 ShinkiEMU uses a new per-platform application data directory. Open its location from Settings; desktop deployments can set `SHINKI_EMU_DATA_DIR` to an absolute path. Android uses the application's private data directory. Pre-rename application databases, caches and product-owned saves are not imported. Existing game installations and original commercial saves remain untouched by that cutover.

@@ -12,6 +12,31 @@ use std::thread::JoinHandle;
 use shinki_emu_manager_ui_slint::tr;
 use shinki_emu_manager_ui_slint::i18n::pick;
 
+pub(super) fn require_profile_capabilities(
+    profile: &OutputProfile,
+    descriptor: &shinki_emu_manager_core::FamilyPluginDescriptor,
+) -> Result<(), String> {
+    if profile.required_capabilities == 0 {
+        return Ok(());
+    }
+    let mut supported = 0;
+    if descriptor.has_capability(shinki_emu_manager_core::FamilyCapability::NativeScriptIdentity) {
+        supported |= shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY;
+    }
+    if descriptor.has_capability(shinki_emu_manager_core::FamilyCapability::ConfiguredFontPriority) {
+        supported |= shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY;
+    }
+    if descriptor.plugin_id != profile.plugin_id
+        || profile.required_capabilities & !supported != 0
+    {
+        return Err(format!(
+            "SHINKI_EMU_CORE_UPDATE_REQUIRED: {}",
+            tr!("此转换结果需要更新所选核心")
+        ));
+    }
+    Ok(())
+}
+
 enum PatchOperation {
     Apply(PatchRequest),
     Restore(PathBuf),
@@ -138,7 +163,9 @@ impl ShinkiEmuManagerController {
         let mut view = self.patch_state.clone();
         view.running = self.patch_job.is_some() || self.patch_download.is_some();
         view.downloading = self.patch_download.is_some();
-        view.has_backup = self.patch_game_id.as_deref()
+        // A restore owns exclusive Windows backup handles; do not inspect its
+        // changing namespace while the worker is active.
+        view.has_backup = self.patch_job.is_none() && self.patch_game_id.as_deref()
             .and_then(|id| self.game(id).ok())
             .is_some_and(|game| shinki_emu_patch::has_backup(Path::new(&game.location)).unwrap_or(false));
         if view.running || !view.error.is_empty() {
@@ -620,14 +647,14 @@ impl ShinkiEmuManagerController {
         self.patch_state.step = 5;
     }
 
-    pub(super) fn apply_import_profile(
-        &mut self,
-        game_id: &str,
-        choices: Vec<FamilyProbeCandidate>,
+    pub(super) fn select_import_profile(
+        &self,
+        choices: &[FamilyProbeCandidate],
         profile: &OutputProfile,
-    ) -> Result<(), String> {
-        let selected = choices.iter().find(|candidate| candidate.report.plugin_id == profile.plugin_id)
-            .cloned().ok_or("SHINKI_EMU_EMULATOR_SELECTION_INVALID: patch output is not recognized by its requested emulator")?;
+    ) -> Result<usize, String> {
+        let index = choices.iter().position(|candidate| candidate.report.plugin_id == profile.plugin_id)
+            .ok_or("SHINKI_EMU_EMULATOR_SELECTION_INVALID: patch output is not recognized by its requested emulator")?;
+        let selected = &choices[index];
         if selected.descriptor.family_id != selected.report.family_id
             || self.registry.descriptor(&profile.plugin_id) != Some(&selected.descriptor)
         {
@@ -635,6 +662,18 @@ impl ShinkiEmuManagerController {
                 "SHINKI_EMU_EMULATOR_SELECTION_INVALID: patch output descriptor mismatch".into(),
             );
         }
+        require_profile_capabilities(profile, &selected.descriptor)?;
+        Ok(index)
+    }
+
+    pub(super) fn apply_import_profile(
+        &mut self,
+        game_id: &str,
+        choices: Vec<FamilyProbeCandidate>,
+        selected: usize,
+        profile: &OutputProfile,
+    ) -> Result<(), String> {
+        let selected = choices[selected].clone();
         let schema = self
             .registry
             .configuration(&profile.plugin_id)

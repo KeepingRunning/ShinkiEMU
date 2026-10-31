@@ -26,6 +26,15 @@ description: C ABI v3 のライフサイクル、owner スレッド、CPU フレ
 
 通常の ABI 呼び出しは、ホストの owner スレッドで直列に実行されます。VM の進行、描画と音声のスケジューリング、リソースのライフサイクルは、コア自身のネイティブ owner が担当します。Manager が提供するのは入力、制御、ホストサービスだけで、advance コールバックはありません。キャンセルと epoch のチェックにより、古いセッションや古い出力世代から遅れて届いた結果は拒否されます。
 
+## 変換結果の互換性
+
+既存の `Descriptor.capabilities` に任意の意味ビットを追加します。ABI バージョン 3、C レイアウト、fingerprint は変更しません。
+
+- `CAP_NATIVE_SCRIPT_IDENTITY`（64）：明示された変換スクリプトの hash を検証し、そのセーブ・既読を分離します。marker のないゲームは従来の保存先を使います。
+- `CAP_CONFIGURED_FONT_PRIORITY`（128）：設定したフォントを、スクリプトや復元状態の優先フォントより先に使用します。ruby と UI テキストも対象です。
+
+Luau レシピは出力 profile の `plugin_id`、`configuration` と並べて `required_capabilities = 192` を指定できます。receipt にも要件を保持します。Manager はインポートするゲームの追加や設定の保存前とセッションの開始前に、実際にロードした選択コアの `describe` を確認します。自動インポートでは、変換完了後に要件が変更された receipt も拒否します。機能が不足すれば操作を拒否してコアの更新を案内し、未知の要件があれば profile 自体を拒否します。バージョン文字列やファイル名から機能を推測しません。旧 profile で省略されたフィールドは 0 とし、新 receipt でも 0 は書き出さないため、従来のレシピは影響を受けません。
+
 ## テキスト置換のレベル
 
 判断基準は descriptor の能力ビットだけです。`CAP_TEXT_HOOK` がなければ **none**、`CAP_TEXT_HOOK` だけなら **synchronous**、`CAP_TEXT_HOOK | CAP_ASYNC_TEXT` の両方があれば **async-v1** です。`CAP_ASYNC_TEXT` だけを宣言しても無効です。現在バージョンを固定している外部コア 9 個はすべて none を宣言しています。外部コアは、自身のスケジューリング方式を保ったまま同期置換を採用できます。SDK コアかどうかは所有関係で決まります。Musica は SDK の自社コアで、Artemis は SDK の音声を使っていても外部コアです。CMVS は独立したワークツリーで保守されています。

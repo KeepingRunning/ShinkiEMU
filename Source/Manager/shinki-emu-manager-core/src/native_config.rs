@@ -86,6 +86,12 @@ pub(super) unsafe fn descriptor(
     if raw.capabilities & abi::CAP_ASYNC_TEXT != 0 {
         capabilities.push(FamilyCapability::AsyncTextReplacement);
     }
+    if raw.capabilities & abi::CAP_NATIVE_SCRIPT_IDENTITY != 0 {
+        capabilities.push(FamilyCapability::NativeScriptIdentity);
+    }
+    if raw.capabilities & abi::CAP_CONFIGURED_FONT_PRIORITY != 0 {
+        capabilities.push(FamilyCapability::ConfiguredFontPriority);
+    }
     let descriptor = FamilyPluginDescriptor {
         family_id: unsafe { text(raw.family_id, 256) }?,
         plugin_id: unsafe { text(raw.plugin_id, 256) }?,

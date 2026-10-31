@@ -343,6 +343,7 @@ impl ShinkiEmuManagerController {
                     .ok_or("SHINKI_EMU_PATCH_INTEGRITY: completed output receipt is missing")?;
                 if expected.profile.plugin_id != profile.plugin_id
                     || expected.profile.configuration != profile.configuration
+                    || expected.profile.required_capabilities != profile.required_capabilities
                 {
                     return Err(
                         "SHINKI_EMU_PATCH_INTEGRITY: output receipt changed before import".into(),
@@ -361,6 +362,10 @@ impl ShinkiEmuManagerController {
                 }
                 continue;
             }
+            let selected = profile
+                .as_ref()
+                .map(|profile| self.select_import_profile(&result.candidates, profile))
+                .transpose()?;
             if ids.is_empty() {
                 let location = result.path.to_str().ok_or("SHINKI_EMU_GAME_PATH_UTF8")?;
                 let game = GameRecord {
@@ -383,8 +388,8 @@ impl ShinkiEmuManagerController {
                 if automatic.is_some_and(|expected| expected.source_game_id == id && !expected.in_place) {
                     return Err("SHINKI_EMU_PATCH_INTEGRITY: output import would modify source game".into());
                 }
-                if let Some(profile) = &profile {
-                    self.apply_import_profile(&id, std::mem::take(&mut choices), profile)?;
+                if let Some((profile, selected)) = profile.as_ref().zip(selected.as_ref()) {
+                    self.apply_import_profile(&id, std::mem::take(&mut choices), *selected, profile)?;
                     if let Some(expected) = automatic && !expected.in_place {
                         self.inherit_source_work(&expected.source_game_id, &id)?;
                     }

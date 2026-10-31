@@ -75,6 +75,14 @@ impl ShinkiEmuManagerController {
             .launch_candidate_for_game(&game)
             .cloned()
             .ok_or_else(|| "SHINKI_EMU_FAMILY_PROBE_REQUIRED".to_owned())?;
+        if let Some(profile) = shinki_emu_patch::read_output_profile(
+            Path::new(&game.location),
+            &std::sync::atomic::AtomicBool::new(false),
+        )
+        .map_err(|error| error.to_string())?
+        {
+            file_patch::require_profile_capabilities(&profile, &candidate.descriptor)?;
+        }
         let epoch = shinki_emu_manager_core::model::allocate_session_epoch()
             .map_err(|error| error.to_string())?;
         let text = if candidate

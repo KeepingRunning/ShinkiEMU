@@ -27,6 +27,8 @@ fn capability_label(capability: FamilyCapability) -> &'static str {
         FamilyCapability::RenderExtent => tr!("可调渲染分辨率"),
         FamilyCapability::TextReplacement => tr!("实时翻译"),
         FamilyCapability::AsyncTextReplacement => tr!("非阻塞翻译"),
+        FamilyCapability::NativeScriptIdentity => tr!("原生脚本存档隔离"),
+        FamilyCapability::ConfiguredFontPriority => tr!("优先使用配置字体"),
     }
 }
 
