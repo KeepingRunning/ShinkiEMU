@@ -150,6 +150,12 @@ jobs:
           } else {
             cargo xtask deps --target $env:TARGET --core $env:COMPONENT
           }
+      - name: Exercise real Krkr archive path consumers
+        if: contains(matrix.target, 'android') && matrix.component == 'manager'
+        shell: bash
+        run: |
+          rustc --edition=2024 --test ThirdParty/kirikiri2/shinki/android_link_plan.rs -o .work/krkr-link-plan-tests
+          .work/krkr-link-plan-tests --test-threads=1
       - name: Build and package
         env:
           TARGET: ${{ matrix.target }}
