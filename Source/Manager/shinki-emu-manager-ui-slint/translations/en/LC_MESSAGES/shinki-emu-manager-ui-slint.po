@@ -2332,3 +2332,12 @@ msgstr "Default (core native)"
 
 msgid "默认（跟随模拟器设置）"
 msgstr "Default (follow emulator settings)"
+
+msgid "原生脚本存档隔离"
+msgstr "Native script save isolation"
+
+msgid "优先使用配置字体"
+msgstr "Prefer configured fonts"
+
+msgid "此转换结果需要更新所选核心"
+msgstr "This conversion result needs the selected core updated"
