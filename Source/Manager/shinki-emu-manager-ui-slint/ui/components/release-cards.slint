@@ -78,65 +78,79 @@ export component ReleaseCard inherits Rectangle {
             : transparent;
     }
 
-    touch := TouchArea {
-        enabled: root.enabled;
-        clicked => { root.toggle(); }
-    }
-
-    body := VerticalLayout {
-        padding: 12px;
-        spacing: 6px;
-
-        HorizontalLayout {
-            spacing: 8px;
-            alignment: start;
-
-            title-text := MaterialText {
-                horizontal-stretch: 1;
-                text: root.release.title == "" ? @tr("标题未知") : root.release.title;
-                style: MaterialTypography.body-large;
-                color: MaterialPalette.on-surface;
-                wrap: word-wrap;
-                overflow: clip;
-            }
-
-            check-button := IconButton {
-                icon: Icons.check;
-                checked: root.selected;
-                tooltip: root.selected ? @tr("取消指定版本") : @tr("指定此版本");
-                enabled: root.enabled;
-                clicked => { root.toggle(); }
-            }
-        }
-
-        rid-text := MaterialText {
-            text: @tr("发行版本 {}", root.release.id);
-            style: MaterialTypography.label-small;
-            color: MaterialPalette.on-surface-variant;
-            overflow: elide;
-        }
-
-        platform-row := ReleaseMeta {
-            icon: Icons.memory;
-            text: root.release.platforms == "" ? @tr("平台未知") : root.release.platforms;
-        }
-
-        date-row := ReleaseMeta {
-            icon: Icons.schedule;
-            text: root.release.released == "" ? @tr("发售日未知") : root.release.released;
-        }
-    }
-
+    // Pointer and keyboard share this focus scope: a click pins/unpins the
+    // card and moves keyboard focus here, Tab reaches it, Space/Return
+    // toggles it. The body sits on top of the TouchArea so the check button
+    // keeps its own click target.
     focus := FocusScope {
-        width: root.width;
-        height: root.height;
+        width: 100%;
+        height: 100%;
         enabled: root.enabled;
+        // Clicks focus the card from the TouchArea; letting the FocusScope
+        // swallow the press would also swallow drag-to-scroll on the list.
+        focus-on-click: false;
         key-pressed(event) => {
             if (event.text == " " || event.text == "\n") {
                 root.toggle();
                 return accept;
             }
             reject
+        }
+
+        touch := TouchArea {
+            enabled: root.enabled;
+            clicked => {
+                root.toggle();
+                focus.focus();
+            }
+        }
+
+        body := VerticalLayout {
+            width: 100%;
+            padding: 12px;
+            spacing: 6px;
+
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+
+                title-text := MaterialText {
+                    horizontal-stretch: 1;
+                    text: root.release.title == "" ? @tr("标题未知") : root.release.title;
+                    style: MaterialTypography.body-large;
+                    color: MaterialPalette.on-surface;
+                    wrap: word-wrap;
+                    overflow: clip;
+                }
+
+                check-button := IconButton {
+                    icon: Icons.check;
+                    checked: root.selected;
+                    tooltip: root.selected ? @tr("取消指定版本") : @tr("指定此版本");
+                    enabled: root.enabled;
+                    clicked => {
+                        root.toggle();
+                        focus.focus();
+                    }
+                }
+            }
+
+            rid-text := MaterialText {
+                text: @tr("发行版本 {}", root.release.id);
+                style: MaterialTypography.label-small;
+                color: MaterialPalette.on-surface-variant;
+                overflow: elide;
+            }
+
+            platform-row := ReleaseMeta {
+                icon: Icons.memory;
+                text: root.release.platforms == "" ? @tr("平台未知") : root.release.platforms;
+            }
+
+            date-row := ReleaseMeta {
+                icon: Icons.schedule;
+                text: root.release.released == "" ? @tr("发售日未知") : root.release.released;
+            }
         }
     }
 
