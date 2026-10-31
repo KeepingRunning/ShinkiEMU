@@ -4,12 +4,12 @@ name: Component release
 # all succeeded; GitHub creates a missing tag at the run's commit when it publishes.
 on:
   push:
-    tags: ['manager-v*', 'core-*-v*']
+    tags: ['manager-v*', 'core-*']
   workflow_dispatch:
     inputs:
       version:
-        description: Semver version shared by every selected component
-        required: true
+        description: SemVer for Manager/self-owned cores only; external core identities come from pinned upstream and adapter sources
+        required: false
       components:
         description: 'Comma-separated manager/plugin_ids (case-sensitive), or all (every component that is not publish_blocked)'
         required: true
@@ -46,36 +46,46 @@ jobs:
           $rows = @((cargo xtask matrix --json --ci | ConvertFrom-Json).include)
           $known = @($rows.component | Sort-Object -Unique -CaseSensitive)
           $slug = { param($id) $id.ToLowerInvariant().Replace('.', '-').Replace('_', '-') }
+          $version = $env:INPUT_VERSION.Trim()
           if ($env:GITHUB_EVENT_NAME -eq 'push') {
             if ($env:GITHUB_REF_NAME -match '^manager-v(.+)$') {
               $requested = @('manager'); $version = $Matches[1]
             } else {
-              $matched = @($known | Where-Object { $_ -ne 'manager' -and $env:GITHUB_REF_NAME.StartsWith("core-$(& $slug $_)-v") })
+              $matched = @($known | Where-Object { $_ -ne 'manager' -and $env:GITHUB_REF_NAME.StartsWith("core-$(& $slug $_)-") })
               if ($matched.Count -ne 1) { throw "Tag $env:GITHUB_REF_NAME does not identify one core" }
               $requested = $matched
-              $version = $env:GITHUB_REF_NAME.Substring("core-$(& $slug $matched[0])-v".Length)
+              $own = @($rows | Where-Object { $_.component -ceq $matched[0] })
+              if (-not $own[0].external) {
+                $version = $env:GITHUB_REF_NAME.Substring("core-$(& $slug $matched[0])-v".Length)
+              }
             }
+          } elseif ($env:INPUT_COMPONENTS.Trim() -ceq 'all') {
+            $requested = @($known | Where-Object { $c = $_; -not ($rows | Where-Object { $_.component -ceq $c -and $_.publish_blocked }) })
           } else {
-            $version = $env:INPUT_VERSION.Trim()
-            if ($env:INPUT_COMPONENTS.Trim() -ceq 'all') {
-              $requested = @($known | Where-Object { $c = $_; -not ($rows | Where-Object { $_.component -ceq $c -and $_.publish_blocked }) })
-            } else {
-              $requested = @($env:INPUT_COMPONENTS.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique -CaseSensitive)
-            }
+            $requested = @($env:INPUT_COMPONENTS.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique -CaseSensitive)
           }
-          if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') { throw "Invalid semantic version '$version'" }
           if ($requested.Count -eq 0) { throw 'No components selected' }
+          $versions = @{}
+          $components = @()
           foreach ($component in $requested) {
             $own = @($rows | Where-Object { $_.component -ceq $component })
             if ($own.Count -eq 0) { throw "Unknown component '$component', or it has no supported target" }
             if ($own[0].publish_blocked) { throw "$component is publish_blocked: $($own[0].publish_blocked)" }
+            $arguments = @('xtask', 'release', '--component', $component, '--dry-run')
+            if (-not $own[0].external) { $arguments += @('--version', $version) }
+            $identity = cargo @arguments | ConvertFrom-Json
+            if ($env:GITHUB_EVENT_NAME -eq 'push' -and $identity.release_tag -cne $env:GITHUB_REF_NAME) { throw 'Tag does not match verified component identity' }
+            $versions[$component] = $identity.version
+            $components += @{component=$component; version=$identity.version}
           }
-          $include = @($rows | Where-Object { $_.component -cin $requested })
+          $include = @($rows | Where-Object { $_.component -cin $requested } | ForEach-Object {
+            $_ | Add-Member -NotePropertyName version -NotePropertyValue $versions[$_.component] -PassThru
+          })
           "matrix=$(@{include=$include} | ConvertTo-Json -Compress -Depth 8)" >> $env:GITHUB_OUTPUT
-          "components=$(ConvertTo-Json -Compress -InputObject @($requested))" >> $env:GITHUB_OUTPUT
+          "components=$(@{include=$components} | ConvertTo-Json -Compress -Depth 8)" >> $env:GITHUB_OUTPUT
           "version=$version" >> $env:GITHUB_OUTPUT
           "local_manager=$($localManager.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-          "Release $version`: $($requested -join ', ') ($($include.Count) build rows)" >> $env:GITHUB_STEP_SUMMARY
+          "Per-component release identities: $($components | ConvertTo-Json -Compress)" >> $env:GITHUB_STEP_SUMMARY
   build:
     if: ${{ inputs.verify_local_manager != true }}
     needs: select
@@ -85,7 +95,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 360
     env:
-      SHINKI_EMU_CI_VERSION: ${{ needs.select.outputs.version }}
+      SHINKI_EMU_CI_VERSION: ${{ matrix.version }}
       ROUKAKU_SUBTITLE_VCPKG_ROOT: ${{ github.workspace }}/.work/vcpkg-subtitle
       SHINKI_EMU_ANDROID_KEYSTORE_BASE64: ${{ secrets.SHINKI_EMU_ANDROID_KEYSTORE_BASE64 }}
       SHINKI_EMU_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.SHINKI_EMU_ANDROID_KEYSTORE_PASSWORD }}
@@ -214,10 +224,9 @@ jobs:
     if: ${{ !cancelled() && needs.select.result == 'success' && inputs.verify_local_manager != true }}
     strategy:
       fail-fast: false
-      matrix:
-        component: ${{ fromJSON(needs.select.outputs.components) }}
+      matrix: ${{ fromJSON(needs.select.outputs.components) }}
     concurrency:
-      group: publish-${{ matrix.component }}-${{ needs.select.outputs.version }}
+      group: publish-${{ matrix.component }}-${{ matrix.version }}
       cancel-in-progress: false
     runs-on: ubuntu-24.04
     permissions:
@@ -225,7 +234,7 @@ jobs:
       pull-requests: write
     env:
       COMPONENT: ${{ matrix.component }}
-      VERSION: ${{ needs.select.outputs.version }}
+      VERSION: ${{ matrix.version }}
     steps:
       - uses: actions/checkout@v7
         with:

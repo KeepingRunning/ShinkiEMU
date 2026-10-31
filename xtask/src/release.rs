@@ -332,16 +332,43 @@ struct Identity {
     commit: String,
     core_source: Value,
     root: PathBuf,
+    version: String,
+    identity: Option<shinki_emu_metadata::CoreIdentity>,
+}
+
+pub fn resolve_version(inv: &Inventory, component: &str, supplied: &str) -> Result<String> {
+    if component != "manager" && let Some(source) = &inv.core(component)?.source {
+        let identity = source.identity();
+        let version = identity.version();
+        crate::metadata::require_release_sequence(&inv.root.join("Metadata"), component, &identity)?;
+        if !supplied.is_empty() && supplied != version {
+            bail!("external core version is derived from its verified upstream/adapter pins; omit --version or use {version}");
+        }
+        return Ok(version);
+    }
+    semver::Version::parse(supplied).context("Manager/self-owned cores require --version with their own SemVer")?;
+    Ok(supplied.to_owned())
+}
+
+pub fn dry_run(inv: &Inventory, component: &str, version: &str) -> Result<()> {
+    if component != "manager" { crate::sources::verify_provenance(inv, inv.core(component)?)?; }
+    let id = identity(inv, component, version)?;
+    println!("{}", serde_json::to_string(&json!({
+        "component":component, "version":id.version, "release_tag":id.tag,
+        "source_commit":id.commit, "core_source":id.core_source, "identity":id.identity,
+    }))?);
+    Ok(())
 }
 
 fn identity(inv: &Inventory, component: &str, version: &str) -> Result<Identity> {
-    semver::Version::parse(version)?;
+    let version = resolve_version(inv, component, version)?;
+    let external = if component == "manager" { None } else { inv.core(component)?.source.as_ref().map(crate::cores::CoreSource::identity) };
     let (tag, core_source) = if component == "manager" {
         (format!("manager-v{version}"), Value::Null)
     } else {
         let core = inv.core(component)?;
         (
-            format!("core-{}-v{version}", slug(component)),
+            if external.is_some() { format!("core-{}-{version}", slug(component)) } else { format!("core-{}-v{version}", slug(component)) },
             serde_json::to_value(&core.source)?,
         )
     };
@@ -359,6 +386,8 @@ fn identity(inv: &Inventory, component: &str, version: &str) -> Result<Identity>
         tag,
         commit,
         core_source,
+        version,
+        identity: external,
     })
 }
 
@@ -375,6 +404,7 @@ fn require_same_release(
         || record["version"] != version
         || record["source_commit"] != id.commit.as_str()
         || record["core_source"] != id.core_source
+        || record.get("identity").unwrap_or(&Value::Null) != &serde_json::to_value(&id.identity)?
     {
         bail!(
             "{} was prepared from another component, version, product commit or core pin; remove it and prepare again",
@@ -389,6 +419,7 @@ fn require_same_release(
 pub fn prepare(inv: &Inventory, target: &str, component: &str, version: &str) -> Result<()> {
     let spec = inv.target(target)?;
     let id = identity(inv, component, version)?;
+    let version = id.version.as_str();
     if let Some(reason) = inv.blocked(component, target)? {
         println!("{component}/{target}: blocked: {reason}; artifact=null");
         return Ok(());
@@ -400,6 +431,7 @@ pub fn prepare(inv: &Inventory, target: &str, component: &str, version: &str) ->
             return Ok(());
         }
     }
+    if component != "manager" { crate::sources::verify_provenance(inv, inv.core(component)?)?; }
     let dirty = dependencies::capture(
         std::process::Command::new("git")
             .arg("-C")
@@ -496,6 +528,7 @@ pub fn prepare(inv: &Inventory, target: &str, component: &str, version: &str) ->
         crate::sources::bundle(inv, component, target, &work.join(&sources))?;
         let record = json!({"schema":"shinki.emu.release.v1","component":component,"version":version,"target":target,"platform":platform,
             "source_commit":id.commit,"core_source":id.core_source,
+            "identity":id.identity,
             "archive":{"name":filename,"sha256":package::sha256(&archive)?,"size":fs::metadata(&archive)?.len()},
             "sources":{"name":sources,"sha256":package::sha256(&work.join(&sources))?},"publish_blocked":publish_blocked});
         fs::write(
@@ -589,6 +622,9 @@ pub fn verify_ohos_handoff(inv: &Inventory, component: &str, version: &str) -> R
 /// propose the core catalog entries.
 pub fn publish(inv: &Inventory, component: &str, version: &str) -> Result<()> {
     let id = identity(inv, component, version)?;
+    let version = id.version.as_str();
+    let label = id.identity.as_ref().map_or_else(|| version.to_owned(), shinki_emu_metadata::CoreIdentity::display_version);
+    if component != "manager" { crate::sources::verify_provenance(inv, inv.core(component)?)?; }
     let tag = id.tag.as_str();
     if env::var("GITHUB_EVENT_NAME").ok().as_deref() == Some("push")
         && env::var("GITHUB_REF_TYPE").ok().as_deref() == Some("tag")
@@ -680,7 +716,7 @@ pub fn publish(inv: &Inventory, component: &str, version: &str) -> Result<()> {
         String::new()
     };
     let notes = format!(
-        "{component} {version}\n\nArtifacts:\n{artifacts}\n\nBlocked platforms:\n{}\n\nEach `-sources.zip` holds the exact product/fork revisions, the copyleft Rust crate sources, and the native library source archives and recipes needed to modify and relink. The universal Android Release APK is uploaded once; matching Actions matrix rows do not duplicate it.{ci}",
+        "{component} {label}\n\nArtifacts:\n{artifacts}\n\nBlocked platforms:\n{}\n\nEach `-sources.zip` holds the exact product/fork revisions, the copyleft Rust crate sources, and the native library source archives and recipes needed to modify and relink. The universal Android Release APK is uploaded once; matching Actions matrix rows do not duplicate it.{ci}",
         blocked.join("\n")
     );
     let notes = if local_manager {
@@ -700,7 +736,7 @@ pub fn publish(inv: &Inventory, component: &str, version: &str) -> Result<()> {
         Some(draft) => draft,
         None => gh.post(
             "releases",
-            &json!({"tag_name":tag,"target_commitish":id.commit,"name":format!("{component} {version}"),"body":notes,"draft":true,"prerelease":!semver::Version::parse(version)?.pre.is_empty()}),
+            &json!({"tag_name":tag,"target_commitish":id.commit,"name":format!("{component} {label}"),"body":notes,"draft":true,"prerelease":id.identity.as_ref().map_or_else(|| semver::Version::parse(version).map(|v| !v.pre.is_empty()).unwrap_or(false), |i| i.upstream.ref_kind == shinki_emu_metadata::UpstreamRefKind::Branch)}),
         )?,
     };
     let release_id = release["id"].as_u64().context("release id")?;
@@ -737,7 +773,8 @@ pub fn publish(inv: &Inventory, component: &str, version: &str) -> Result<()> {
                 .context("archive hash")?;
             let size = record["archive"]["size"].as_u64().context("archive size")?;
             let platform = record["platform"].as_str().context("release platform")?;
-            let entry = json!({"plugin_id":component,"display_name":c.display_name,"family_name":c.family_name,"version":version,"abi":"shinki.emu.native.c.v3","platform":platform,"url":url,"sha256":hash,"size":size,"license":c.license,"release_tag":tag});
+            let mut entry = json!({"plugin_id":component,"display_name":c.display_name,"family_name":c.family_name,"version":version,"abi":"shinki.emu.native.c.v3","platform":platform,"url":url,"sha256":hash,"size":size,"license":c.license,"release_tag":tag});
+            if let Some(identity) = &id.identity { entry["identity"] = serde_json::to_value(identity)?; }
             let dto: shinki_emu_metadata::CoreCatalogEntry = serde_json::from_value(entry.clone())?;
             dto.validate()?;
             gh.catalog_put(
@@ -791,5 +828,30 @@ mod tests {
         let published =
             json!({"tag_name":"manager-v1.0.0","draft":false,"target_commitish":commit});
         assert!(release_target(&[published], Some(&commit), &commit).is_err());
+    }
+
+    #[test]
+    fn release_receipts_and_external_versions_follow_pins_not_manager_beta() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let inv = Inventory::load(root).unwrap();
+        let id = identity(&inv, "rfvp", "").unwrap();
+        assert!(resolve_version(&inv, "rfvp", "0.1.0-beta.5").is_err());
+        assert_eq!(resolve_version(&inv, "manager", "0.1.0-beta.6").unwrap(), "0.1.0-beta.6");
+        assert_eq!(resolve_version(&inv, "shinki.emu.musica", "0.1.0-beta.5").unwrap(), "0.1.0-beta.5");
+        let record = json!({
+            "schema":"shinki.emu.release.v1","component":"rfvp","version":id.version,
+            "source_commit":id.commit,"core_source":id.core_source,"identity":id.identity,
+        });
+        require_same_release(&record, &id, "rfvp", &id.version, Path::new("release.json")).unwrap();
+        let mut other = record.clone();
+        other["identity"]["adapter"]["commit"] = "f".repeat(40).into();
+        assert!(require_same_release(&other, &id, "rfvp", &id.version, Path::new("release.json")).is_err());
+        let mut changed = inv.clone();
+        let source = changed.cores.iter_mut().find(|core| core.id == "rfvp").unwrap().source.as_mut().unwrap();
+        source.rev = "f".repeat(40);
+        source.release_sequence += 1;
+        let updated = identity(&changed, "rfvp", "").unwrap();
+        assert_ne!(updated.version, id.version);
+        assert_ne!(updated.tag, id.tag);
     }
 }

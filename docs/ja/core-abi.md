@@ -71,3 +71,5 @@ Ready 状態の `FrameSurface` には、実際のサイズ、stride、ピクセ�
 ```
 
 `core.json` は `shinki.emu.core_package.v1` を使い、`plugin_id`、`library`、`version`、`abi`、ファイルパスと SHA256 を記録します。マニフェストは自身を除くすべてのパッケージファイルを対象とします。コアライブラリは新しいファイル名プレフィックスと query シンボルを使います。パッケージングでは、アーキテクチャ、依存関係の閉包、ライセンスを確認し、パストラバーサル、リンク、大文字小文字の衝突を拒否し、まだ存在しない新しいディレクトリにだけ出力します。Manager はインストール前にパッケージ全体を検証し、旧製品のプロトコルやローダーの別名は受け付けません。コマンドは[ビルドとリリース](build-and-release.md)を参照してください。
+
+新しい外部パッケージは、元の upstream と組織 adapter の来歴を分けた `identity` を追加し、`version` がその安全な計算済み識別子と一致することを要求します。旧パッケージはこのフィールドを持たず、実際の SemVer を維持します。新 Manager はステージング前に catalog と package の plugin、version、identity を照合し、upstream/adapter の完全なラベルを表示します。C ABI と descriptor の版は独立したままです。[版識別子の規則](build-and-release.md#パッケージングとリリース)を参照してください。

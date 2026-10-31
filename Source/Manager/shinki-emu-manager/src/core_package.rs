@@ -33,6 +33,8 @@ pub(crate) struct CoreManifest {
     pub(crate) plugin_id: String,
     pub(crate) library: String,
     pub(crate) version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) identity: Option<shinki_emu_metadata::CoreIdentity>,
     pub(crate) abi: String,
     pub(crate) files: Vec<CoreFile>,
 }
@@ -51,8 +53,7 @@ impl CoreManifest {
             || self.abi != INDEPENDENT_FAMILY_ABI_FINGERPRINT
             || self.plugin_id.is_empty()
             || self.plugin_id.len() > 128
-            || self.version.is_empty()
-            || self.version.len() > 64
+            || shinki_emu_metadata::validate_core_version(&self.version, self.identity.as_ref()).is_err()
             || self.library.contains(['/', '\\'])
             || !is_family_library_path(Path::new(&self.library))
         {
@@ -151,14 +152,15 @@ fn partial_dir(pending: &Path) -> Result<tempfile::TempDir, String> {
         .map_err(io_error("SHINKI_EMU_CORE_INSTALL_COPY"))
 }
 
+type ExpectedRelease<'a> = (&'a str, &'a str, Option<&'a shinki_emu_metadata::CoreIdentity>);
 /// Validate a core package zip and stage it as `pending/<stem>/`.
 ///
 /// Rejects absolute paths, `..`, symlinks and duplicate entries, a manifest
-/// whose plugin id differs from `expected_plugin_id`, and any file whose
+/// whose plugin/version/provenance differs from `expected`, and any file whose
 /// SHA-256 is not the manifest value. Returns the staged stem.
 pub(crate) fn stage_package(
     archive: &Path,
-    expected_plugin_id: Option<&str>,
+    expected: Option<ExpectedRelease<'_>>,
     pending: &Path,
 ) -> Result<(String, CoreManifest), String> {
     let file = fs::File::open(archive).map_err(io_error("SHINKI_EMU_CORE_PACKAGE_READ"))?;
@@ -217,7 +219,10 @@ pub(crate) fn stage_package(
     }
     let manifest: CoreManifest = serde_json::from_slice(&manifest_bytes)
         .map_err(|_| "SHINKI_EMU_CORE_PACKAGE_MANIFEST".to_owned())?;
-    let stem = manifest.validate(expected_plugin_id)?;
+    let stem = manifest.validate(expected.map(|(plugin, _, _)| plugin))?;
+    if expected.is_some_and(|(_, version, identity)| manifest.version != version || manifest.identity.as_ref() != identity) {
+        return Err("SHINKI_EMU_CORE_PACKAGE_MANIFEST".into());
+    }
     let listed: BTreeSet<&str> = manifest
         .files
         .iter()
@@ -294,6 +299,7 @@ fn write_generated(directory: &Path, name: &str, stem: &str, bytes: &[u8]) -> Re
         plugin_id: stem.into(),
         library: name.into(),
         version: "0.0.0-local".into(),
+        identity: None,
         abi: INDEPENDENT_FAMILY_ABI_FINGERPRINT.into(),
         files: vec![CoreFile {
             path: name.into(),
@@ -310,7 +316,9 @@ fn write_generated(directory: &Path, name: &str, stem: &str, bytes: &[u8]) -> Re
 /// Read `core.json` from a core directory.
 pub(crate) fn read_manifest(directory: &Path) -> Option<CoreManifest> {
     let bytes = fs::read(directory.join(CORE_MANIFEST)).ok()?;
-    serde_json::from_slice(&bytes).ok()
+    let manifest: CoreManifest = serde_json::from_slice(&bytes).ok()?;
+    manifest.validate(None).ok()?;
+    Some(manifest)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -11,14 +11,14 @@ pub(super) fn core_platform() -> String {
     format!("{}-{}", env::consts::OS, env::consts::ARCH)
 }
 
-fn is_newer(candidate: &str, installed: &str) -> bool {
-    match (
-        semver::Version::parse(candidate),
-        semver::Version::parse(installed),
-    ) {
-        (Ok(candidate), Ok(installed)) => candidate > installed,
-        _ => false,
-    }
+pub(super) fn embedded_identity(plugin_id: &str) -> Option<&'static shinki_emu_metadata::CoreIdentity> {
+    static IDENTITIES: std::sync::LazyLock<BTreeMap<String, shinki_emu_metadata::CoreIdentity>> = std::sync::LazyLock::new(|| {
+        let identities: BTreeMap<String, shinki_emu_metadata::CoreIdentity> =
+            serde_json::from_str(include_str!(concat!(env!("OUT_DIR"), "/embedded-core-identities.json"))).expect("built core identities");
+        for identity in identities.values() { identity.validate().expect("valid embedded core identity"); }
+        identities
+    });
+    IDENTITIES.get(plugin_id)
 }
 
 fn capability_label(capability: FamilyCapability) -> &'static str {
@@ -45,6 +45,10 @@ impl ShinkiEmuManagerController {
             INDEPENDENT_FAMILY_ABI_FINGERPRINT,
         )
     }
+    pub(super) fn core_release<'a>(&'a self, descriptor: &'a FamilyPluginDescriptor) -> (&'a str, Option<&'a shinki_emu_metadata::CoreIdentity>) {
+        self.registry.core_metadata().find(|meta| meta.descriptor.plugin_id == descriptor.plugin_id)
+            .map_or((descriptor.version.as_str(), None), |meta| (meta.release_version.as_str(), meta.release_identity.as_ref()))
+    }
 
     /// Loaded, failed, pending and online-available cores in one list, plus each
     /// item's core directory stem (empty for online-only entries).
@@ -62,17 +66,19 @@ impl ShinkiEmuManagerController {
                 Some(PendingKind::Install) => "pending-update",
                 None => "loaded",
             };
+            let installed_version = meta.release_version.as_str();
+            let installed_identity = meta.release_identity.as_ref();
             let update_version = self
                 .online_core(&meta.descriptor.plugin_id)
-                .filter(|entry| is_newer(&entry.version, &meta.descriptor.version))
-                .map(|entry| entry.version.clone())
+                .filter(|entry| entry.is_update_for(installed_version, installed_identity))
+                .map(CoreCatalogEntry::display_version)
                 .unwrap_or_default();
             items.push((
                 CoreViewModel {
                     id: meta.descriptor.plugin_id.clone(),
                     name: meta.descriptor.display_name.clone(),
                     engine: meta.descriptor.family_name.clone(),
-                    version: meta.descriptor.version.clone(),
+                    version: installed_identity.map_or_else(|| installed_version.to_owned(), shinki_emu_metadata::CoreIdentity::display_version),
                     capabilities: meta
                         .descriptor
                         .capabilities
@@ -129,7 +135,7 @@ impl ShinkiEmuManagerController {
                     name,
                     engine,
                     version: manifest
-                        .map(|manifest| manifest.version)
+                        .map(|manifest| manifest.identity.as_ref().map_or_else(|| manifest.version.clone(), shinki_emu_metadata::CoreIdentity::display_version))
                         .unwrap_or_default(),
                     state: "pending-install".into(),
                     source: "user".into(),
@@ -153,7 +159,7 @@ impl ShinkiEmuManagerController {
                         id: entry.plugin_id.clone(),
                         name: entry.display_name.clone(),
                         engine: entry.family_name.clone(),
-                        version: entry.version.clone(),
+                        version: entry.display_version(),
                         state: "available".into(),
                         source: "online".into(),
                         ..CoreViewModel::default()
@@ -444,6 +450,7 @@ mod tests {
             size: 1,
             license: "MIT".into(),
             release_tag: format!("emu-v{version}"),
+            identity: None,
         };
         let mut catalog = crate::metadata_cache::tests::sample_catalog(root.path());
         catalog.cores.entries = vec![entry("0.2.0"), entry("0.3.0")];
@@ -463,8 +470,8 @@ mod tests {
             app.install_online_core("shinki.emu.other").unwrap_err(),
             "SHINKI_EMU_CORE_NOT_AVAILABLE"
         );
-        assert!(is_newer("0.10.0", "0.9.1"));
-        assert!(!is_newer("0.2.0", "0.2.0"));
+        assert!(entry("0.10.0").is_update_for("0.9.1", None));
+        assert!(!entry("0.2.0").is_update_for("0.2.0", None));
     }
 
     #[test]

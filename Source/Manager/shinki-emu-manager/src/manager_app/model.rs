@@ -361,7 +361,7 @@ impl ShinkiEmuManagerController {
                     .or_else(|| metadata.and_then(|record| record.engine.clone()))
                     .unwrap_or_default(),
                 emulator: candidate
-                    .map(|candidate| Self::emulator_label(&candidate.descriptor))
+                    .map(|candidate| self.emulator_label(&candidate.descriptor))
                     .unwrap_or_default(),
                 emulator_id: self
                     .candidates
@@ -471,7 +471,7 @@ impl ShinkiEmuManagerController {
                 .iter()
                 .map(|choice| ChoiceViewModel {
                     id: choice.report.plugin_id.clone(),
-                    label: Self::emulator_label(&choice.descriptor),
+                    label: self.emulator_label(&choice.descriptor),
                 })
                 .collect(),
             emulator_id: self

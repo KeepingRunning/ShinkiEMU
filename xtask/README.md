@@ -12,8 +12,9 @@ cargo xtask build --target x86_64-pc-windows-msvc --manager --release
 cargo xtask build --target x86_64-pc-windows-msvc --all-cores --release
 cargo xtask check --target x86_64-pc-windows-msvc --core rfvp
 cargo xtask test --core rfvp
-cargo xtask package --target x86_64-pc-windows-msvc --core rfvp --version 0.1.0-beta.1 --out .work/rfvp-package
-cargo xtask release --component rfvp --target x86_64-pc-windows-msvc --version 0.1.0-beta.1
+cargo xtask package --target x86_64-pc-windows-msvc --core rfvp --out .work/rfvp-package
+cargo xtask release --component rfvp --target x86_64-pc-windows-msvc
+cargo xtask release --component rfvp --dry-run
 cargo xtask metadata validate
 cargo xtask metadata build --out .work/metadata-snapshot
 cargo xtask ci --target aarch64-apple-ios --component manager --report .work/ios-report.json
@@ -47,7 +48,7 @@ Packaging consumes release build receipts. Output must be new; staging is in the
 
 Release archives are deterministic, include build provenance and have corresponding-source ZIPs containing downloaded source archives and their vcpkg ports/patches. Source downloads must match the installed package's SPDX SHA512 values; port recipes and patches must match its recorded SHA256 values. Release sources must be committed, and aggregated platforms must share the same product revision. License or source prerequisites stop publication. A core marked `publish_blocked` may compile but its binary is not uploaded. Resolve its concrete distribution review before changing that field.
 
-`release` writes GitHub only with `--publish` and `GH_TOKEN` or `GITHUB_TOKEN`. It refuses replacement assets with different bytes. Catalog entries are created only after reading back published assets and verifying SHA256 and size, through a normal PR in this repository. Tags are `manager-v<semver>` or `core-<core-slug>-v<semver>`. Dispatch builds only upload Actions artifacts. CI records manifest-declared unsupported rows as `blocked`, with `artifact: null`; supported build/package failures remain failures.
+`release` writes GitHub only with `--publish` and `GH_TOKEN` or `GITHUB_TOKEN`. Existing published tags/assets stay immutable. Manager/self-owned cores use their own SemVer; external core versions are verified upstream tag/branch plus a digest of full upstream/adapter provenance and their increasing publication sequence. Omit `--version` for external cores; a supplied incompatible version is rejected. `release --dry-run` verifies the real refs without building/publishing. Fan-out resolves each component independently. Indexed `cores-v2.json` adds typed identities while `cores.json` preserves the legacy v1 install catalog. See the [identity encoding and ordering contract](../docs/en/build-and-release.md#package-and-release). CI records declared unsupported rows as `blocked`, with `artifact: null`; supported build/package failures remain failures.
 
 Manual `ci.yml` dispatch accepts `since`, using the existing
 `cargo xtask matrix --json --ci --since <ref>` input classifier. The matrix

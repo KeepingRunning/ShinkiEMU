@@ -122,6 +122,42 @@ fn adapter_relative(core: &Core) -> Result<PathBuf> {
     }
     Ok(relative)
 }
+/// Verify original upstream reachability independently of organization branch names.
+pub fn verify_provenance(inv: &Inventory, core: &Core) -> Result<()> {
+    let Some(source) = &core.source else { return Ok(()); };
+    let directory = inv.root.join(".work/provenance").join(&core.id);
+    if !directory.exists() {
+        fs::create_dir_all(&directory)?;
+        dependencies::run(Command::new("git").args(["init", "--bare", "--quiet"]).arg(&directory))?;
+    }
+    dependencies::run(git(&directory).args(["fetch", "--filter=blob:none", "--no-tags", &source.repo, &source.rev]))?;
+    let upstream = &source.upstream_identity;
+    let namespace = match upstream.ref_kind {
+        shinki_emu_metadata::UpstreamRefKind::Tag => "tags",
+        shinki_emu_metadata::UpstreamRefKind::Branch => "heads",
+    };
+    let reference = format!("+refs/{namespace}/{}:refs/proof/upstream", upstream.ref_name);
+    dependencies::run(git(&directory).args(["fetch", "--filter=blob:none", "--no-tags", &upstream.repo,
+        &reference, "+refs/tags/*:refs/proof/tags/*"]))?;
+    verify_provenance_at(source, &directory)
+}
+
+fn verify_provenance_at(source: &crate::cores::CoreSource, directory: &Path) -> Result<()> {
+    let upstream = &source.upstream_identity;
+    let at = String::from_utf8(dependencies::capture(git(directory).args(["rev-parse", "refs/proof/upstream^{commit}"] ))?)?;
+    if upstream.ref_kind == shinki_emu_metadata::UpstreamRefKind::Tag && at.trim() != upstream.commit {
+        bail!("upstream tag does not resolve to the declared full commit");
+    }
+    for descendant in [&source.rev, at.trim()] {
+        dependencies::run(git(directory).args(["merge-base", "--is-ancestor", &upstream.commit, descendant]))
+            .context("declared upstream commit must be contained in both upstream ref and adapter pin")?;
+    }
+    if upstream.ref_kind == shinki_emu_metadata::UpstreamRefKind::Branch {
+        let tags = dependencies::capture(git(directory).args(["for-each-ref", &format!("--points-at={}", upstream.commit), "--format=%(refname)", "refs/proof/tags"]))?;
+        if !tags.is_empty() { bail!("upstream commit has a verified tag; select that tag rather than a branch"); }
+    }
+    Ok(())
+}
 
 fn verify_at(core: &Core, directory: &Path, clean: bool) -> Result<()> {
     let source = core
@@ -872,6 +908,8 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
                 repo.strip_prefix(&inv.root)?,
             )?;
             references["core"] = serde_json::to_value(source)?;
+            references["identity"] = serde_json::to_value(source.identity())?;
+            references["version"] = source.identity().version().into();
         }
         (
             inv.root.join(&core.manifest),
@@ -1144,6 +1182,23 @@ mod tests {
         revision(directory).unwrap()
     }
 
+    #[test]
+    fn provenance_requires_real_ref_resolution_and_shared_adapter_ancestry() {
+        let (_temp, _inv, core, repository, first, second) = fixture();
+        let mut source = core.source.unwrap();
+        source.rev = second.clone();
+        source.upstream_identity.commit = first.clone();
+        source.upstream_identity.ref_kind = shinki_emu_metadata::UpstreamRefKind::Branch;
+        dependencies::run(git(&repository).args(["update-ref", "refs/proof/upstream", &second])).unwrap();
+        verify_provenance_at(&source, &repository).unwrap();
+        source.upstream_identity.ref_kind = shinki_emu_metadata::UpstreamRefKind::Tag;
+        assert!(verify_provenance_at(&source, &repository).is_err());
+        dependencies::run(git(&repository).args(["update-ref", "refs/proof/upstream", &first])).unwrap();
+        verify_provenance_at(&source, &repository).unwrap();
+        source.upstream_identity.commit = second;
+        assert!(verify_provenance_at(&source, &repository).is_err());
+    }
+
     fn fixture() -> (tempfile::TempDir, Inventory, Core, PathBuf, String, String) {
         let temp = tempfile::tempdir().unwrap();
         let source = temp.path().join("upstream");
@@ -1168,6 +1223,8 @@ mod tests {
             branch: "shinki".into(),
             rev: first.clone(),
             upstream: "https://github.com/xmoezzz/rfvp".into(),
+            upstream_identity: inv.core("rfvp").unwrap().source.as_ref().unwrap().upstream_identity.clone(),
+            release_sequence: 1,
         });
         (temp, inv, core, source, first, second)
     }

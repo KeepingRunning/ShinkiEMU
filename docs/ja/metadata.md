@@ -43,6 +43,7 @@ write/maintain/admin 権限を持つメンテナーが issue をレビューし�
 cargo xtask metadata schema
 cargo xtask metadata validate
 cargo xtask metadata build --root Metadata --out .work/metadata-snapshot
+cargo xtask metadata resolve-core --plugin-id rfvp --platform windows-x86_64 --abi shinki.emu.native.c.v3
 cargo xtask metadata intake --kind compatibility --event event.json --out .work/compat-candidate
 cargo xtask metadata intake --kind patch --event event.json --out .work/patch-candidate
 ```
@@ -51,4 +52,8 @@ schema の出力先は既定で `Metadata/schema` で、ルールは Rust の DT
 
 スナップショットには、`compatibility.json`、`cores.json`、`presets.json`、`patches.json`、レシピだけを含む `patches/catalog.json`、レビュー済みスクリプト、`index.json` が含まれます。実行可能なレシピカタログのタイトルには `zh-CN` を使います。コアのリリース記録は `Metadata/engines/cores/<plugin_id>/<platform>/<version>.json` から生成され、ダウンロード先は本リポジトリの Releases だけです。index には生成ファイルの SHA256、サイズ、元のコミットが記録されます。タイムスタンプには元コミットの時刻を使うため、同じコミット済みの入力からは同じバイト列が生成されます。上限は 1 ファイル 8 MiB、合計 64 MiB、4096 ファイルで、大きな添付ファイルはこの上限に含まれません。
 
+index は `cores-v2.json`（`shinki.emu.cores.v2`）も対象とし、実際の旧エントリと外部コアの新しい `identity` を収録します。`cores.json` は v1 と公開済みダウンロードを維持し、旧 Manager が利用できます。新しい consumer は index の v2 を優先し、v2 がない場合だけ v1 を読み込みます。upstream/adapter の来歴、安全なファイル名、連番による最新選択は[ビルドとリリース](build-and-release.md#パッケージングとリリース)を参照してください。
+
 Manager とポータルは同じ `https://project-shinkirou.github.io/data/shinkiemu/v1/` のスナップショットを読み込みます。データの唯一のソースは `Metadata/` で、互換性やコアの状態表を別に手書きすることはありません。[ユーザーガイド](user-guide.md)と[ビルドとリリース](build-and-release.md)も参照してください。
+
+外部コアの完全な識別子は最大 88 バイトなので、index に `compatibility-v5.json`（`shinki.emu.compatibility.v5`、コア版の上限 88、Manager 版は従来の 64）を追加します。新 consumer はこの indexed file を優先します。`compatibility.json` は v4 を維持し、従来の 64 文字以内のコア版を持つレポートだけを収録するため、旧 Manager は引き続き snapshot 全体を読み込めます。元レポートは変更・削除しません。

@@ -280,6 +280,8 @@ pub struct CorePackage {
     pub plugin_id: String,
     pub library: String,
     pub version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<shinki_emu_metadata::CoreIdentity>,
     pub abi: String,
     pub files: Vec<FileRecord>,
 }
@@ -346,10 +348,14 @@ pub(crate) fn write_provenance(result: &BuildResult, path: &Path) -> Result<()> 
 pub fn stage_core(
     result: &BuildResult,
     version: &str,
+    identity: Option<&shinki_emu_metadata::CoreIdentity>,
     out: &Path,
     search: &[PathBuf],
 ) -> Result<PathBuf> {
-    semver::Version::parse(version)?;
+    shinki_emu_metadata::validate_core_version(version, identity)?;
+    if identity.is_some_and(|id| id.adapter.commit != result.source_commit || result.source_dirty) {
+        bail!("core package identity does not match a clean build receipt");
+    }
     let m = result
         .core_build
         .as_ref()
@@ -502,6 +508,7 @@ pub fn stage_core(
             plugin_id: m.plugin_id.clone(),
             library: library.into(),
             version: version.into(),
+            identity: identity.cloned(),
             abi: shinki_emu_build::ABI.into(),
             files,
         };
@@ -517,7 +524,7 @@ pub fn verify_core(dir: &Path) -> Result<CorePackage> {
         bail!("invalid core package protocol");
     }
     portable(&m.plugin_id)?;
-    semver::Version::parse(&m.version)?;
+    shinki_emu_metadata::validate_core_version(&m.version, m.identity.as_ref())?;
     portable(&m.library)?;
     if m.library.contains('/') || Path::new(&m.library).file_stem() != dir.file_name() {
         bail!("core library/stem mismatch");
@@ -792,7 +799,8 @@ pub fn package(
     out: &Path,
 ) -> Result<PathBuf> {
     inv.require_buildable(component, target)?;
-    semver::Version::parse(version)?;
+    let resolved = crate::release::resolve_version(inv, component, version)?;
+    let version = resolved.as_str();
     let mut result = build::load_receipt(inv, target, component)?;
     reject_overlap(&result.library, out)?;
     if result.profile != "release" {
@@ -937,7 +945,8 @@ pub fn package(
                 .licenses
                 .push(BuildAsset { source, dest });
         }
-        stage_core(&result, version, out, &search_dirs(inv, &result)?)
+        let identity = c.source.as_ref().map(crate::cores::CoreSource::identity);
+        stage_core(&result, version, identity.as_ref(), out, &search_dirs(inv, &result)?)
     }
 }
 /// Resolve license inputs from the actual Cargo checkouts used for embedding.
@@ -1023,6 +1032,9 @@ pub(crate) fn static_core_entries(
             "id": core.id,
             "package": core.package,
             "source": core.source,
+            "identity": core.source.as_ref().map(crate::cores::CoreSource::identity),
+            "version": core.source.as_ref().map_or_else(|| package["version"].as_str().context("embedded core version").map(str::to_owned), |source| Ok(source.identity().version()))?,
+            "display_version": core.source.as_ref().map(|source| source.identity().display_version()),
         }));
     }
     let manifest = scratch.join("embedded-cores.json");

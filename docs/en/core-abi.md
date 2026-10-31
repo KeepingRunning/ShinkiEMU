@@ -83,3 +83,5 @@ A package contains a directory named after the library stem:
 ```
 
 `core.json` uses `shinki.emu.core_package.v1` and records `plugin_id`, `library`, `version`, `abi` and file paths/SHA256 hashes. The file inventory includes every payload file except the manifest itself. Libraries require the new filename prefix and query symbol. Packaging validates architecture, dependency closure and licenses, rejects path traversal/links/case collisions, and publishes only to a new output directory. Manager verifies the package before installation; older product protocols and loader aliases are not accepted. See [Build and release](build-and-release.md).
+
+New external packages add `identity` with original upstream and organization adapter provenance; `version` must equal its computed safe identifier. Legacy packages omit it and retain their actual SemVer. New Manager checks catalog/package plugin, version and identity together before staging, and displays the complete upstream/adapter label. The C ABI and descriptor version remain independent. See [version identity rules](build-and-release.md#package-and-release).

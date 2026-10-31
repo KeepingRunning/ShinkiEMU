@@ -138,7 +138,7 @@ impl ShinkiEmuManagerController {
             .map(|candidate| candidate.report.plugin_id.as_str())
             .unwrap_or_default();
         let version = candidate
-            .map(|candidate| candidate.descriptor.version.as_str())
+            .map(|candidate| self.core_release(&candidate.descriptor).0)
             .unwrap_or_default();
         let encode = |value: &str| -> String {
             url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
@@ -166,7 +166,7 @@ impl ShinkiEmuManagerController {
         let emulator_label = self
             .candidates
             .get(game_id)
-            .map(|candidate| Self::emulator_label(&candidate.descriptor))
+            .map(|candidate| self.emulator_label(&candidate.descriptor))
             .unwrap_or_default();
         let report_url = self.report_url(game_id, identities);
         let mut view = CompatViewModel {

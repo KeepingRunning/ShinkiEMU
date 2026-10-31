@@ -126,8 +126,11 @@ fn run() -> Result<()> {
             version,
             publish: _,
             verify_handoff,
+            dry_run,
         } => {
-            if verify_handoff {
+            if dry_run {
+                release::dry_run(&inv, &component, &version)?;
+            } else if verify_handoff {
                 release::verify_ohos_handoff(&inv, &component, &version)?;
             } else if let Some(target) = target {
                 release::prepare(&inv, &target, &component, &version)?;

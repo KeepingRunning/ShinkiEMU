@@ -77,7 +77,7 @@ cargo xtask deps --target x86_64-unknown-linux-gnu --all-cores
 cargo xtask build --target x86_64-unknown-linux-gnu --manager --release
 cargo xtask build --target x86_64-unknown-linux-gnu --all-cores --release
 cargo xtask package --target x86_64-unknown-linux-gnu --manager --version 0.1.0-beta.1 --out .work/linux-manager
-cargo xtask package --target x86_64-unknown-linux-gnu --core siglus_rs --version 0.1.0-beta.1 --out .work/linux-siglus
+cargo xtask package --target x86_64-unknown-linux-gnu --core siglus_rs --out .work/linux-siglus
 cargo xtask ci --target x86_64-unknown-linux-gnu --component manager --report .work/linux-ci.json
 ```
 
@@ -222,9 +222,9 @@ SHINKI_EMU_RELEASE_CI_RUN_ID=<成功的-ci-运行编号> SHINKI_EMU_RELEASE_HAND
 先构建所选组件，再打包构建记录指向的产物：
 
 ```sh
-cargo xtask package --target x86_64-pc-windows-msvc --core rfvp --version 0.1.0-beta.1 --out .work/packages/rfvp
+cargo xtask package --target x86_64-pc-windows-msvc --core rfvp --out .work/packages/rfvp
 cargo xtask package --target x86_64-pc-windows-msvc --manager --version 0.1.0-beta.1 --out .work/packages/manager
-cargo xtask release --component rfvp --target x86_64-pc-windows-msvc --version 0.1.0-beta.1
+cargo xtask release --component rfvp --target x86_64-pc-windows-msvc
 ```
 
 输出目录必须尚不存在。打包拒绝不安全路径、链接、冲突、缺许可、架构错误、缺 query 导出和原生依赖不完整的输入。核心包包含库、资源、依赖、许可证、构建来源及带哈希的 `core.json`；源码包保留适用的对应源码与重链接输入。
@@ -251,11 +251,21 @@ Sena 按已批准的上游分发策略保留 MS PGothic 字体。包内 `license
 
 源码许可收集也覆盖嵌套资源的许可文件和字体同名文本说明，保留相对路径，不复制字体本身。Git 工作区成员的包目录没有许可文件时，会收集该检出根目录提供的许可文件，先保留上游版权声明，再考虑使用 SPDX 标准文本。
 
-Release 标签为 `manager-v<semver>` 或 `core-<slug>-v<semver>`。slug 将 plugin_id 转为小写，并把点和下划线替换为连字符，例如 `ReMinori` 对应 `reminori`；plugin_id 本身不变。`cargo xtask release --component <id> --target <三元组> --version <semver>` 打包一个目标，在 `.work/release/<tag>/<目标>/` 写入二进制 ZIP、源码 ZIP 和 `release.json`。`build/targets.toml`、`build/cores.toml` 中阻止的目标或带 `publish_blocked` 的核心不产生任何文件。对已准备的目标再次运行会直接复用该目录。
+Manager 与自研 CMVS/Musica 保留各自的 SemVer 和 `manager-v<semver>`、`core-<slug>-v<semver>` 标签，仍需 `--version`。RFVP、Artemis 等第三方核心从 `build/cores.toml` 计算版本，不传 `--version`。`cargo xtask release --component <id> --dry-run` 只核验上游 ref、完整提交与适配分支 pin，不构建或发布；`release --target <三元组>` 在 `.work/release/<tag>/<目标>/` 写入二进制 ZIP、源码 ZIP 和 `release.json`。被阻止的目标及 `publish_blocked` 核心不产生文件。
+
+第三方身份分别保留原作者的 `upstream {repo, ref_kind, ref_name, commit}` 与组织适配仓库的 `adapter {repo, branch, commit}`，提交均为 40 位小写完整哈希。上游提交有已核验标签时用标签，否则用真实上游分支；不能把组织集成分支当上游。显示为 `<ref>@<上游提交前12位> (adapter <适配提交前12位>)`。文件版本是 `<tag|branch>-<ref slug>-<digest>`：取 ref 的前 16 个 ASCII 字节，字母转小写、非字母数字逐个换成 `-`；digest 为八个 UTF-8 字段的完整 SHA256，顺序为上游仓库、ref 类型、ref 名、上游提交、适配仓库、适配分支、适配提交、十进制 `release_sequence`，每项后接 LF。版本最长 88 字节，标签为 `core-<plugin slug>-<version>`，plugin slug 把 ID 转小写并将点和下划线换成 `-`。分支中的斜杠不会进入路径；仅适配代码更新也会生成新身份。
+
+第三方 plugin slug 最长 32 字节，因此 Release 标签最多 126 个安全 ASCII 字节。
+
+`release_sequence` 是每个第三方核心独立、严格递增的正整数发布序号，上限为 9007199254740991；换上游、换适配 pin 或主动重构建时递增。标签版与分支快照共同按此序号选最新，不比较分支名或哈希大小。新身份优先于旧 beta 记录，其余版本按 SemVer 排序；不同版本不能复用序号，跨平台也一样。核心包、嵌入核心清单、源码引用和目录携带一致的来源身份；上游版权许可与完整对应源码要求不变。
+
+同一索引额外发布 `cores-v2.json`（`shinki.emu.cores.v2`），包含旧记录和新身份。`cores.json` 保留 v1 以及所有无 identity 的已发布记录，旧 Manager 仍能下载；新 Manager 优先读索引中的 v2，也接受旧 v1 快照。已有 beta 的标签、附件与来历均不改写，仍可安装。安装更新比较包身份，不比较适配 crate 自身的版本号。
 
 `cargo xtask release --component <id> --version <semver> --publish`（需要 `GH_TOKEN` 或 `GITHUB_TOKEN`）收集该 tag 下所有已准备的目标。它拒绝来自其他产品提交或核心固定版本的记录、已指向其他提交的 tag、从其他提交创建的 draft，以及空 Release 和已发布的 Release。它在本次运行的提交上创建 draft，或复用该提交上的 draft（替换中断运行遗留的同名附件），上传源码包和二进制包后发布；tag 不存在时由 GitHub 在该提交上创建。核心发布之后，它把每个平台的目录条目提交到 `metadata/release-<tag>` 分支的 `Metadata/engines/cores/` 下，再向 `main` 提 PR。组织设置不允许 Actions 创建 PR 时，最后这一步会失败，但所有条目已在分支上，手动提 PR 即可。目录 URL 用最终 tag 构造，不使用 draft 的 `untagged-*` URL。Manager 与核心独立发布；Android debug 签名测试包记为阻止，不会上传。
 
 `release.yml` 构建所选组件在托管平台的所有行，并自动发布不含本地专用目标的组件。含受支持 OHOS 目标的 Manager 由上文有门禁的本地流程补齐 HAP 与源码后发布。单个核心可推送 tag；多个组件用 `version` 和 `components` 手动触发工作流。一次推送超过三个新 tag 不会触发工作流。
+
+工作流的 `version` 只适用于 Manager/自研核心；第三方组件在展开平台矩阵前分别核验并计算自己的版本。第三方执行上面的发布命令时省略 `--version`，Manager/自研核心仍须传入。
 
 元数据命令见 [Metadata](metadata.md)，核心包契约见[核心 ABI](core-abi.md)。
 

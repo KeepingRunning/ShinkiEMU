@@ -72,7 +72,7 @@ cargo xtask deps --target x86_64-unknown-linux-gnu --all-cores
 cargo xtask build --target x86_64-unknown-linux-gnu --manager --release
 cargo xtask build --target x86_64-unknown-linux-gnu --all-cores --release
 cargo xtask package --target x86_64-unknown-linux-gnu --manager --version 0.1.0-beta.1 --out .work/linux-manager
-cargo xtask package --target x86_64-unknown-linux-gnu --core siglus_rs --version 0.1.0-beta.1 --out .work/linux-siglus
+cargo xtask package --target x86_64-unknown-linux-gnu --core siglus_rs --out .work/linux-siglus
 cargo xtask ci --target x86_64-unknown-linux-gnu --component manager --report .work/linux-ci.json
 ```
 
@@ -213,9 +213,9 @@ SHINKI_EMU_RELEASE_CI_RUN_ID=<成功した-ci-実行-id> SHINKI_EMU_RELEASE_HAND
 まず対象のコンポーネントをビルドし、次にビルド記録が指す成果物をパッケージングします。
 
 ```sh
-cargo xtask package --target x86_64-pc-windows-msvc --core rfvp --version 0.1.0-beta.1 --out .work/packages/rfvp
+cargo xtask package --target x86_64-pc-windows-msvc --core rfvp --out .work/packages/rfvp
 cargo xtask package --target x86_64-pc-windows-msvc --manager --version 0.1.0-beta.1 --out .work/packages/manager
-cargo xtask release --component rfvp --target x86_64-pc-windows-msvc --version 0.1.0-beta.1
+cargo xtask release --component rfvp --target x86_64-pc-windows-msvc
 ```
 
 出力ディレクトリはまだ存在しないものでなければなりません。パッケージングは、安全でないパス、リンク、名前の衝突、ライセンスの欠落、アーキテクチャの誤り、query エクスポートの欠落、ネイティブ依存関係の不足を含む入力を拒否します。コアパッケージには、ライブラリ、リソース、依存ファイル、ライセンス、ビルドの来歴、ハッシュ付きの `core.json` が含まれます。ソースパッケージには、該当する対応ソースと再リンク用の入力が含まれます。
@@ -232,10 +232,20 @@ Rust の依存関係は変更していない `Cargo.lock`（registry のチェ�
 
 Manager のパッケージングでは、ターゲットプラットフォームで絞り込んだ Cargo の依存関係の閉包（通常の依存とビルド依存。テスト専用の依存エッジは除く）を収集します。各 crate が宣言した `license_file`、ソースルートの `LICENSE*`、`COPYING*`、`NOTICE*` ファイル、および同種のライセンスディレクトリの内容は `licenses/rust/<名前>-<バージョン>/` に置かれ、同じディレクトリの `package.json` に SPDX 式とテキストの出所が記録されます。crate がファイルを提供していない場合、パッケージャーは固定された `spdx` 0.13.6 に内蔵されたオフラインのデータから SPDX License List 3.29.0 の標準テキストを取り出し、SPDX 式が参照するすべてのライセンスと例外条項を `LICENSE-<SPDX>` として書き出します。データの出所となるバージョンとアーカイブの SHA256 は `build/dependencies.toml` に記録され、Cargo の固定依存と照合されます。パッケージング中にライセンステキストをダウンロードすることはありません。認識できない補完用の識別子や、ライセンスファイルも SPDX 式もない crate があると、パッケージングは失敗します。Material コンポーネント、アイコン、ネイティブ依存関係のライセンスは別途収集されます。
 
-Release タグは `manager-v<semver>` または `core-<slug>-v<semver>` です。slug は plugin_id を小文字にし、ドットとアンダースコアをハイフンに置き換えたものです（例: `ReMinori` は `reminori`）。plugin_id 自体は変わりません。`cargo xtask release --component <id> --target <トリプル> --version <semver>` は 1 つのターゲットをパッケージングし、`.work/release/<tag>/<ターゲット>/` にバイナリの ZIP、ソースの ZIP、`release.json` を書き出します。`build/targets.toml` や `build/cores.toml` でブロックされたターゲット、`publish_blocked` のコアでは何も作りません。準備済みのターゲットで再実行すると、そのディレクトリを再利用します。
+Manager と自作 CMVS/Musica は独立した SemVer および `manager-v<semver>`、`core-<slug>-v<semver>` タグを維持し、`--version` を指定します。RFVP、Artemis を含む外部コアは `build/cores.toml` から識別子を計算するため `--version` は省略します。`cargo xtask release --component <id> --dry-run` は元の upstream ref、完全なコミットと adapter pin の関係だけを検証し、ビルド・公開しません。`release --target <トリプル>` は `.work/release/<tag>/<target>/` にバイナリ ZIP、対応ソース ZIP と `release.json` を作成します。ブロック対象と `publish_blocked` コアは成果物を作りません。
+
+外部識別子は原作者の `upstream {repo, ref_kind, ref_name, commit}` と組織の `adapter {repo, branch, commit}` を別々に保持します。コミットは小文字 40 桁の完全なハッシュです。upstream の該当コミットに検証済みタグがあればタグを使い、なければ本来の upstream ブランチを使います。組織の統合ブランチを upstream と表記しません。表示は `<ref>@<upstream commit12> (adapter <adapter commit12>)` です。ファイル用の版は `<tag|branch>-<ref slug>-<digest>`。ref の先頭 16 ASCII バイトを取り、英数字を小文字化し、それ以外をそれぞれ `-` にします。digest は upstream repo/kind/ref/commit、adapter repo/branch/commit、十進数の `release_sequence` の順で、各 UTF-8 フィールドに LF を付けた列の完全な SHA256 です。版は最大 88 バイト、タグは `core-<plugin slug>-<version>` です。plugin slug は ID を小文字化して `.` と `_` を `-` に置換します。ブランチの `/` はパスに入らず、adapter のみの変更でも別の識別子になります。
+
+外部 plugin slug は最大 32 バイトで、Release タグは安全な ASCII 文字で最大 126 バイトです。
+
+`release_sequence` は外部コアごとの厳密に増加する正整数（最大 9007199254740991）です。upstream、adapter pin の変更や意図した再ビルドで増加させます。タグ版とブランチ版は同じ連番で最新を選び、ブランチ名やハッシュは大小比較しません。型付き識別子は旧 beta エントリより優先し、残りは SemVer 順です。異なる版で同じ連番を使うことは、別プラットフォームでも拒否します。パッケージ、埋め込みコア一覧、ソース参照とカタログは同じ来歴を保持し、元のライセンス・著作権表示と対応ソースの要件も維持します。
+
+同じ index に `cores-v2.json`（`shinki.emu.cores.v2`）を追加し、旧エントリと新識別子を収録します。`cores.json` は v1 と identity のない公開済みエントリを維持するため、旧 Manager のダウンロードは継続します。新 Manager は index にある v2 を優先し、旧 v1 snapshot も受け入れます。公開済み beta のタグ、添付ファイルや来歴は変更せず、引き続きインストールできます。更新は adapter crate の版ではなくパッケージの識別子を比較します。
 
 `cargo xtask release --component <id> --version <semver> --publish`（`GH_TOKEN` または `GITHUB_TOKEN` が必要）は、その tag で準備済みのターゲットをすべて集めます。別の製品コミットや別のコア固定 revision の記録、別のコミットを指す既存の tag、別のコミットから作られた draft、空の Release、公開済みの Release は拒否します。実行中のコミットで draft を作るか、そのコミットの draft を再利用し（中断した実行が残した同名の添付ファイルは置き換えます）、ソースとバイナリのアーカイブをアップロードして公開します。tag がなければ GitHub がそのコミットに作成します。コアの場合は続けて、各プラットフォームのカタログエントリを `metadata/release-<tag>` ブランチの `Metadata/engines/cores/` にコミットし、`main` への PR を作ります。組織の設定で Actions による PR 作成が許可されていない場合、この最後の手順は失敗しますが、エントリはすべてブランチにあるので、PR を手動で作成してください。カタログ URL は最終 tag から作り、draft の `untagged-*` URL は使いません。Manager とコアは別々にリリースされます。Android の debug 署名テスト用 APK はブロック扱いとなり、アップロードされません。
 
 `release.yml` は選択したコンポーネントのホスト対象行をすべてビルドし、ローカル専用ターゲットのないコンポーネントを公開します。OHOS 対応 Manager は、上記のゲート付きローカル引き渡しで HAP とソースを揃えてから公開します。単一のコアは tag を push してリリースできます。複数のコンポーネントは `version` と `components` を指定してワークフローを実行します。新しい tag を一度に 4 件以上 push してもワークフローは起動しません。
+
+dispatch の `version` は Manager/自作コアだけに適用します。外部コンポーネントはプラットフォーム行を展開する前に各自の識別子を検証・計算します。外部コアを上記の公開コマンドで公開するときは `--version` を省略し、Manager/自作コアでは指定します。
 
 メタデータのコマンドは [Metadata](metadata.md)、コアパッケージの契約は[コア ABI](core-abi.md) を参照してください。
