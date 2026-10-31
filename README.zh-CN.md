@@ -27,14 +27,14 @@ ShinkiEMU 仍处于预发布阶段，构建以 beta 版发布。构建成功不�
 | [`sena-rs`](docs/zh-cn/cores/sena-rs.md) | SoftPAL | Windows x64、Linux x64、macOS x64/arm64 | iOS |
 | [`ethornell-rs`](docs/zh-cn/cores/ethornell-rs.md) | BGI / Ethornell | Windows x64、Linux x64、macOS x64/arm64 | iOS |
 | [`ReMinori`](docs/zh-cn/cores/reminori.md) | Musica | Windows x64、Linux x64、macOS x64/arm64 | iOS |
-| [`shinki.emu.musica`](docs/zh-cn/cores/shinki-emu-musica.md) | Musica | Windows x64、Linux x64、macOS x64/arm64 | Android |
-| [`art3m1s-core`](docs/zh-cn/cores/art3m1s-core.md) | Artemis | Windows x64、Linux x64 | Android |
-| [`renpy`](docs/zh-cn/cores/renpy.md) | Ren'Py | Windows x64、Linux x64 | Android |
+| [`shinki.emu.musica`](docs/zh-cn/cores/shinki-emu-musica.md) | Musica | Windows x64、Linux x64、macOS x64/arm64 | Android、iOS、实验性 OHOS |
+| [`art3m1s-core`](docs/zh-cn/cores/art3m1s-core.md) | Artemis | Windows x64、Linux x64、macOS x64/arm64 | Android |
+| [`renpy`](docs/zh-cn/cores/renpy.md) | Ren'Py | Windows x64、Linux x64、macOS x64/arm64 | Android |
 | [`shinki.emu.cmvs`](docs/zh-cn/cores/shinki-emu-cmvs.md) | CMVS | Windows x64、Linux x64、macOS x64/arm64 | — |
 | [`kirikiroid2-web`](docs/zh-cn/cores/kirikiroid2-web.md) | KiriKiri | Windows x64、Linux x64、macOS x64/arm64（另有独立的 Android 和 iOS 核心包） | — |
-| [`impacto`](docs/zh-cn/cores/impacto.md) | MAGES. | Windows x64 | — |
+| [`impacto`](docs/zh-cn/cores/impacto.md) | MAGES. | Windows x64、Linux x64、macOS x64/arm64 | Android |
 
-这张表由 [`build/cores.toml`](build/cores.toml) 和 [`build/targets.toml`](build/targets.toml) 决定；`cargo xtask matrix` 会列出全部组合及 blocked 原因。实际发布了哪些产物，以[核心目录](https://project-shinkirou.github.io/zh-cn/shinkiemu/cores/)为准。OpenHarmony 目标已声明，但对所有组件都处于 blocked 状态。
+这张表由 [`build/cores.toml`](build/cores.toml) 和 [`build/targets.toml`](build/targets.toml) 决定；`cargo xtask matrix` 会列出全部组合及 blocked 原因。实际发布了哪些产物，以[核心目录](https://project-shinkirou.github.io/zh-cn/shinkiemu/cores/)为准。实验性 OpenHarmony Manager 只内置 Musica；HAP 使用 SDK 测试 PKI 签名，未作零售设备配签。其他 OHOS 核心仍为 blocked。
 
 ## 安装
 
@@ -42,7 +42,7 @@ ShinkiEMU 仍处于预发布阶段，构建以 beta 版发布。构建成功不�
 2. 解压后运行 `shinki-emu-manager`（Windows 上是 `shinki-emu-manager.exe`）。
 3. Linux 需要先装好[构建与发布](docs/zh-cn/build-and-release.md)里 Linux 桌面一节列出的运行库。
 
-Android 目前提供的是 debug 签名的测试 APK，不是正式安装包。
+公开的 Android 安装包使用发布签名密钥，debug 签名的 CI APK 只作测试。[Manager beta.6 发布说明](docs/zh-cn/releases/manager-0.1.0-beta.6.md)列出其 Android 六核、保留的 iOS 范围与原生能力要求。带上游身份的新核心包需要 beta.6 或更高版本；旧 Manager 继续使用核心 v1 与兼容性 v4 目录。
 
 ## 快速上手
 

@@ -27,14 +27,14 @@ ShinkiEMU はプレリリース段階で、ビルドは beta として公開し�
 | [`sena-rs`](docs/ja/cores/sena-rs.md) | SoftPAL | Windows x64、Linux x64、macOS x64/arm64 | iOS |
 | [`ethornell-rs`](docs/ja/cores/ethornell-rs.md) | BGI / Ethornell | Windows x64、Linux x64、macOS x64/arm64 | iOS |
 | [`ReMinori`](docs/ja/cores/reminori.md) | Musica | Windows x64、Linux x64、macOS x64/arm64 | iOS |
-| [`shinki.emu.musica`](docs/ja/cores/shinki-emu-musica.md) | Musica | Windows x64、Linux x64、macOS x64/arm64 | Android |
-| [`art3m1s-core`](docs/ja/cores/art3m1s-core.md) | Artemis | Windows x64、Linux x64 | Android |
-| [`renpy`](docs/ja/cores/renpy.md) | Ren'Py | Windows x64、Linux x64 | Android |
+| [`shinki.emu.musica`](docs/ja/cores/shinki-emu-musica.md) | Musica | Windows x64、Linux x64、macOS x64/arm64 | Android、iOS、実験的 OHOS |
+| [`art3m1s-core`](docs/ja/cores/art3m1s-core.md) | Artemis | Windows x64、Linux x64、macOS x64/arm64 | Android |
+| [`renpy`](docs/ja/cores/renpy.md) | Ren'Py | Windows x64、Linux x64、macOS x64/arm64 | Android |
 | [`shinki.emu.cmvs`](docs/ja/cores/shinki-emu-cmvs.md) | CMVS | Windows x64、Linux x64、macOS x64/arm64 | — |
 | [`kirikiroid2-web`](docs/ja/cores/kirikiroid2-web.md) | KiriKiri | Windows x64、Linux x64、macOS x64/arm64（Android と iOS 向けの単体コアパッケージもあり） | — |
-| [`impacto`](docs/ja/cores/impacto.md) | MAGES. | Windows x64 | — |
+| [`impacto`](docs/ja/cores/impacto.md) | MAGES. | Windows x64、Linux x64、macOS x64/arm64 | Android |
 
-この表は [`build/cores.toml`](build/cores.toml) と [`build/targets.toml`](build/targets.toml) で決まります。`cargo xtask matrix` を実行すると、すべての組み合わせと blocked の理由が表示されます。実際に公開されている成果物は[コアディレクトリ](https://project-shinkirou.github.io/ja/shinkiemu/cores/)で確認してください。OpenHarmony は宣言済みですが、すべてのコンポーネントで blocked です。
+この表は [`build/cores.toml`](build/cores.toml) と [`build/targets.toml`](build/targets.toml) で決まります。`cargo xtask matrix` を実行すると、すべての組み合わせと blocked の理由が表示されます。実際に公開されている成果物は[コアディレクトリ](https://project-shinkirou.github.io/ja/shinkiemu/cores/)で確認してください。実験的な OpenHarmony Manager は Musica のみを組み込みます。HAP は SDK テスト PKI 署名で、製品端末向けのプロビジョニングではありません。他の OHOS コアは blocked のままです。
 
 ## インストール
 
@@ -42,7 +42,7 @@ ShinkiEMU はプレリリース段階で、ビルドは beta として公開し�
 2. 展開して `shinki-emu-manager`（Windows では `shinki-emu-manager.exe`）を起動します。
 3. Linux では、[ビルドとリリース](docs/ja/build-and-release.md)の Linux デスクトップの節にあるランタイムライブラリを先にインストールします。
 
-Android 版は現在 debug 署名のテスト用 APK で、正式なインストーラーではありません。
+公開 Android インストーラーはリリース署名鍵を使用し、debug 署名の CI APK はテスト専用です。[Manager beta.6 リリースノート](docs/ja/releases/manager-0.1.0-beta.6.md)に Android の6コア、既存の iOS 対応範囲、ネイティブ機能の要件を記載しています。upstream 識別子付きの新コアパッケージには beta.6 以降が必要です。旧 Manager は core v1 と compatibility v4 のカタログを引き続き使用します。
 
 ## クイックスタート
 

@@ -27,14 +27,14 @@ ShinkiEMU is pre-release software. Builds are published as beta releases. A succ
 | [`sena-rs`](docs/en/cores/sena-rs.md) | SoftPAL | Windows x64, Linux x64, macOS x64/arm64 | iOS |
 | [`ethornell-rs`](docs/en/cores/ethornell-rs.md) | BGI / Ethornell | Windows x64, Linux x64, macOS x64/arm64 | iOS |
 | [`ReMinori`](docs/en/cores/reminori.md) | Musica | Windows x64, Linux x64, macOS x64/arm64 | iOS |
-| [`shinki.emu.musica`](docs/en/cores/shinki-emu-musica.md) | Musica | Windows x64, Linux x64, macOS x64/arm64 | Android |
-| [`art3m1s-core`](docs/en/cores/art3m1s-core.md) | Artemis | Windows x64, Linux x64 | Android |
-| [`renpy`](docs/en/cores/renpy.md) | Ren'Py | Windows x64, Linux x64 | Android |
+| [`shinki.emu.musica`](docs/en/cores/shinki-emu-musica.md) | Musica | Windows x64, Linux x64, macOS x64/arm64 | Android, iOS, experimental OHOS |
+| [`art3m1s-core`](docs/en/cores/art3m1s-core.md) | Artemis | Windows x64, Linux x64, macOS x64/arm64 | Android |
+| [`renpy`](docs/en/cores/renpy.md) | Ren'Py | Windows x64, Linux x64, macOS x64/arm64 | Android |
 | [`shinki.emu.cmvs`](docs/en/cores/shinki-emu-cmvs.md) | CMVS | Windows x64, Linux x64, macOS x64/arm64 | — |
 | [`kirikiroid2-web`](docs/en/cores/kirikiroid2-web.md) | KiriKiri | Windows x64, Linux x64, macOS x64/arm64 (also packaged as a standalone Android and iOS core) | — |
-| [`impacto`](docs/en/cores/impacto.md) | MAGES. | Windows x64 | — |
+| [`impacto`](docs/en/cores/impacto.md) | MAGES. | Windows x64, Linux x64, macOS x64/arm64 | Android |
 
-[`build/cores.toml`](build/cores.toml) and [`build/targets.toml`](build/targets.toml) define this matrix; run `cargo xtask matrix` for every combination with its blocked reason. The [core directory](https://project-shinkirou.github.io/en/shinkiemu/cores/) lists what is actually published. OpenHarmony is declared but blocked for every component.
+[`build/cores.toml`](build/cores.toml) and [`build/targets.toml`](build/targets.toml) define this matrix; run `cargo xtask matrix` for every combination with its blocked reason. The [core directory](https://project-shinkirou.github.io/en/shinkiemu/cores/) lists what is actually published. The experimental OpenHarmony Manager embeds Musica only; its HAP uses the SDK test PKI, not retail provisioning. Other OHOS cores remain blocked.
 
 ## Install
 
@@ -42,7 +42,7 @@ ShinkiEMU is pre-release software. Builds are published as beta releases. A succ
 2. Extract it and start `shinki-emu-manager` (`shinki-emu-manager.exe` on Windows).
 3. On Linux, install the runtime libraries listed in [Build and release](docs/en/build-and-release.md#linux-desktop).
 
-Android builds are currently debug-signed test APKs, not release installers.
+Published Android installers use the release signing key; debug-signed CI APKs are test artifacts. [Manager beta.6 release notes](docs/en/releases/manager-0.1.0-beta.6.md) describe its six embedded Android cores, retained iOS scope and native-capability requirements. Typed upstream-identity core packages require beta.6 or later; older Managers keep using the legacy core v1 and compatibility v4 catalogs.
 
 ## Quick start
 
