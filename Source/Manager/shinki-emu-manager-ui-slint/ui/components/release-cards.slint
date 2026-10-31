@@ -1,0 +1,187 @@
+import { MaterialPalette, MaterialText, MaterialTypography, Icon, IconButton, ScrollView } from "@material";
+import { Icons } from "../icons.slint";
+import { Release } from "../globals.slint";
+
+// One line of release metadata. The text wraps in the available width, so a
+// long platform list never turns into an ellipsis with hidden platforms.
+component ReleaseMeta {
+    in property <image> icon;
+    in property <string> text;
+
+    HorizontalLayout {
+        spacing: 6px;
+        alignment: center;
+
+        Icon {
+            width: 16px;
+            height: 16px;
+            source: root.icon;
+            colorize: MaterialPalette.on-surface-variant;
+        }
+
+        MaterialText {
+            horizontal-stretch: 1;
+            text: root.text;
+            style: MaterialTypography.body-small;
+            color: MaterialPalette.on-surface-variant;
+            wrap: word-wrap;
+            overflow: clip;
+        }
+    }
+}
+
+// A release choice. The title wraps in full, the stable rID stays visible so
+// two reprints with the same title stay distinguishable, and platform/date
+// fall back to localized text when the provider has no value.
+export component ReleaseCard inherits Rectangle {
+    in property <Release> release;
+    in property <bool> selected;
+    in property <bool> enabled: true;
+    callback pin();
+    callback unpin();
+
+    min-height: body.preferred-height;
+    preferred-height: body.preferred-height;
+    border-radius: 12px;
+    border-width: root.selected ? 2px : 1px;
+    border-color: root.selected ? MaterialPalette.primary : MaterialPalette.outline-variant;
+    background: root.selected
+        ? MaterialPalette.primary-container.with-alpha(0.45)
+        : MaterialPalette.surface-container;
+
+    accessible-role: checkbox;
+    accessible-checkable: true;
+    accessible-checked: root.selected;
+    accessible-label: root.release.title == "" ? @tr("标题未知") : root.release.title;
+    accessible-description: @tr("发行版本 {}", root.release.id);
+    accessible-enabled: root.enabled;
+    accessible-action-default => { root.toggle(); }
+
+    // Clicking the card or pressing space/return pins it, or unpins it when it
+    // is already the pinned release: one toggle, never two ambiguous actions.
+    function toggle() {
+        if (!root.enabled) {
+            return;
+        }
+        if (root.selected) {
+            root.unpin();
+        } else {
+            root.pin();
+        }
+    }
+
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 12px;
+        background: touch.has-hover && root.enabled
+            ? MaterialPalette.on-surface.with-alpha(MaterialPalette.state-layer-opacity-hover)
+            : transparent;
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.toggle(); }
+    }
+
+    body := VerticalLayout {
+        padding: 12px;
+        spacing: 6px;
+
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+
+            MaterialText {
+                horizontal-stretch: 1;
+                text: root.release.title == "" ? @tr("标题未知") : root.release.title;
+                style: MaterialTypography.body-large;
+                color: MaterialPalette.on-surface;
+                wrap: word-wrap;
+                overflow: clip;
+            }
+
+            IconButton {
+                icon: Icons.check;
+                checked: root.selected;
+                tooltip: root.selected ? @tr("取消指定版本") : @tr("指定此版本");
+                enabled: root.enabled;
+                clicked => { root.toggle(); }
+            }
+        }
+
+        MaterialText {
+            text: @tr("发行版本 {}", root.release.id);
+            style: MaterialTypography.label-small;
+            color: MaterialPalette.on-surface-variant;
+            overflow: elide;
+        }
+
+        ReleaseMeta {
+            icon: Icons.memory;
+            text: root.release.platforms == "" ? @tr("平台未知") : root.release.platforms;
+        }
+
+        ReleaseMeta {
+            icon: Icons.schedule;
+            text: root.release.released == "" ? @tr("发售日未知") : root.release.released;
+        }
+    }
+
+    focus := FocusScope {
+        width: root.width;
+        height: root.height;
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (event.text == " " || event.text == "\n") {
+                root.toggle();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 12px;
+        border-width: 2px;
+        border-color: MaterialPalette.primary;
+        visible: focus.has-focus;
+    }
+}
+
+// Bounded release list: a long VNDB release catalog scrolls inside
+// `list-height` instead of stretching the whole detail page.
+export component ReleaseCards {
+    in property <[Release]> releases;
+    in property <string> selected-id;
+    in property <bool> enabled: true;
+    in property <length> list-height: 320px;
+    callback pin(id: string);
+    callback unpin();
+
+    frame := Rectangle {
+        width: 100%;
+        height: min(body.preferred-height, root.list-height);
+        clip: true;
+
+        view := ScrollView {
+            width: 100%;
+            height: 100%;
+
+            body := VerticalLayout {
+                width: view.visible-width;
+                spacing: 8px;
+
+                for release in root.releases : ReleaseCard {
+                    release: release;
+                    selected: release.id == root.selected-id;
+                    enabled: root.enabled;
+                    pin => { root.pin(release.id); }
+                    unpin => { root.unpin(); }
+                }
+            }
+        }
+    }
+}

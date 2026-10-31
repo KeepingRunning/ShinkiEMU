@@ -16,6 +16,16 @@ export struct Choice {
     label: string,
 }
 
+// A VNDB release. `id` is the stable rID, so two releases with the same title
+// stay apart. Platform and date stay separate fields: a release may lack
+// either, and the card wraps long localized titles instead of eliding them.
+export struct Release {
+    id: string,
+    title: string,
+    platforms: string,
+    released: string,
+}
+
 export global App {
     in-out property <string> page: "library";
     in-out property <string> settings-category: "appearance";
@@ -144,7 +154,7 @@ export global Selection {
     in-out property <color> tint;
     in-out property <[Choice]> emulator-choices;
     in-out property <CompatInfo> compat;
-    in-out property <[Choice]> releases;
+    in-out property <[Release]> releases;
     in-out property <string> pinned-release;
     // Other installed copies of the same VNDB work; `id` is their game id.
     in-out property <[Choice]> other-versions;

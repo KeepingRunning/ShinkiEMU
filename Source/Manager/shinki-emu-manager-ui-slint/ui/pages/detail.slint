@@ -1,12 +1,14 @@
 import {
     MaterialPalette, MaterialText, MaterialTypography, ScrollView, TabBar, TextField,
-    FilledButton, TonalButton, OutlineButton, TextButton, IconButton, OutlinedCard, HorizontalDivider, Icon,
+    FilledButton, TonalButton, OutlineButton, TextButton, IconButton, OutlinedCard, HorizontalDivider,
+    Icon, CircularProgressIndicator,
 } from "@material";
 import { App, Library, Selection, BangumiProgress } from "../globals.slint";
 import { Icons } from "../icons.slint";
 import { Theme, Accent } from "../theme.slint";
 import { ChoiceSelect } from "../components/select.slint";
 import { RangeSlider } from "../components/range-slider.slint";
+import { ReleaseCards } from "../components/release-cards.slint";
 import { Segments } from "../components/segments.slint";
 import { GameMenu, GameNav, CompatPill } from "../components/cover-card.slint";
 import { SelectableTile } from "./game-settings/parts.slint";
@@ -65,6 +67,9 @@ export component DetailPanel {
     in-out property <int> tab;
     property <length> pad: 20px;
     property <bool> has-cover: Selection.cover.width > 0;
+    // A failed release fetch is the one metadata status that belongs to this
+    // section; search and link statuses stay in the metadata card above.
+    property <bool> release-error: Selection.metadata-status == @tr("请求失败，请检查错误信息后重试");
 
     function update-bangumi(status: string, rating: int, note: string) {
         Selection.bangumi = { status: status, rating: rating, note: note };
@@ -383,25 +388,69 @@ export component DetailPanel {
                         }
 
                         SectionTitle { text: @tr("发行版本"); }
-                        if Selection.releases.length > 0 : ChoiceSelect {
-                            label: @tr("发行版本");
-                            choices: Selection.releases;
-                            value: Selection.pinned-release;
-                            supporting-text: Selection.pinned-release == "" ? @tr("选择你的发行版本以匹配兼容性记录") : "";
-                            selected(id) => { Selection.pin-release(id); }
+
+                        // No release yet: the provider fetch is running, it
+                        // failed, or it was never requested.
+                        if Selection.metadata-busy && Selection.releases.length == 0 : HorizontalLayout {
+                            spacing: 12px;
+                            alignment: start;
+                            CircularProgressIndicator {
+                                height: 40px;
+                                indeterminate: true;
+                                accessible-label: @tr("正在获取发行版本…");
+                            }
+                            MaterialText {
+                                text: @tr("正在获取发行版本…");
+                                style: MaterialTypography.body-medium;
+                                color: MaterialPalette.on-surface-variant;
+                                vertical-alignment: center;
+                            }
                         }
+
+                        if Selection.releases.length == 0 && !Selection.metadata-busy : VerticalLayout {
+                            spacing: 8px;
+                            MaterialText {
+                                text: root.release-error ? Selection.metadata-status : @tr("还没有发行版本数据");
+                                style: MaterialTypography.body-medium;
+                                color: root.release-error ? MaterialPalette.error : MaterialPalette.on-surface-variant;
+                                wrap: word-wrap;
+                                overflow: clip;
+                            }
+                            MaterialText {
+                                text: @tr("先获取版本列表，再指定用于匹配兼容性记录的发行版本。");
+                                style: MaterialTypography.body-small;
+                                color: MaterialPalette.on-surface-variant;
+                                wrap: word-wrap;
+                                overflow: clip;
+                            }
+                        }
+
+                        if Selection.releases.length > 0 : VerticalLayout {
+                            spacing: 8px;
+                            MaterialText {
+                                text: Selection.pinned-release == "" ? @tr("选择你的发行版本以匹配兼容性记录") : "";
+                                style: MaterialTypography.body-small;
+                                color: MaterialPalette.on-surface-variant;
+                                wrap: word-wrap;
+                                overflow: clip;
+                            }
+                            ReleaseCards {
+                                releases: Selection.releases;
+                                selected-id: Selection.pinned-release;
+                                enabled: !Selection.metadata-busy;
+                                list-height: 320px;
+                                pin(id) => { Selection.pin-release(id); }
+                                unpin() => { Selection.pin-release(""); }
+                            }
+                        }
+
                         HorizontalLayout {
                             alignment: start;
                             spacing: 8px;
-                            if Selection.releases.length == 0 : TonalButton {
+                            if !Selection.metadata-busy : TonalButton {
                                 icon: Icons.download;
                                 text: @tr("获取版本列表");
-                                enabled: !Selection.metadata-busy;
                                 clicked => { Selection.fetch-releases(); }
-                            }
-                            if Selection.releases.length > 0 && Selection.pinned-release != "" : TextButton {
-                                text: @tr("取消指定版本");
-                                clicked => { Selection.pin-release(""); }
                             }
                         }
 

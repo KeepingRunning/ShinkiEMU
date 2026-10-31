@@ -13,10 +13,10 @@ use crate::{
     GameCardViewModel, GameSettings, GamepadBinding, GamepadBindingViewModel, Library,
     ManagerViewModel, ManagerWindow, MatchReview, MatchViewModel, Network, Notices, Onboarding,
     Patch, PatchGame, PatchGameViewModel, PatchState, PatchStateViewModel, PlaySession,
-    PlaySessionViewModel, Recipe, RecipeViewModel, RenderState, RenderViewModel, ResaleNoticeState,
-    SelectedGame, Selection, Session, Settings, Store, StoreAction, StoreDepot,
-    StoreDepotViewModel, StoreGame, StoreGameViewModel, StoreLoadState, StoreLoginState,
-    StoreTransfer, StoreTransferState, StoreTransferViewModel, TranslationForm,
+    PlaySessionViewModel, Recipe, RecipeViewModel, Release, ReleaseViewModel, RenderState,
+    RenderViewModel, ResaleNoticeState, SelectedGame, Selection, Session, Settings, Store,
+    StoreAction, StoreDepot, StoreDepotViewModel, StoreGame, StoreGameViewModel, StoreLoadState,
+    StoreLoginState, StoreTransfer, StoreTransferState, StoreTransferViewModel, TranslationForm,
     TranslationFormViewModel, covers, list_model::ListModel, notices,
 };
 
@@ -26,7 +26,7 @@ pub struct SlintManagerAdapter {
     patch_games: Rc<covers::CoverModel<PatchGame>>,
     notices: Rc<notices::NoticeModel>,
     emulator_choices: ListModel<ChoiceViewModel, Choice>,
-    releases: ListModel<ChoiceViewModel, Choice>,
+    releases: ListModel<ReleaseViewModel, Release>,
     other_versions: ListModel<ChoiceViewModel, Choice>,
     history: ListModel<PlaySessionViewModel, PlaySession>,
     matches: ListModel<MatchViewModel, MatchReview>,
@@ -72,7 +72,7 @@ impl SlintManagerAdapter {
             patch_games: Rc::new(covers::CoverModel::new(window.as_weak())?),
             notices: Rc::new(notices::NoticeModel::new()),
             emulator_choices: ListModel::new(choice),
-            releases: ListModel::new(choice),
+            releases: ListModel::new(release),
             other_versions: ListModel::new(choice),
             history: ListModel::new(play_session),
             matches: ListModel::new(match_review),
@@ -778,6 +778,17 @@ fn choice(value: &ChoiceViewModel) -> Choice {
     Choice {
         id: value.id.as_str().into(),
         label: value.label.as_str().into(),
+    }
+}
+
+fn release(value: &ReleaseViewModel) -> Release {
+    Release {
+        id: value.release_id.as_str().into(),
+        title: value.title.as_str().into(),
+        // One wrapped line per card: a platform list is display text, and the
+        // card wraps instead of eliding it.
+        platforms: value.platforms.join(" · ").into(),
+        released: value.released.as_deref().unwrap_or_default().into(),
     }
 }
 
