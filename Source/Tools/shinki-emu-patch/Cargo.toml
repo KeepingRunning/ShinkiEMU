@@ -11,6 +11,7 @@ doctest = false
 [dependencies]
 roukaku-byte-source = { workspace = true }
 shinki-emu-metadata = { path = "../../Providers/shinki-emu-metadata" }
+shinki-emu-abi = { path = "../../FamilyApi/shinki-emu-abi" }
 cap-std = "=4.0.3"
 cap-fs-ext = "=4.0.3"
 dunce.workspace = true

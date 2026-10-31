@@ -373,7 +373,10 @@ fn profile(value: Value) -> mlua::Result<OutputProfile> {
     };
     for item in table.clone().pairs::<Value, Value>() {
         let (key, _) = item?;
-        if !matches!(text(key)?.as_str(), "plugin_id" | "configuration") {
+        if !matches!(
+            text(key)?.as_str(),
+            "plugin_id" | "configuration" | "required_capabilities"
+        ) {
             return Err(mlua::Error::external(PatchError::new(
                 PatchErrorKind::Script,
                 "unknown output profile field",
@@ -381,6 +384,24 @@ fn profile(value: Value) -> mlua::Result<OutputProfile> {
         }
     }
     let plugin_id = text(table.raw_get::<Value>("plugin_id")?)?;
+    let required_capabilities = match table.raw_get::<Value>("required_capabilities")? {
+        Value::Nil => 0,
+        Value::Integer(value) if value >= 0 => value as u64,
+        Value::Number(value)
+            if value.is_finite()
+                && value.fract() == 0.0
+                && value >= 0.0
+                && value <= crate::PROFILE_CAPABILITIES as f64 =>
+        {
+            value as u64
+        }
+        _ => {
+            return Err(mlua::Error::external(PatchError::new(
+                PatchErrorKind::Script,
+                "required capabilities must be an unsigned integer",
+            )));
+        }
+    };
     let Value::Table(values) = table.raw_get::<Value>("configuration")? else {
         return Err(mlua::Error::external(PatchError::new(
             PatchErrorKind::Script,
@@ -409,12 +430,15 @@ fn profile(value: Value) -> mlua::Result<OutputProfile> {
     Ok(OutputProfile {
         plugin_id,
         configuration,
+        required_capabilities,
     })
 }
 
 fn validate_profile(profile: &OutputProfile) -> Result<(), PatchError> {
     if profile.plugin_id.trim().is_empty()
         || profile.plugin_id.contains('\0')
+        || profile.required_capabilities & !crate::PROFILE_CAPABILITIES
+            != 0
         || profile
             .configuration
             .keys()

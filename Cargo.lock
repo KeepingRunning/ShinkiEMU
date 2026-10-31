@@ -11329,6 +11329,7 @@ dependencies = [
  "serde-pickle",
  "serde_json",
  "sha2 0.11.1",
+ "shinki-emu-abi",
  "shinki-emu-metadata",
  "tempfile",
  "time",

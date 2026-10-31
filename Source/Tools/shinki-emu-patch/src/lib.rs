@@ -50,11 +50,33 @@ pub enum PatchMode {
     InPlace,
 }
 
+pub(crate) const PROFILE_CAPABILITIES: u64 =
+    shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY | shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY;
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct OutputProfile {
     pub plugin_id: String,
     pub configuration: BTreeMap<String, String>,
+    /// Semantic capabilities required from the loaded core's native descriptor.
+    #[serde(
+        default,
+        skip_serializing_if = "no_required_capabilities",
+        deserialize_with = "required_capabilities"
+    )]
+    pub required_capabilities: u64,
+}
+
+fn no_required_capabilities(required: &u64) -> bool {
+    *required == 0
+}
+
+fn required_capabilities<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<u64, D::Error> {
+    let required = u64::deserialize(deserializer)?;
+    if required & !PROFILE_CAPABILITIES != 0 {
+        return Err(serde::de::Error::custom("unknown required core capability"));
+    }
+    Ok(required)
 }
 
 #[derive(Clone)]
