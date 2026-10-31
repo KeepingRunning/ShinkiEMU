@@ -95,6 +95,11 @@ android {
         aidl.srcDir(generatedRoot.dir("assets/cores/kirikiroid2-web/Resources/android-host/java"))
     }
 
+    androidResources {
+        // The complete inventoried runtime includes underscore-prefixed modules.
+        ignoreAssetsPattern = ""
+    }
+
     packaging {
         jniLibs {
             // NativeActivity and dladdr need ordinary extracted filesystem paths.

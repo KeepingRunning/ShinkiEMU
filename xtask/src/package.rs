@@ -1310,7 +1310,7 @@ fn package_android(
             .find(|(_, name)| name.ends_with(".apk"))
             .context("signed APK missing")?
             .0;
-        verify_android_apk(&apk)?;
+        verify_android_apk(&apk, stage)?;
         fs::write(
             stage.join("android.json"),
             serde_json::to_vec_pretty(&serde_json::json!({
@@ -1330,7 +1330,7 @@ fn package_android(
     Ok(out.to_owned())
 }
 
-fn verify_android_apk(apk: &Path) -> Result<()> {
+fn verify_android_apk(apk: &Path, staged: &Path) -> Result<()> {
     let sdk = std::env::var_os("ANDROID_HOME")
         .or_else(|| std::env::var_os("ANDROID_SDK_ROOT"))
         .map(PathBuf::from)
@@ -1369,6 +1369,39 @@ fn verify_android_apk(apk: &Path) -> Result<()> {
                 .create_new(true)
                 .open(destination)?;
             io::copy(&mut entry, &mut output)?;
+        }
+    }
+    let manifest_path = "assets/bundled.manifest";
+    let expected_manifest = fs::read_to_string(staged.join(manifest_path))?;
+    let mut packaged_manifest = String::new();
+    archive
+        .by_name(manifest_path)?
+        .read_to_string(&mut packaged_manifest)?;
+    if packaged_manifest != expected_manifest || packaged_manifest.len() > 1024 * 1024 {
+        bail!(
+            "APK bundled resource manifest differs from its staged input or exceeds the host limit"
+        );
+    }
+    let mut buffer = [0u8; 16384];
+    for relative in expected_manifest.lines().filter(|line| !line.is_empty()) {
+        portable(relative)?;
+        let name = format!("assets/{relative}");
+        let mut asset = archive
+            .by_name(&name)
+            .with_context(|| format!("APK bundled resource missing: {relative}"))?;
+        if asset.is_dir() || asset.size() > 16 * 1024 * 1024 {
+            bail!("APK bundled resource exceeds the host file contract: {relative}");
+        }
+        let mut hash = Sha256::new();
+        loop {
+            let count = asset.read(&mut buffer)?;
+            if count == 0 {
+                break;
+            }
+            hash.update(&buffer[..count]);
+        }
+        if hex::encode(hash.finalize()) != sha256(&staged.join(&name))? {
+            bail!("APK bundled resource differs from its staged input: {relative}");
         }
     }
     for (target, abi) in ANDROID_TARGETS {

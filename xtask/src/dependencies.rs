@@ -517,6 +517,7 @@ fn git_archive(repo: &str, rev: &str, sha: &str, out: &Path) -> Result<()> {
     Ok(())
 }
 
+
 fn prepare_native_inputs(inv: &Inventory, lock: &Lock, selected: NativeNeeds) -> Result<()> {
     let get = |name: &str| {
         lock.native
