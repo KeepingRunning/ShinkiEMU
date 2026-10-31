@@ -405,6 +405,7 @@ impl SlintManagerAdapter {
         }
         selection.set_bangumi_summary(view.bangumi_summary.as_str().into());
         selection.set_metadata_busy(view.metadata_busy);
+        selection.set_metadata_error(view.metadata_error);
         selection.set_metadata_status(view.metadata_status.as_str().into());
         self.matches.update(&view.matches);
     }
