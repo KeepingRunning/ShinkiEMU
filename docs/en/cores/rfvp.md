@@ -17,6 +17,8 @@ FVP uses HCB bytecode. The first little-endian u32 is the system-descriptor offs
 
 The fork retains its App, VM, GPU renderer, device audio and saves. The adapter delivers the final scene through immutable CPU leases; Manager does not reproduce syscalls or drive a host tick. Translated HCB literals use the ordinary script reader and explicit encoding; external translation tables and runtime replacement are removed. `font_path` selects the native primary face consistently for names, dialogue, ruby and native UI. Movie/BGM ASS mappings retain explicit fonts and original media clocks.
 
+Native conversion profiles require `CAP_NATIVE_SCRIPT_IDENTITY` (64) and `CAP_CONFIGURED_FONT_PRIORITY` (128), declared as top-level `required_capabilities:192`. Manager checks the descriptor of the core it actually loaded before accepting/launching this profile; missing capabilities require a core update. A font file or configuration key does not prove support. Legacy profiles without requirements retain their existing behavior.
+
 The Android static Manager graph shares wgpu 30 with Siglus and Manager. Native WMV decoding uses the Rust API; its optional `c-abi` exports stay disabled in Manager.
 
 WMV/ASF/WMA playback uses the fork's native movie/decoder path. Requested native fonts and game-specific resources remain real inputs. Recognizing an HCB file does not establish syscall coverage or edition compatibility.

@@ -17,6 +17,8 @@ FVP は HCB バイトコードを使います。ファイル先頭の little-end
 
 fork は元の App、VM、GPU レンダラー、デバイス音声、セーブを保持します。アダプターは不変の CPU リースで最終シーンを渡し、Manager は syscall やホスト tick を再実装しません。翻訳は HCB の文字列に直接格納し、通常のリーダーが指定エンコーディングで読みます。外部翻訳テーブルと実行時の置換は廃止しました。`font_path` は名前、本文、ルビ、ネイティブ UI の優先フォントを統一します。movie/BGM の ASS は元のクロックと明示的なフォントを保持します。
 
+ネイティブ変換 profile はトップレベルの `required_capabilities:192` で `CAP_NATIVE_SCRIPT_IDENTITY`（64）と `CAP_CONFIGURED_FONT_PRIORITY`（128）を要求します。Manager は実際に読み込んだコアの descriptor を受入・起動前に確認し、不足時はコアの更新を案内して拒否します。フォントファイルや設定キーの存在だけでは対応済みと判定しません。要件のない旧レシピの動作は変えません。
+
 Android の静的 Manager 依存グラフでは、RFVP、Siglus、Manager が wgpu 30 を共有します。ネイティブ WMV デコーダーは Rust API を使い、Manager では任意の `c-abi` エクスポートを有効にしません。
 
 WMV/ASF/WMA は fork のネイティブの動画・デコーダーのパスで再生します。ネイティブが要求するフォントやゲームのリソースは引き続き実際の入力として必要です。HCB を認識できても、syscall がすべて実装済みであることや、すべてのリリースで動作することを意味するわけではありません。

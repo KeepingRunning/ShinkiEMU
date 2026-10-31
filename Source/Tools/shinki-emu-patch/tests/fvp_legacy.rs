@@ -155,6 +155,7 @@ fn private_sakura_recipe_native_receipt() {
     let script=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../Metadata/patches/fvp-sakura-cn.luau").canonicalize().unwrap();
     let result=apply(PatchRequest {script,source,patch,mode:shinki_emu_patch::PatchMode::NewDirectory {output}},
         Arc::new(AtomicBool::new(false)), |_|{}).unwrap();
+    assert_eq!(result.profile.required_capabilities,192);
     assert_eq!(result.profile.configuration.get("script_encoding").map(String::as_str),Some("gbk"));
     assert_eq!(result.profile.configuration.get("font_path").map(String::as_str),Some("font/HanaMinA.ttf"));
     assert!(!result.profile.configuration.contains_key("translation_table"));
@@ -162,6 +163,7 @@ fn private_sakura_recipe_native_receipt() {
     assert!(!result.output.join("save").exists());
     let receipt:serde_json::Value=serde_json::from_slice(&fs::read(result.output.join("shinki-patch-result.json")).unwrap()).unwrap();
     assert_eq!(receipt["recipe"]["version"],2);
+    assert_eq!(receipt["profile"]["required_capabilities"],192);
     let bytes=fs::read(result.output.join("Sakura.hcb")).unwrap();
     use sha2::{Digest,Sha256};
     let hash=hex::encode(Sha256::digest(&bytes));

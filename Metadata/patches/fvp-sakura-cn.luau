@@ -124,7 +124,7 @@ return {
         local map = ctx.create("shinki-subtitles.json")
         map:write(0,buffer.fromstring(ctx.json.encode({version=1,tracks=output_tracks})))
         map:close()
-        return {plugin_id="rfvp",configuration={script_encoding="gbk",
+        return {plugin_id="rfvp",required_capabilities=192,configuration={script_encoding="gbk",
             font_path="font/HanaMinA.ttf",subtitle_map="shinki-subtitles.json"}}
     end,
 }

@@ -17,6 +17,8 @@ FVP 使用 HCB 字节码。文件首个 little-endian u32 是系统描述区偏�
 
 fork 保留原 App、VM、GPU renderer、设备音频和存档。适配层用不可变 CPU 租约交付最终场景，Manager 不重写 syscall，也不通过宿主 tick 推进。译文直接写入 HCB，由普通脚本 reader 按明确编码读取；外挂翻译表及运行时替换已移除。`font_path` 为姓名、正文、注音和原生 UI 统一选择首选字体。movie/BGM ASS 映射保留明确字体和原媒体时钟。
 
+原生转换 profile 顶层声明 `required_capabilities:192`，要求真实核心具备 `CAP_NATIVE_SCRIPT_IDENTITY`（64）和 `CAP_CONFIGURED_FONT_PRIORITY`（128）。Manager 接受、启动此 profile 前核对实际加载核心的 descriptor；能力缺失时拒绝并要求更新核心，不以字体文件存在或配置键名猜测支持。未声明需求的旧配方保持原行为。
+
 Android 静态 Manager 依赖图中，RFVP 与 Siglus、Manager 共用 wgpu 30。原生 WMV 解码使用 Rust API，Manager 不启用可选的 `c-abi` 导出。
 
 WMV/ASF/WMA 走 fork 原生影片及 decoder 路径。原生请求的字体和游戏资源仍是实际输入；识别出 HCB 不代表 syscall 已全部实现或所有发行版可用。
