@@ -1,5 +1,5 @@
 -- This entry converts the legacy filter.dll packaging, not RFVP's standard formats.
--- The resulting offset table, native textures, fonts and ASS use ordinary RFVP consumers.
+-- Output is a GBK native HCB plus ordinary textures, private fonts and ASS.
 local resources = {
     {"graph/a_bu_cp1",1673,803865},{"graph/a_bus_s1",805538,25674},
     {"graph/a_cg_p3",831212,5193},{"graph/a_cg_s1",836405,1122912},
@@ -60,9 +60,11 @@ local function parent(ctx, path)
     if dir then ctx.mkdir(dir) end
 end
 return {
-    id="fvp-sakura-cn", version=1, title="樱花萌放旧补丁离线转换",
+    id="fvp-sakura-cn", version=2, title="樱花萌放原生脚本离线转换",
     apply=function(ctx)
         local fvp = ctx.load("common/fvp.luau")
+        local hcb_writer = ctx.load("common/hcb.luau")
+        local bin_writer = ctx.load("common/fvp_bin.luau")
         local copy = ctx.load("common/copy.luau")
         local hcb = pinned(ctx,"source","Sakura.hcb","946877dd0ed8fbf318ba5c73d20afd46b9dcdc200aa7e8edc610c437cc1c789b")
         local dat = pinned(ctx,"patch","patch.dat","c642c8e06e29c991aaed22378a3e3e0981ca61ce83dbfea087c267cf3c5cd391")
@@ -71,19 +73,27 @@ return {
         for _, font in fonts do pinned(ctx,"patch","subtitle/fonts/" .. font[1],font[2]) end
         local ass_sources = {}
         for _, track in tracks do ass_sources[track.ass] = pinned(ctx,"patch",track.ass,track.sha256) end
-        -- Exact physical slices from this DLL mapping and this BIN fingerprint. No generic BIN parser.
-        copy.files(ctx,"source",{
+        -- Original packs share the script NLS, so transcode their standard name
+        -- tables too. The private patch.bin below still uses only pinned slices.
+        for index, path in {
             "bgm.bin","graph.bin","graph_bg.bin","graph_bs.bin","graph_sd.bin",
             "graph_vis.bin","graph_vish.bin","se.bin","se_env.bin","se_sys.bin","voice.bin",
-            "movie/01.wmv","movie/02.wmv","cursor1.ani","cursor2.ani",
-        })
+        } do
+            bin_writer.native(ctx,"source",path,"cp932","gbk")
+            ctx.progress("FVP native archive names",index,11)
+        end
+        copy.files(ctx,"source",{"movie/01.wmv","movie/02.wmv","cursor1.ani","cursor2.ani"})
         local records = fvp.dictionary(ctx, dat)
         if #records ~= 57053 then ctx.fail("INTEGRITY", "FVP active dictionary count mismatch") end
-        local patched = fvp.warning(ctx,hcb,{site=0x74daa,original_call=0x37e50,helper=0x373a5,wait_syscall=137,yield_syscall=133})
+        local native, audit = hcb_writer.native(ctx,hcb,records,"cp932","gbk")
+        if audit.translated ~= #records then ctx.fail("INTEGRITY", "FVP native coverage mismatch") end
+        local patched = fvp.warning(ctx,native,{site=0x74daa,original_call=0x37e50,helper=0x373a5,wait_syscall=137,yield_syscall=133})
         local script = ctx.create("Sakura.hcb")
         script:write(0,patched)
         script:close()
-        fvp.write_table(ctx,"shinki-translations.bin",hcb:sha256(),ctx.hash.sha256(patched),records)
+        local identity = ctx.create("shinki-native-script.json")
+        identity:write(0,buffer.fromstring(ctx.json.encode({version=1,sha256=ctx.hash.sha256(patched)})))
+        identity:close()
         for index, resource in resources do
             ctx.check_cancelled()
             parent(ctx,resource[1])
@@ -114,7 +124,7 @@ return {
         local map = ctx.create("shinki-subtitles.json")
         map:write(0,buffer.fromstring(ctx.json.encode({version=1,tracks=output_tracks})))
         map:close()
-        return {plugin_id="rfvp",configuration={script_encoding="shift_jis",
-            translation_table="shinki-translations.bin",subtitle_map="shinki-subtitles.json"}}
+        return {plugin_id="rfvp",configuration={script_encoding="gbk",
+            font_path="font/HanaMinA.ttf",subtitle_map="shinki-subtitles.json"}}
     end,
 }
