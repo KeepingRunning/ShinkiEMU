@@ -20,13 +20,18 @@ pub fn portable(name: &str) -> Result<()> {
         bail!("empty package path");
     }
     for p in name.split('/') {
-        let stem = p.split('.').next().unwrap_or("").to_ascii_uppercase();
+        let stem = p
+            .split('.')
+            .next()
+            .unwrap_or("")
+            .trim_end()
+            .to_ascii_uppercase();
         if p.is_empty()
             || !p.as_bytes()[0].is_ascii_alphanumeric() && p.as_bytes()[0] != b'_'
             || !p
                 .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b"_.+-@~".contains(&b))
-            || p.ends_with('.')
+                .all(|b| b.is_ascii_alphanumeric() || b"_.+-@~ ".contains(&b))
+            || p.ends_with(['.', ' '])
             || ["CON", "PRN", "AUX", "NUL"].contains(&stem.as_str())
             || (stem.len() == 4
                 && (stem.starts_with("COM") || stem.starts_with("LPT"))
