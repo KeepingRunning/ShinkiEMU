@@ -19,7 +19,7 @@ publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/rfvp"
 branch = "shinki-sakura-native"
-rev = "67361cb1047092a282de74fe0c1668f590f9e5af"
+rev = "73f7e41642c3f4e9f8c429a5f284803c612daa7c"
 upstream = "https://github.com/xmoezzz/rfvp"
 [[cores.blocked]]
 target = "aarch64-unknown-linux-ohos"
