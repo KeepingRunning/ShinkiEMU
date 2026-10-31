@@ -95,16 +95,19 @@ pub fn initialize(app: AndroidApp) -> Result<(), String> {
         .set(AndroidContext { app, vm })
         .map_err(|_| "SHINKI_EMU_ANDROID_CONTEXT_DUPLICATE".to_owned())?;
     let context = context()?;
-    let status = context.vm.attach_current_thread(|_env| -> jni::errors::Result<_> {
-        // SAFETY: AndroidApp owns both handles; the JNI attachment is scoped
-        // to this initializer. The core retains only the application Context.
-        Ok(unsafe {
-            shinki_emu_kirikiroid2_web::initialize_android(
-                context.app.vm_as_ptr().cast(),
-                context.app.activity_as_ptr().cast(),
-            )
+    let status = context
+        .vm
+        .attach_current_thread(|_env| -> jni::errors::Result<_> {
+            // SAFETY: AndroidApp owns both handles; the JNI attachment is scoped
+            // to this initializer. The core retains only the application Context.
+            Ok(unsafe {
+                shinki_emu_kirikiroid2_web::initialize_android(
+                    context.app.vm_as_ptr().cast(),
+                    context.app.activity_as_ptr().cast(),
+                )
+            })
         })
-    }).map_err(|error| format!("KRKR_ANDROID_HOST_JNI: {error}"))?;
+        .map_err(|error| format!("KRKR_ANDROID_HOST_JNI: {error}"))?;
     if status != shinki_emu_abi::OK {
         return Err(format!("KRKR_ANDROID_HOST_INITIALIZATION ({status})"));
     }

@@ -28,9 +28,9 @@ pub fn portable(name: &str) -> Result<()> {
             .to_ascii_uppercase();
         if p.is_empty()
             || !p.as_bytes()[0].is_ascii_alphanumeric() && p.as_bytes()[0] != b'_'
-            || !p.bytes().all(|b| {
-                b.is_ascii() && !b.is_ascii_control() && !b"\\:<>|?*\"".contains(&b)
-            })
+            || !p
+                .bytes()
+                .all(|b| b.is_ascii() && !b.is_ascii_control() && !b"\\:<>|?*\"".contains(&b))
             || p.ends_with(['.', ' '])
             || ["CON", "PRN", "AUX", "NUL"].contains(&stem.as_str())
             || (stem.len() == 4
@@ -589,7 +589,11 @@ pub(crate) fn search_dirs(inv: &Inventory, result: &BuildResult) -> Result<Vec<P
         } else {
             dependencies::native_install(inv, &result.target, &native.id)?
                 .join(dependencies::native_triplet(inv, &result.target)?)
-                .join(if result.target.contains("windows") { "bin" } else { "lib" })
+                .join(if result.target.contains("windows") {
+                    "bin"
+                } else {
+                    "lib"
+                })
         });
     }
     // MSVC runtime redistributables are explicit SDK redistributable inputs, never System32.

@@ -1585,8 +1585,8 @@ pub fn apply_environment(
             paths.push(subtitle.join("lib/pkgconfig"));
         }
         for native in native_cores(inv, target, component) {
-            let installation = native_install(inv, target, &native.id)?
-                .join(native_triplet(inv, target)?);
+            let installation =
+                native_install(inv, target, &native.id)?.join(native_triplet(inv, target)?);
             paths.push(installation.join("lib/pkgconfig"));
             paths.push(installation.join("share/pkgconfig"));
         }
