@@ -245,6 +245,12 @@ fn collect(root: &Path, timestamp: i64, schemas: bool) -> Result<BTreeMap<String
         compatibility.entries.push(e);
     }
     compatibility.validate()?;
+    let legacy_compatibility = CompatibilityDatabase {
+        schema: LEGACY_COMPATIBILITY_SCHEMA_VERSION.into(),
+        generated_at_unix_ms: timestamp,
+        entries: compatibility.entries.iter().filter(|entry| entry.emulator_version.as_deref().is_none_or(|version| version.chars().count() <= 64)).cloned().collect(),
+    };
+    legacy_compatibility.validate()?;
     let mut presets = PresetDatabase {
         schema: PRESET_DATABASE_SCHEMA_VERSION.into(),
         entries: Vec::new(),
@@ -320,7 +326,8 @@ fn collect(root: &Path, timestamp: i64, schemas: bool) -> Result<BTreeMap<String
     }
     let recipes: Vec<Value> = patches.entries.iter().filter_map(|p| p.recipe.as_ref().map(|r| json!({"id":p.id,"title":p.title["zh-CN"],"script":r.script,"vn_ids":p.vn_ids,"emulators":p.emulators}))).collect();
     let mut files = BTreeMap::from([
-        ("compatibility.json".into(), pretty(&compatibility)?),
+        ("compatibility.json".into(), pretty(&legacy_compatibility)?),
+        ("compatibility-v5.json".into(), pretty(&compatibility)?),
         ("presets.json".into(), pretty(&presets)?),
         ("cores.json".into(), pretty(&legacy_cores)?),
         ("cores-v2.json".into(), pretty(&cores)?),
@@ -631,6 +638,14 @@ mod tests {
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(path, pretty(entry).unwrap()).unwrap();
         }
+        let report: CompatibilityEntry = serde_json::from_value(json!({
+            "vn_id":"v1","release_id":"r1","emulator":"rfvp","status":"boot_only",
+            "emulator_version":new.version,"platform":"windows","architecture":"x86_64",
+            "variant":"desktop","updated_at_unix_ms":0
+        })).unwrap();
+        let report_path = temp.path().join(compat_path(&report));
+        fs::create_dir_all(report_path.parent().unwrap()).unwrap();
+        fs::write(report_path, pretty(&report).unwrap()).unwrap();
         let files = collect(temp.path(), 0, true).unwrap();
         let legacy = parse_core_catalog(&files["cores.json"]).unwrap();
         assert_eq!(legacy.schema, LEGACY_CORE_CATALOG_SCHEMA_VERSION);
@@ -639,6 +654,11 @@ mod tests {
         assert_eq!(modern.entries.len(), 2);
         assert_eq!(modern.latest("rfvp", &old.platform, &old.abi), Some(&new));
         assert!(modern.entries.contains(&old));
+        let modern_reports = parse_compatibility_database(&files["compatibility-v5.json"]).unwrap();
+        assert_eq!(modern_reports.entries, vec![report]);
+        let legacy_reports = parse_compatibility_database(&files["compatibility.json"]).unwrap();
+        assert_eq!(legacy_reports.schema, LEGACY_COMPATIBILITY_SCHEMA_VERSION);
+        assert!(legacy_reports.entries.is_empty());
         let mut adapter_update = new.identity.clone().unwrap();
         adapter_update.adapter.commit = "f".repeat(40);
         assert!(require_release_sequence(temp.path(), "rfvp", &adapter_update).is_err());

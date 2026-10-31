@@ -102,12 +102,21 @@ fn indexed_v2_exposes_external_snapshots_while_legacy_catalog_stays_readable() {
         schema: shinki_emu_metadata::CORE_CATALOG_SCHEMA_VERSION.into(), entries: vec![entry.clone()],
     };
     tree.push((CORES_V2_FILE.into(), serde_json::to_vec(&modern).unwrap()));
+    let report = serde_json::json!({
+        "schema": shinki_emu_metadata::COMPATIBILITY_SCHEMA_VERSION,
+        "generated_at_unix_ms":20,
+        "entries":[{"vn_id":"v1","release_id":"r1","emulator":"rfvp","status":"boot_only",
+            "emulator_version":entry.version,"platform":"windows","architecture":"x86_64",
+            "variant":"desktop","updated_at_unix_ms":20}]
+    });
+    tree.push((COMPATIBILITY_V5_FILE.into(), serde_json::to_vec(&report).unwrap()));
     write_tree(bundled.path(), 20, &tree);
     let selected = select_catalog(data.path(), Some(bundled.path())).unwrap();
     assert_eq!(selected.cores.latest("engine", "windows-x86_64", "shinki.emu.native.c.v3"), Some(&entry));
+    assert_eq!(selected.compatibility.entries[0].emulator_version.as_deref(), Some(entry.version.as_str()));
     let legacy = tree.iter().find(|(path, _)| path == CORES_FILE).unwrap();
     assert_eq!(parse_core_catalog(&legacy.1).unwrap().schema, shinki_emu_metadata::LEGACY_CORE_CATALOG_SCHEMA_VERSION);
-    tree.retain(|(path, _)| path != CORES_V2_FILE);
+    tree.retain(|(path, _)| path != CORES_V2_FILE && path != COMPATIBILITY_V5_FILE);
     write_tree(bundled.path(), 21, &tree);
     assert!(select_catalog(data.path(), Some(bundled.path())).unwrap().cores.entries.is_empty());
 }

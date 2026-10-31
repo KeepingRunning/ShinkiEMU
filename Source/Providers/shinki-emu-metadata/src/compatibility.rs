@@ -15,7 +15,8 @@ use crate::fields::{
     is_vndb_release_id, is_vndb_vn_id,
 };
 
-pub const COMPATIBILITY_SCHEMA_VERSION: &str = "shinki.emu.compatibility.v4";
+pub const COMPATIBILITY_SCHEMA_VERSION: &str = "shinki.emu.compatibility.v5";
+pub const LEGACY_COMPATIBILITY_SCHEMA_VERSION: &str = "shinki.emu.compatibility.v4";
 const MAX_PAYLOAD_BYTES: usize = 8 * 1024 * 1024;
 const MAX_NOTES_CHARS: usize = 1024;
 const MAX_VERSION_CHARS: usize = 64;
@@ -54,7 +55,7 @@ pub struct CompatibilityEntry {
     pub status: CompatibilityStatus,
     #[schemars(length(max = 1024))]
     pub notes: Option<String>,
-    #[schemars(length(min = 1, max = 64))]
+    #[schemars(length(min = 1, max = 88))]
     pub emulator_version: Option<String>,
     #[schemars(length(min = 1, max = 64))]
     pub manager_version: Option<String>,
@@ -107,7 +108,7 @@ impl CompatibilityEntry {
         if self
             .emulator_version
             .as_deref()
-            .is_some_and(|version| !is_bounded_text(version, 1, MAX_VERSION_CHARS))
+            .is_some_and(|version| !is_bounded_text(version, 1, 88))
         {
             return Err(CompatibilityError::ResponseBounds("emulator_version"));
         }
@@ -128,7 +129,7 @@ impl CompatibilityEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CompatibilityDatabase {
-    #[schemars(regex(pattern = r"^shinki\.emu\.compatibility\.v4$"))]
+    #[schemars(regex(pattern = r"^shinki\.emu\.compatibility\.v[45]$"))]
     pub schema: String,
     #[schemars(range(min = 0))]
     pub generated_at_unix_ms: i64,
@@ -137,7 +138,7 @@ pub struct CompatibilityDatabase {
 
 impl CompatibilityDatabase {
     pub fn validate(&self) -> Result<(), CompatibilityError> {
-        if self.schema != COMPATIBILITY_SCHEMA_VERSION {
+        if self.schema != COMPATIBILITY_SCHEMA_VERSION && self.schema != LEGACY_COMPATIBILITY_SCHEMA_VERSION {
             return Err(CompatibilityError::SchemaMismatch("schema"));
         }
         if self.generated_at_unix_ms < 0 {
@@ -149,6 +150,10 @@ impl CompatibilityDatabase {
         let mut keys = BTreeSet::new();
         for entry in &self.entries {
             entry.validate()?;
+            if self.schema == LEGACY_COMPATIBILITY_SCHEMA_VERSION
+                && entry.emulator_version.as_deref().is_some_and(|version| version.chars().count() > MAX_VERSION_CHARS) {
+                return Err(CompatibilityError::ResponseBounds("emulator_version"));
+            }
             if !keys.insert((
                 &entry.release_id,
                 &entry.emulator,
@@ -243,6 +248,18 @@ mod tests {
                 entry("r456", "shinki.emu.musica", CompatibilityStatus::BootOnly),
             ],
         }
+    }
+
+    #[test]
+    fn complete_external_versions_require_v5_and_legacy_v4_stays_readable() {
+        let mut database = sample_database();
+        database.entries[0].emulator_version = Some(format!("branch-{}-{}", "x".repeat(16), "a".repeat(64)));
+        let bytes = serde_json::to_vec(&database).unwrap();
+        assert_eq!(parse_compatibility_database(&bytes).unwrap(), database);
+        database.schema = LEGACY_COMPATIBILITY_SCHEMA_VERSION.into();
+        assert!(parse_compatibility_database(&serde_json::to_vec(&database).unwrap()).is_err());
+        database.entries[0].emulator_version = Some("0.1.0-beta.3".into());
+        parse_compatibility_database(&serde_json::to_vec(&database).unwrap()).unwrap();
     }
 
     #[test]

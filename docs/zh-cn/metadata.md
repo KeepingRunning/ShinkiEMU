@@ -55,3 +55,5 @@ schema 默认导出到 `Metadata/schema`，规则来自 Rust DTO。修改源记�
 索引还包含 `cores-v2.json`（`shinki.emu.cores.v2`），其中既有真实的旧记录，也有新的第三方 `identity`。`cores.json` 保持旧 v1，并保留已发布下载，供旧 Manager 使用。新消费者优先读索引中的 v2，仅在 v2 不存在时读取 v1；上游/适配身份、安全文件名及按发布序号选最新的规则见[构建与发布](build-and-release.md#打包与发布)。
 
 Manager 与门户读取同一份 `https://project-shinkirou.github.io/data/shinkiemu/v1/` 快照。`Metadata/` 是唯一数据源，不另行手写兼容性或核心状态表。另见[用户指南](user-guide.md)和[构建与发布](build-and-release.md)。
+
+第三方完整核心标识最长 88 字节，因此索引另加 `compatibility-v5.json`（`shinki.emu.compatibility.v5`，核心版本上限 88，Manager 版本仍为 64）。新消费者优先读取此索引文件。`compatibility.json` 保持 v4，仅收录核心版本符合原有 64 字符上限的报告，确保旧 Manager 仍能读取整份快照；源报告不删改。

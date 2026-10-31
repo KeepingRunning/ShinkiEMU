@@ -22,6 +22,10 @@ pub fn metadata_json_schemas() -> std::collections::BTreeMap<String, serde_json:
     std::collections::BTreeMap::from([
         (
             "compatibility.v4.schema.json".into(),
+            serde_json::from_str(include_str!("../../../../Metadata/schema/compatibility.v4.schema.json")).expect("legacy schema"),
+        ),
+        (
+            "compatibility.v5.schema.json".into(),
             compatibility_json_schema(),
         ),
         (
@@ -53,7 +57,7 @@ mod bangumi;
 #[cfg(not(any(target_os = "android", target_env = "ohos")))]
 pub use bangumi::{BangumiProvider, BangumiProviderConfig};
 pub use compatibility::{
-    COMPATIBILITY_SCHEMA_VERSION, CompatibilityDatabase, CompatibilityEntry, CompatibilityError,
+    COMPATIBILITY_SCHEMA_VERSION, LEGACY_COMPATIBILITY_SCHEMA_VERSION, CompatibilityDatabase, CompatibilityEntry, CompatibilityError,
     CompatibilityStatus, compatibility_json_schema, parse_compatibility_database,
 };
 pub use cores::{
