@@ -12,14 +12,13 @@ component ReleaseMeta {
         spacing: 6px;
         alignment: center;
 
-        Icon {
+        meta-icon := Icon {
             width: 16px;
-            height: 16px;
             source: root.icon;
             colorize: MaterialPalette.on-surface-variant;
         }
 
-        MaterialText {
+        meta-text := MaterialText {
             horizontal-stretch: 1;
             text: root.text;
             style: MaterialTypography.body-small;
@@ -92,7 +91,7 @@ export component ReleaseCard inherits Rectangle {
             spacing: 8px;
             alignment: start;
 
-            MaterialText {
+            title-text := MaterialText {
                 horizontal-stretch: 1;
                 text: root.release.title == "" ? @tr("标题未知") : root.release.title;
                 style: MaterialTypography.body-large;
@@ -101,7 +100,7 @@ export component ReleaseCard inherits Rectangle {
                 overflow: clip;
             }
 
-            IconButton {
+            check-button := IconButton {
                 icon: Icons.check;
                 checked: root.selected;
                 tooltip: root.selected ? @tr("取消指定版本") : @tr("指定此版本");
@@ -110,19 +109,19 @@ export component ReleaseCard inherits Rectangle {
             }
         }
 
-        MaterialText {
+        rid-text := MaterialText {
             text: @tr("发行版本 {}", root.release.id);
             style: MaterialTypography.label-small;
             color: MaterialPalette.on-surface-variant;
             overflow: elide;
         }
 
-        ReleaseMeta {
+        platform-row := ReleaseMeta {
             icon: Icons.memory;
             text: root.release.platforms == "" ? @tr("平台未知") : root.release.platforms;
         }
 
-        ReleaseMeta {
+        date-row := ReleaseMeta {
             icon: Icons.schedule;
             text: root.release.released == "" ? @tr("发售日未知") : root.release.released;
         }
@@ -163,14 +162,16 @@ export component ReleaseCards {
 
     frame := Rectangle {
         width: 100%;
-        height: min(body.preferred-height, root.list-height);
+        preferred-height: min(list-body.preferred-height, root.list-height);
         clip: true;
 
         view := ScrollView {
             width: 100%;
             height: 100%;
+            viewport-width: view.visible-width;
+            viewport-height: list-body.preferred-height;
 
-            body := VerticalLayout {
+            list-body := VerticalLayout {
                 width: view.visible-width;
                 spacing: 8px;
 

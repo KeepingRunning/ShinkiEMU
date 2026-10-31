@@ -69,7 +69,8 @@ export component DetailPanel {
     property <bool> has-cover: Selection.cover.width > 0;
     // A failed release fetch is the one metadata status that belongs to this
     // section; search and link statuses stay in the metadata card above.
-    property <bool> release-error: Selection.metadata-status == @tr("请求失败，请检查错误信息后重试");
+    // Typed state: never compare localized status text here.
+    property <bool> release-error: Selection.metadata-error;
 
     function update-bangumi(status: string, rating: int, note: string) {
         Selection.bangumi = { status: status, rating: rating, note: note };
@@ -117,9 +118,15 @@ export component DetailPanel {
             scroll := ScrollView {
                 width: 100%;
                 height: 100%;
+                // The panel scrolls as one page: size the viewport to the
+                // content and the content to its preferred height. Without
+                // this, the tab layout is squeezed into the window height and
+                // long sections (release cards) shrink or overlap.
+                viewport-height: content.preferred-height;
 
-                VerticalLayout {
+                content := VerticalLayout {
                     width: scroll.visible-width;
+                    height: self.preferred-height;
                     alignment: start;
 
                     // Header with cover tint.
@@ -326,12 +333,12 @@ export component DetailPanel {
                     }
 
                     // 兼容性
-                    if root.tab == 1 : VerticalLayout {
+                    if root.tab == 1 : tab-content := VerticalLayout {
                         padding: root.pad;
                         spacing: 12px;
 
-                        Rectangle {
-                            height: status-body.preferred-height;
+                        compat-card := Rectangle {
+                            preferred-height: status-body.preferred-height;
                             border-radius: 12px;
                             background: Theme.status-color(Selection.compat.status).with-alpha(0.14);
 
@@ -387,11 +394,11 @@ export component DetailPanel {
                             }
                         }
 
-                        SectionTitle { text: @tr("发行版本"); }
+                        releases-title := SectionTitle { text: @tr("发行版本"); }
 
                         // No release yet: the provider fetch is running, it
                         // failed, or it was never requested.
-                        if Selection.metadata-busy && Selection.releases.length == 0 : HorizontalLayout {
+                        if Selection.metadata-busy && Selection.releases.length == 0 : release-loading := HorizontalLayout {
                             spacing: 12px;
                             alignment: start;
                             CircularProgressIndicator {
@@ -407,7 +414,7 @@ export component DetailPanel {
                             }
                         }
 
-                        if Selection.releases.length == 0 && !Selection.metadata-busy : VerticalLayout {
+                        if Selection.releases.length == 0 && !Selection.metadata-busy : release-empty := VerticalLayout {
                             spacing: 8px;
                             MaterialText {
                                 text: root.release-error ? Selection.metadata-status : @tr("还没有发行版本数据");
@@ -425,7 +432,7 @@ export component DetailPanel {
                             }
                         }
 
-                        if Selection.releases.length > 0 : VerticalLayout {
+                        if Selection.releases.length > 0 : release-list-section := VerticalLayout {
                             spacing: 8px;
                             MaterialText {
                                 text: Selection.pinned-release == "" ? @tr("选择你的发行版本以匹配兼容性记录") : "";
@@ -434,7 +441,7 @@ export component DetailPanel {
                                 wrap: word-wrap;
                                 overflow: clip;
                             }
-                            ReleaseCards {
+                            release-cards := ReleaseCards {
                                 releases: Selection.releases;
                                 selected-id: Selection.pinned-release;
                                 enabled: !Selection.metadata-busy;
@@ -444,27 +451,27 @@ export component DetailPanel {
                             }
                         }
 
-                        HorizontalLayout {
+                        release-actions := HorizontalLayout {
                             alignment: start;
                             spacing: 8px;
-                            if !Selection.metadata-busy : TonalButton {
+                            if !Selection.metadata-busy : fetch-button := TonalButton {
                                 icon: Icons.download;
                                 text: @tr("获取版本列表");
                                 clicked => { Selection.fetch-releases(); }
                             }
                         }
 
-                        HorizontalDivider { }
-                        HorizontalLayout {
+                        release-divider := HorizontalDivider { }
+                        report-actions := HorizontalLayout {
                             alignment: start;
-                            OutlineButton {
+                            report-button := OutlineButton {
                                 icon: Icons.public;
                                 text: @tr("报告兼容性");
                                 enabled: Selection.compat.report-url != "";
                                 clicked => { Platform.open-url(Selection.compat.report-url); }
                             }
                         }
-                        if Selection.compat.report-url == "" : MaterialText {
+                        if Selection.compat.report-url == "" : report-hint := MaterialText {
                             text: @tr("先关联 VNDB 作品");
                             style: MaterialTypography.body-small;
                             color: MaterialPalette.on-surface-variant;
