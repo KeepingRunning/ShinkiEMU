@@ -411,6 +411,27 @@ pub fn configure_cmake(
     if let Ok(triplet) = env::var("SHINKI_EMU_VCPKG_TRIPLET") {
         configure.arg(format!("-DVCPKG_TARGET_TRIPLET={triplet}"));
     }
+    if target.contains("apple") {
+        let architecture = if target.starts_with("aarch64-") {
+            "arm64"
+        } else {
+            "x86_64"
+        };
+        configure.arg(format!("-DCMAKE_OSX_ARCHITECTURES={architecture}"));
+        if target.contains("apple-ios") {
+            let sdk = if target.ends_with("-sim") || target.starts_with("x86_64-") {
+                "iphonesimulator"
+            } else {
+                "iphoneos"
+            };
+            configure
+                .arg("-DCMAKE_SYSTEM_NAME=iOS")
+                .arg(format!("-DCMAKE_OSX_SYSROOT={sdk}"))
+                .arg("-DCMAKE_OSX_DEPLOYMENT_TARGET=16.0");
+        } else {
+            configure.arg("-DCMAKE_OSX_DEPLOYMENT_TARGET=13.0");
+        }
+    }
     for (key, value) in definitions {
         configure.arg(format!(
             "-D{key}={}",
