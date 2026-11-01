@@ -413,13 +413,17 @@ pub(crate) fn system(name: &str, target: &str) -> bool {
         // Linux desktop ABI supplied by the supported distribution, not bundled
         // from the developer machine. Keep versioned SONAMEs explicit.
         "libstdc++.so.6",
-        "libssl.so.3",
-        "libcrypto.so.3",
+        "libgomp.so.1",
         "libfontconfig.so.1",
         "libudev.so.1",
         "libasound.so.2",
         // VA-API talks to the distribution's DRM device/driver ABI.
         "libdrm.so.2",
+        // OpenGL dispatch belongs to the distribution's graphics driver stack.
+        "libGL.so.1",
+        "libGLX.so.0",
+        "libOpenGL.so.0",
+        "libX11.so.6",
         // RFVP's Linux video-sys backend uses the distribution media stack.
         "libgstreamer-1.0.so.0",
         "libgstapp-1.0.so.0",
@@ -440,6 +444,7 @@ pub(crate) fn system(name: &str, target: &str) -> bool {
         "libcairo-gobject.so.2",
         "libpango-1.0.so.0",
         "libpangocairo-1.0.so.0",
+        "libpangoft2-1.0.so.0",
         "libgdk_pixbuf-2.0.so.0",
         "libharfbuzz.so.0",
     ]

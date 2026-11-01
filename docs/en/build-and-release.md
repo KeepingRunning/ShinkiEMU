@@ -72,7 +72,7 @@ Manager initializes the process-wide Rustls crypto provider once, before creatin
 Use the repository's pinned Rust 1.99.1 toolchain. On Ubuntu 22.04/24.04 install the native development packages explicitly:
 
 ```sh
-sudo apt-get install -y --no-install-recommends build-essential cmake ninja-build pkg-config nasm patchelf autoconf automake libtool libltdl-dev autoconf-archive python3-jinja2 python3-venv libxtst-dev libxxf86vm-dev bison flex gperf libssl-dev libasound2-dev libudev-dev libx11-dev libx11-xcb-dev libxcb1-dev libxrandr-dev libxi-dev libxcursor-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libfontconfig1-dev libegl1-mesa-dev libgl1-mesa-dev libvulkan-dev mesa-vulkan-drivers xvfb xauth unzip jq
+sudo apt-get install -y --no-install-recommends build-essential cmake ninja-build pkg-config nasm patchelf autoconf automake libtool libltdl-dev autoconf-archive python3-jinja2 python3-venv libxtst-dev libxxf86vm-dev libxinerama-dev bison flex gperf libssl-dev libasound2-dev libudev-dev libx11-dev libx11-xcb-dev libxcb1-dev libxrandr-dev libxi-dev libxcursor-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libfontconfig1-dev libegl1-mesa-dev libgl1-mesa-dev libvulkan-dev mesa-vulkan-drivers xvfb xauth unzip jq
 sudo apt-get install -y --no-install-recommends libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libglib2.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
@@ -109,6 +109,49 @@ Linux Manager `deps` checks the distribution's development libraries; it does no
 The Linux package uses the distribution's glibc, libstdc++, OpenSSL 3, fontconfig, udev and ALSA ABI libraries, plus GTK 3 and WebKitGTK 4.1 for store web sign-in. Install their runtime packages (on Ubuntu `libwebkit2gtk-4.1-0`, which pulls in GTK 3) on the destination system and provide an X11 or Wayland desktop with a graphics driver.
 Impacto's Linux VA-API libraries also require the distribution's `libdrm.so.2`
 (Ubuntu package `libdrm2`), which remains part of the system graphics stack.
+KiriKiri2 also uses the distribution's OpenGL dispatch libraries `libGL.so.1`,
+`libGLX.so.0` and `libOpenGL.so.0` (Ubuntu packages `libgl1 libglx0 libopengl0`).
+Its X11 and OpenMP dependencies use the distribution's `libX11.so.6` and
+`libgomp.so.1` (Ubuntu packages `libx11-6 libgomp1`).
+Its gdiplus text renderer uses the distribution's Pango Cairo/FreeType modules
+`libpangocairo-1.0.so.0` and `libpangoft2-1.0.so.0`
+(Ubuntu packages `libpangocairo-1.0-0 libpangoft2-1.0-0`).
+The GTK dialog ABI `libgtk-3.so.0` is also supplied by the distribution
+(Ubuntu 24.04 package `libgtk-3-0t64`). Pinned OpenSSL libraries are bundled:
+the vcpkg curl build requires OpenSSL symbols newer than Ubuntu 24.04 supplies,
+so matching `libssl.so.3`/`libcrypto.so.3` cannot be treated as system ABI files.
+Linux disables Cocos' unused `BUILD_EDITOR_SPINE` module; the core/plugin
+consumers, CocoStudio UI and MotionPlayer/Emote remain intact. The original
+Spine license stays in the untouched source tar, not the binary's used-module
+notice set. This Linux-only choice does not change Android or Apple builds.
+KiriKiri2 Linux bundles the pinned Cocos FMOD runtime as `libfmod.so.6`,
+using relative `$ORIGIN` lookup. It is a third-party runtime, not a system ABI.
+The project owner authorized its redistribution on 2026-10-31. The package's
+`licenses/kirikiroid2-web/FMOD.txt` preserves Firelight attribution and exact
+binary/archive provenance. Cocos source remains MIT; FMOD is not relicensed MIT.
+The source bundle contains the original dependency archive and rebuild recipes,
+including genuine FMOD headers/prebuilt input, not invented FMOD source or EULA.
+
+The common KiriKiri desktop candidate merges the accepted Linux, macOS and Android
+fork histories on `shinki-common63`, with a new upstream-derived release sequence.
+Its desktop gates rebuild and package Windows x64, Linux x64 and both macOS
+architectures at the same fork revision. CI also prepares corresponding source
+archives without publishing a release or tag. Those archives retain the complete
+fork snapshot, recursive Gitlinks/LFS payloads, native recipe inputs and original
+third-party licenses; the shared PAX-link handling preserves long link targets.
+The product keeps the modern Manager pins and 32 MiB resource contract. Android
+seven-core integration is gated by its own product owner; broad iOS integration
+remains a separate candidate and is not enabled by merging source history.
+`Tools/verify-krkr-desktop.py` checks the actual package's indexed bytes,
+original resource/license assets and native closure. It loads only the packaged
+library and calls the real ABI query for version 3, an unsupported version and a
+null output; it never initializes a core or opens a session. Linux additionally
+checks every packaged ELF with `ldd -r` without `LD_LIBRARY_PATH`; macOS verifies
+every Mach-O with strict codesign and resolves its relocatable dependencies.
+Windows retains the existing unsigned core distribution contract.
+The ABI probe is a separate native consumer compiled against the pinned C header.
+It cannot inherit Python's already-loaded OpenSSL when auditing the bundled
+OpenSSL runtime, and it retains the same real loader and ABI failure checks.
 
 RFVP additionally uses the distribution's GStreamer 1.x (at least 1.14) and GLib 2.x (at least 2.56), including the base, good and libav plugin packages for native movie decoding. These are system runtime requirements, not bundled copies. On Ubuntu install `libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libglib2.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav`. Package `build.json` records the actual required system SONAMEs in `system_dependencies`.
 

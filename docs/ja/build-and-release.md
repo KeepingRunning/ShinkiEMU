@@ -60,7 +60,7 @@ Manager は、ネットワーククライアントやワーカースレッドを
 リポジトリで固定された Rust 1.99.1 ツールチェーンを使います。Ubuntu 22.04/24.04 では、ネイティブ開発パッケージを明示的にインストールします。
 
 ```sh
-sudo apt-get install -y --no-install-recommends build-essential cmake ninja-build pkg-config nasm patchelf autoconf automake libtool libltdl-dev autoconf-archive python3-jinja2 python3-venv libxtst-dev libxxf86vm-dev bison flex gperf libssl-dev libasound2-dev libudev-dev libx11-dev libx11-xcb-dev libxcb1-dev libxrandr-dev libxi-dev libxcursor-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libfontconfig1-dev libegl1-mesa-dev libgl1-mesa-dev libvulkan-dev mesa-vulkan-drivers xvfb xauth unzip jq
+sudo apt-get install -y --no-install-recommends build-essential cmake ninja-build pkg-config nasm patchelf autoconf automake libtool libltdl-dev autoconf-archive python3-jinja2 python3-venv libxtst-dev libxxf86vm-dev libxinerama-dev bison flex gperf libssl-dev libasound2-dev libudev-dev libx11-dev libx11-xcb-dev libxcb1-dev libxrandr-dev libxi-dev libxcursor-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libfontconfig1-dev libegl1-mesa-dev libgl1-mesa-dev libvulkan-dev mesa-vulkan-drivers xvfb xauth unzip jq
 sudo apt-get install -y --no-install-recommends libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libglib2.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
@@ -90,6 +90,12 @@ Ren'Py のパッケージには SDK ランタイムとインストール済み�
 Linux の Manager 向け `deps` は、ディストリビューションが提供する開発ライブラリを確認するだけで、`apt` は呼び出しません。コア向けの `deps` は、ターゲットごとに独立したディレクトリでロックされた vcpkg のネイティブライブラリを準備し、パッケージング用に再配置可能な共有ライブラリの通常ファイルを生成します。パッケージのディレクトリで `./shinki-emu-manager` を実行してください。パッケージングでは ELF のアーキテクチャ、ローダーのパス、依存関係の閉包を確認し、ライセンス表記とオフラインのメタデータスナップショットを同梱します。`ci` が報告する ZIP では実行権限が保持されます。CI とリリースのジョブは、同じ依存関係と xtask コマンドを使います。コアが利用できるかどうかは引き続き `matrix` に従い、blocked と宣言されたコアにはバイナリの添付ファイルが作られません。
 Linux パッケージは、ディストリビューションが提供する glibc、libstdc++、OpenSSL 3、fontconfig、udev、ALSA の ABI ライブラリに加え、ストアの Web サインイン用に GTK 3 と WebKitGTK 4.1 を使います。導入先のシステムには対応するランタイムパッケージ（Ubuntu では GTK 3 も一緒に入る `libwebkit2gtk-4.1-0`）をインストールし、グラフィックドライバーを備えた X11 または Wayland のデスクトップを用意してください。
 Impacto の Linux VA-API ライブラリは、システムのグラフィックススタックに含まれる `libdrm.so.2`（Ubuntu パッケージ `libdrm2`）も必要とし、コアには同梱しません。
+KiriKiri2 は、ディストリビューションの OpenGL ディスパッチライブラリ `libGL.so.1`、`libGLX.so.0`、`libOpenGL.so.0`（Ubuntu パッケージ `libgl1 libglx0 libopengl0`）も使います。
+X11 と OpenMP には、ディストリビューションの `libX11.so.6` と `libgomp.so.1`（Ubuntu パッケージ `libx11-6 libgomp1`）を使います。
+gdiplus の文字描画には、ディストリビューションの `libpangocairo-1.0.so.0` と `libpangoft2-1.0.so.0`（Ubuntu パッケージ `libpangocairo-1.0-0 libpangoft2-1.0-0`）も必要です。
+GTK ダイアログにはディストリビューションの `libgtk-3.so.0`（Ubuntu 24.04 の `libgtk-3-0t64`）を使います。vcpkg curl が Ubuntu 24.04 より新しい OpenSSL シンボルを必要とするため、対応する固定版の `libssl.so.3` と `libcrypto.so.3` はシステム ABI とせず同梱します。
+Linux では未使用の `BUILD_EDITOR_SPINE` だけを無効にし、CocoStudio UI と MotionPlayer/Emote の実装は維持します。元の Spine ライセンスは完全な上流ソース tar に残し、バイナリが使うモジュールの表記から除きます。Android と Apple の構成は変更しません。
+KiriKiri2 Linux は、固定された Cocos の FMOD ランタイムを `libfmod.so.6` として同梱し、相対 `$ORIGIN` パスで読み込みます。システム ABI には分類しません。プロジェクト所有者は 2026-10-31 に再配布を承認しました。パッケージの `licenses/kirikiroid2-web/FMOD.txt` に Firelight の帰属表示と正確なバイナリ・アーカイブの出所を記録します。Cocos のソースは MIT ですが、FMOD を MIT に変更しません。ソースバンドルには元の依存アーカイブ、実際の FMOD ヘッダー・ビルド済み入力と再ビルド手順を含め、FMOD の実装ソースや過去の EULA を作成しません。
 
 RFVP は、ネイティブの動画デコードのために、ディストリビューションが提供する GStreamer 1.x（1.14 以上）、GLib 2.x（2.56 以上）、および base、good、libav プラグインも必要とします。これらはシステムの実行要件として宣言され、コアには同梱されません。Ubuntu では `libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libglib2.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav` をインストールします。パッケージ内の `build.json` の `system_dependencies` には、実際に依存するシステムの SONAME が記録されます。
 
