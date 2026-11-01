@@ -176,9 +176,9 @@ RFVP 的 Apple 字幕依赖在原生 macOS/Xcode 上按固定 vcpkg 清单构建
 
 模拟器包包含 `simulator-test.app`；设备打包生成带 `Payload/*.app` 的 `device-test.ipa`，`ci` 报告该 IPA 的真实路径。打包先校验单架构 Mach-O、设备/模拟器平台以及系统/随包依赖闭包，再签署副本。Linux 使用 `rcodesign sign` 并逐个验证 Mach-O，原生 macOS 使用 `codesign`。ad-hoc 签名是真实签名，但不提供 Apple provisioning、公证或 App Store 身份。设备安装仍需有效的 Apple 签名及 provisioning，这些产物用于测试与集成，不是正式安装包。Release 名称包含 iOS 的设备/模拟器 variant，避免同架构附件重名。
 
-SDK 验收需保留真实产物路径、大小，以及 `file`、`llvm-objdump --macho --dylibs-used --private-headers <executable>`、`rcodesign verify <executable>` 的输出。缺少合法 SDK 时，这项验收仍受阻；编译成功本身不代表游戏运行兼容。
+SDK 验收保留真实产物路径和大小、原生架构与依赖检查，以及对应平台的正常验签输出。原生 macOS 打包使用 Apple `codesign`。缺少合法 SDK 时，这项验收仍受阻；编译成功本身不代表游戏运行兼容。
 
-Apple Manager 的 `build.json` 记录打包改写和签名前的原生输入，不是签名后可执行文件的字节哈希。签名后哈希、真实验签输出，以及原生输入到签名产物的完整变换证明需分别保留。只能核对该包已观察到的签名变换，并要求整文件哈希精确对应；不能忽略 `__LINKEDIT` 或对未知差异做任意归一化。
+Apple Manager 的 `build.json` 记录打包改写和签名前的原生输入，因此签名后的可执行文件可以有不同的字节哈希；发行记录标识实际分发的包。保留正常的平台验签及产品、目标、版本对应检查，不把原生输入回执改标为签名后二进制的哈希。
 
 ## OpenHarmony Manager
 
@@ -277,7 +277,7 @@ Manager 与自研 CMVS/Musica 保留各自的 SemVer 和 `manager-v<semver>`、`
 
 `release.yml` 构建所选组件在托管平台的所有行，并自动发布不含本地专用目标的组件。含受支持 OHOS 目标的 Manager 由上文有门禁的本地流程补齐 HAP 与源码后发布。单个核心可推送 tag；多个组件用 `version` 和 `components` 手动触发工作流。一次推送超过三个新 tag 不会触发工作流。
 
-需要先验收再公开时，仍运行这份 `release.yml`，传入 `prepare_only=true`，并可用 `source_commit` 指定精确的 40 位产品提交。显式指定源码提交只允许用于仅准备模式。原矩阵、依赖、原生、签名、打包和对应源码命令保持不变；最终交接要求每个平台的记录都与实际产品提交、组件、版本和目标一致，并跳过公开发行步骤。workflow dispatch SHA 只标识编排代码，不是产品来源。下载实际附件，逐项核验二进制、源码及嵌套重构建配方的文件和链接后，再从已接受产品提交的干净检出用现有 xtask 公开；不能把工具提交改标为产品源码，也不能用 CI 成功代替源码实物验收。
+需要只准备、不公开时，仍运行这份 `release.yml`，传入 `prepare_only=true`，并可用 `source_commit` 指定精确的 40 位产品提交。显式指定源码提交只允许用于仅准备模式。原生构建、打包、平台签名及源码和许可证打包命令保持不变；最终交接要求每份记录对应实际产品提交、组件、版本和目标，并跳过公开发行步骤。workflow dispatch SHA 只标识编排代码，不是产品来源。从已接受产品提交的干净检出用现有 xtask 发布实际产物；CI 成功不代替产物可获取、正常包结构及平台签名要求。
 
 工作流的 `version` 只适用于 Manager/自研核心；第三方组件在展开平台矩阵前分别核验并计算自己的版本。第三方执行上面的发布命令时省略 `--version`，Manager/自研核心仍须传入。
 
