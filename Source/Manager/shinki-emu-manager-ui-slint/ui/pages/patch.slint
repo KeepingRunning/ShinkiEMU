@@ -309,6 +309,52 @@ component RecipeTile {
     }
 }
 
+// Shown while in-place overwrite is selected: the run modifies the game directory itself.
+component InPlaceNotice {
+    in property <bool> has-backup;
+
+    min-height: notice.min-height;
+    accessible-role: text;
+    accessible-label: title.text + "\n" + body.text;
+
+    Rectangle {
+        border-radius: 8px;
+        background: MaterialPalette.tertiary-container;
+    }
+
+    notice := HorizontalLayout {
+        padding: Theme.space-md;
+        spacing: Theme.space-sm;
+        VerticalLayout {
+            alignment: start;
+            Icon {
+                width: 20px;
+                source: Icons.warning;
+                colorize: MaterialPalette.on-tertiary-container;
+            }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: 4px;
+            title := MaterialText {
+                text: @tr("原位覆盖会直接修改原游戏目录");
+                style: MaterialTypography.title-small;
+                color: MaterialPalette.on-tertiary-container;
+                wrap: word-wrap;
+                overflow: clip;
+            }
+            body := MaterialText {
+                text: (root.has-backup ? @tr("这个游戏目录已有一次原位覆盖的备份。") + "\n" : "")
+                    + @tr("写入前会把要改动的原文件备份到游戏目录的 .shinki/backup。之后可以在本页点击“还原最近一次补丁”恢复原文件。");
+                style: MaterialTypography.body-medium;
+                color: MaterialPalette.on-tertiary-container;
+                wrap: word-wrap;
+                overflow: clip;
+            }
+        }
+    }
+}
+
 component StepRow {
     in property <int> step;
     in property <bool> locked;
@@ -386,7 +432,7 @@ export component PatchPage {
     property <bool> failed: Patch.state.error != "";
     property <bool> has-game: Patch.game.id != "";
     property <bool> has-script: Patch.state.script != "";
-    property <bool> has-output: Patch.state.output-directory != "";
+    property <bool> has-output: Patch.state.in-place || Patch.state.output-directory != "";
     // The controller owns running (forced to 4) and completion (5 after a started run).
     property <int> step: root.locked ? 4
         : !root.has-game ? 1
@@ -668,27 +714,48 @@ export component PatchPage {
             if root.step == 3 : Panel {
                 SectionTitle {
                     text: @tr("目录");
-                    description: @tr("补丁输入目录默认是游戏目录。补丁结果写入新的独立目录，游戏目录保持不变。");
+                    description: @tr("补丁输入目录默认是游戏目录；可选择新目录或原位覆盖。原位覆盖会把修改前的文件保存在游戏目录的 .shinki/backup。");
                 }
+                HorizontalLayout {
+                    spacing: Theme.space-sm;
+                    SelectableTile {
+                        text: @tr("新目录");
+                        selected: !Patch.state.in-place;
+                        clicked => { Patch.set-mode(false); }
+                    }
+                    SelectableTile {
+                        text: @tr("原位覆盖");
+                        selected: Patch.state.in-place;
+                        clicked => { Patch.set-mode(true); }
+                    }
+                }
+                if Patch.state.in-place : InPlaceNotice { has-backup: Patch.state.has-backup; }
                 DirectoryPicker {
                     label: @tr("补丁输入目录");
                     value: Patch.state.patch-directory;
                     empty-text: @tr("使用游戏目录");
                     pick => { Patch.pick-directory("patch"); }
                 }
-                DirectoryPicker {
+                if !Patch.state.in-place : DirectoryPicker {
                     label: @tr("输出目录");
                     value: Patch.state.output-directory;
                     empty-text: @tr("尚未选择");
                     hint: @tr("选择父目录；将在其中新建输出目录（重名时自动加编号，不覆盖现有文件）");
                     pick => { Patch.pick-directory("output"); }
                 }
+                if root.failed : MaterialText {
+                    text: Patch.state.error;
+                    style: MaterialTypography.body-small;
+                    color: MaterialPalette.error;
+                    wrap: word-wrap;
+                    overflow: clip;
+                }
             }
 
             if root.step == 4 : Panel {
                 SectionTitle {
                     text: root.locked ? @tr("正在转换") : root.failed ? @tr("转换失败") : @tr("开始转换");
-                    description: root.locked || root.failed ? "" : @tr("确认下面的设置后开始。开始前会核对游戏的发行版本；转换期间可以随时取消，取消时不会生成输出目录。");
+                    description: root.locked || root.failed ? "" : Patch.state.in-place ? @tr("原文件备份到 .shinki/backup；取消前不会修改游戏文件。") : @tr("确认下面的设置后开始。开始前会核对游戏的发行版本；转换期间可以随时取消，取消时不会生成输出目录。");
                 }
 
                 if !root.locked : VerticalLayout {
@@ -719,13 +786,14 @@ export component PatchPage {
                         wrap: word-wrap;
                         overflow: clip;
                     }
-                    MaterialText {
+                    if !Patch.state.in-place : MaterialText {
                         text: @tr("输出目录：{}", root.has-output ? Patch.state.output-directory : @tr("未选择"));
                         style: MaterialTypography.body-medium;
                         color: MaterialPalette.on-surface;
                         wrap: word-wrap;
                         overflow: clip;
                     }
+                    if Patch.state.in-place : InPlaceNotice { has-backup: Patch.state.has-backup; }
                 }
 
                 if root.locked : VerticalLayout {

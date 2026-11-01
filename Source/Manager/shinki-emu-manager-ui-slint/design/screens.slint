@@ -353,11 +353,12 @@ export component PatchRecipes inherits ManagerWindow {
     }
 }
 
-// The game files were identified as another release; the controller refuses to run.
+// The game files were identified as another release; the controller refuses to run in either mode.
 export component PatchRecipeMismatch inherits ManagerWindow {
     init => {
         Mock.patch-bound(false);
         Patch.step = 2;
+        Patch.state.can-start = false;
         Patch.state.error = "游戏文件与补丁适用的发行版本不匹配\n补丁适用 r36790；游戏目录中的 data/script.pak 大小与该版本不符。";
     }
 }
@@ -369,6 +370,17 @@ export component PatchDirectory inherits ManagerWindow {
     }
 }
 
+// In-place overwrite selected on a game that already holds a backup from an earlier run.
+export component PatchDirectoryInPlace inherits ManagerWindow {
+    init => {
+        Mock.patch-bound(false);
+        Patch.step = 3;
+        Patch.state.in-place = true;
+        Patch.state.output-directory = "";
+        Patch.state.has-backup = true;
+    }
+}
+
 export component PatchConfirm inherits ManagerWindow {
     init => {
         Mock.patch-bound(false);
@@ -376,11 +388,32 @@ export component PatchConfirm inherits ManagerWindow {
     }
 }
 
+export component PatchConfirmInPlace inherits ManagerWindow {
+    init => {
+        Mock.patch-bound(true);
+        Patch.step = 4;
+        Patch.state.in-place = true;
+        Patch.state.output-directory = "";
+    }
+}
+
 export component PatchConfirmMismatch inherits ManagerWindow {
     init => {
         Mock.patch-bound(true);
         Patch.step = 4;
+        Patch.state.can-start = false;
         Patch.state.error = "游戏文件与补丁适用的发行版本不匹配\n补丁适用 r36790；游戏目录缺少 data/patch01.pak。";
+    }
+}
+
+export component PatchConfirmInPlaceMismatch inherits ManagerWindow {
+    init => {
+        Mock.patch-bound(false);
+        Patch.step = 4;
+        Patch.state.in-place = true;
+        Patch.state.output-directory = "";
+        Patch.state.can-start = false;
+        Patch.state.error = "游戏文件与补丁适用的发行版本不匹配\n补丁适用 r36790；游戏目录中的 data/script.pak 大小与该版本不符。";
     }
 }
 

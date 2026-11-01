@@ -250,6 +250,8 @@ export global Patch {
     callback pick-script();
     // "patch" | "output"
     callback pick-directory(string);
+    // false: new standalone output directory (default); true: in-place overwrite with .shinki/backup.
+    callback set-mode(bool);
     callback restore();
     callback start();
     callback cancel();

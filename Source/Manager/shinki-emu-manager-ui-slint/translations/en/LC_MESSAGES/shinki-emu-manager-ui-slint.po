@@ -216,8 +216,26 @@ msgstr "Local recipe"
 msgid "选择本地脚本…"
 msgstr "Choose local recipe…"
 
-msgid "补丁输入目录默认是游戏目录。补丁结果写入新的独立目录，游戏目录保持不变。"
-msgstr "The patch input directory defaults to the game directory. The patched result goes to a new standalone folder, and the game directory is left unchanged."
+msgid "补丁输入目录默认是游戏目录；可选择新目录或原位覆盖。原位覆盖会把修改前的文件保存在游戏目录的 .shinki/backup。"
+msgstr "The patch input directory defaults to the game directory. Choose New directory or In-place overwrite; in-place mode keeps the original files in the game's .shinki/backup."
+
+msgid "新目录"
+msgstr "New directory"
+
+msgid "原位覆盖"
+msgstr "In-place overwrite"
+
+msgid "原位覆盖会直接修改原游戏目录"
+msgstr "In-place overwrite modifies the original game directory"
+
+msgid "这个游戏目录已有一次原位覆盖的备份。"
+msgstr "This game directory already has a backup from an earlier in-place overwrite."
+
+msgid "写入前会把要改动的原文件备份到游戏目录的 .shinki/backup。之后可以在本页点击“还原最近一次补丁”恢复原文件。"
+msgstr "Before writing, the original files that will change are backed up to the game's .shinki/backup. To get them back later, click “Restore latest patch” on this page."
+
+msgid "原文件备份到 .shinki/backup；取消前不会修改游戏文件。"
+msgstr "Original files are backed up to .shinki/backup. Game files stay unchanged until the run finishes."
 
 msgid "补丁输入目录"
 msgstr "Patch input directory"
