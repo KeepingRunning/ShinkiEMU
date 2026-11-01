@@ -1,6 +1,6 @@
-//! Dynamic adapter tracing/log bridge. Static cores use the Host subscriber.
+//! Adapter tracing/log bridge. Host callbacks may share the static subscriber.
 use crate::*;
-use std::{fmt, mem::MaybeUninit, sync::OnceLock};
+use std::{cell::Cell, fmt, mem::MaybeUninit, sync::OnceLock};
 use tracing::{
     Event, Level, Subscriber,
     field::{Field, Visit},
@@ -45,6 +45,28 @@ pub unsafe fn install(sink: Diagnostics) -> Result<(), Status> {
     }
 }
 struct Bridge(Sink);
+thread_local! {
+    static FORWARDING: Cell<bool> = const { Cell::new(false) };
+}
+
+struct ForwardingGuard;
+impl ForwardingGuard {
+    fn enter() -> Option<Self> {
+        FORWARDING.with(|active| {
+            if active.replace(true) {
+                None
+            } else {
+                Some(Self)
+            }
+        })
+    }
+}
+impl Drop for ForwardingGuard {
+    fn drop(&mut self) {
+        FORWARDING.with(|active| active.set(false));
+    }
+}
+
 fn level(value: &Level) -> u32 {
     match *value {
         Level::ERROR => LOG_ERROR,
@@ -56,6 +78,12 @@ fn level(value: &Level) -> u32 {
 }
 impl<S: Subscriber> Layer<S> for Bridge {
     fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
+        // A statically linked host can trace from emit into this same subscriber.
+        // Forward the original event once; never feed callback diagnostics back
+        // into the ABI. Keep the guard through field formatting and the callback.
+        let Some(_forwarding) = ForwardingGuard::enter() else {
+            return;
+        };
         let mut visitor = Visitor::new();
         if let Some(line) = event.metadata().line() {
             visitor.push("source_line", Value::Unsigned(line.into()));

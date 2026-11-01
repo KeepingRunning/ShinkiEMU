@@ -26,6 +26,8 @@ description: C ABI v3 生命周期、owner 线程、CPU 帧租约和核心包。
 
 普通 ABI 调用在宿主 owner 线程串行执行。核心自己的原生 owner 负责 VM 推进、渲染/音频调度及资源生命周期。Manager 只提供输入、控制和宿主服务，没有 advance 回调。取消和 epoch 校验会拒绝旧会话或旧输出代次的迟到结果。
 
+共享 Rust 诊断桥对每条原始事件只转发一次。宿主回调向同一个静态链接 tracing subscriber 发出的嵌套事件，不会再次经 ABI 回传。线程局部保护覆盖字段格式化和回调，在返回或异常展开时复位；其他线程和后续事件不受影响。所有使用 `shinki-emu-abi/diagnostic-bridge` 的核心共用这项行为，无需改变日志级别或 worker 栈预算。
+
 ## 转换结果兼容性
 
 现有 `Descriptor.capabilities` 掩码增加两个可选语义位，ABI 版本 3、C 布局和 fingerprint 均不变：

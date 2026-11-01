@@ -26,6 +26,8 @@ Only C-layout values cross the boundary: versioned headers, bounded borrowed spa
 
 Ordinary ABI calls are serialized on the host's owner thread. The core's native owner drives its own VM, render/audio scheduling and resource lifetimes. Manager supplies input, control and host services; there is no host advance callback. Cancellation and epoch checks reject late results from obsolete sessions or output generations.
 
+The shared Rust diagnostic bridge forwards each original event once. If a host callback emits tracing events into the same statically linked subscriber, those nested events are not forwarded back through the ABI. A thread-local guard covers formatting and the callback, resets on return or unwind, and leaves other threads and subsequent events independent. This applies to every core using `shinki-emu-abi/diagnostic-bridge`, without changing log levels or worker stack budgets.
+
 ## Converted-game compatibility
 
 The existing `Descriptor.capabilities` mask has two optional semantic bits; ABI
