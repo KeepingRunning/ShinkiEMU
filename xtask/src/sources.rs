@@ -335,7 +335,13 @@ fn append_revision(
         let relative = entry.path()?.into_owned();
         let path = prefix.join(&relative);
         let mut header = entry.header().clone();
-        if header.entry_type().is_file() && entry.size() <= 1024 {
+        if header.entry_type().is_symlink() || header.entry_type().is_hard_link() {
+            // Git stores long link targets in PAX records, not the raw header.
+            let target = entry
+                .link_name()?
+                .context("Git archive link lacks target")?;
+            builder.append_link(&mut header, path, target)?;
+        } else if header.entry_type().is_file() && entry.size() <= 1024 {
             let size = entry.size() as usize;
             let mut bytes = [0u8; 1024];
             std::io::Read::read_exact(&mut entry, &mut bytes[..size])?;
@@ -1491,6 +1497,66 @@ mod tests {
             fs::read(extracted.join("payload.txt")).unwrap(),
             b"second public source\n"
         );
+    }
+
+    #[test]
+    fn source_archive_preserves_git_pax_link_targets_without_following_worktree_links() {
+        let (temp, _inv, _core, upstream, _first, _second) = fixture();
+        let target = format!("{}payload.bin", "nested-runtime-resources/".repeat(5));
+        assert!(target.len() > 100);
+        let target_path = upstream.join(&target);
+        fs::create_dir_all(target_path.parent().unwrap()).unwrap();
+        fs::write(&target_path, b"committed linked source").unwrap();
+        fs::write(upstream.join("source.link"), target.as_bytes()).unwrap();
+        let blob = dependencies::capture(git(&upstream).args(["hash-object", "-w", "source.link"]))
+            .unwrap();
+        let blob = std::str::from_utf8(&blob).unwrap().trim();
+        dependencies::run(git(&upstream).args(["add", &target])).unwrap();
+        dependencies::run(git(&upstream).args([
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            &format!("120000,{blob},source.link"),
+        ]))
+        .unwrap();
+        let pin = commit(&upstream, "source with a long committed link\n");
+        let committed = dependencies::capture(git(&upstream).args([
+            "cat-file",
+            "blob",
+            &format!("{pin}:source.link"),
+        ]))
+        .unwrap();
+        fs::write(upstream.join("source.link"), b"unpublished link target").unwrap();
+        fs::write(&target_path, b"unpublished linked content").unwrap();
+        let archive = temp.path().join("long-link.tar");
+        let prefix = Path::new("corresponding-source");
+        let mut builder = tar::Builder::new(fs::File::create(&archive).unwrap());
+        append_revision(&mut builder, &upstream, &pin, prefix).unwrap();
+        builder.finish().unwrap();
+        let mut found = false;
+        for entry in tar::Archive::new(fs::File::open(&archive).unwrap())
+            .entries()
+            .unwrap()
+        {
+            let entry = entry.unwrap();
+            if entry.path().unwrap() == prefix.join("source.link") {
+                assert!(entry.header().entry_type().is_symlink());
+                assert_eq!(entry.link_name_bytes().unwrap().as_ref(), committed);
+                found = true;
+            }
+        }
+        assert!(found);
+        #[cfg(unix)]
+        {
+            let extracted = temp.path().join("long-link-extracted");
+            unpack(&archive, &extracted);
+            let link = extracted.join(prefix).join("source.link");
+            assert_eq!(
+                fs::read_link(&link).unwrap(),
+                Path::new(std::str::from_utf8(&committed).unwrap())
+            );
+            assert_eq!(fs::read(link).unwrap(), b"committed linked source");
+        }
     }
 
     #[test]
