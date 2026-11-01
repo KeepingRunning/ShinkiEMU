@@ -13,6 +13,10 @@ Every file written by ShinkiEMU itself inside a game directory belongs under `<g
 
 Clone the repository with its recursive submodules. Use Rust/Cargo and the target's native toolchain. Windows native builds require an x64 MSVC developer environment, CMake, Ninja and Git. Android uses JDK 27, NDK 30.0.16248370 and cargo-ndk 4.1.2. Tool versions and downloads are inputs in `build/dependencies.toml`; core manifests/features/licenses are in `build/cores.toml`, and target/runner definitions in `build/targets.toml`.
 
+KiriKiri's parser generator runs on the build host, including Android cross-builds.
+Windows uses the pinned WinFlexBison prepared by `deps`; other hosts require Bison
+on `PATH`. CI installs Bison/Flex for its Linux-hosted Android rows.
+
 Ren’Py additionally needs the official pinned SDK: `RENPY_SDK_ROOT`, `RENPY_PYTHON_DEV`, `RENPY_SDL_INCLUDE` and the official Cython 3.2.4 compiler matching CPython 3.12.7. These are upstream build/runtime dependencies, not replacement product build tools. Inspect the selected fork's `shinki/sdk.json` for SDK inputs.
 
 The POSIX SDL 2.0.20 source archive is downloaded from the official SDL GitHub release. Its SHA256 remains `c56aba1d7b5b0e7e999e4a7698c70b63a3394ff9704b5f6e1c57e0c16f04dd06`; the archive bytes and SDK ABI are unchanged. The Android Ren’Py source builder also requires its LLVM 18/Clang 18, LLD and ccache host toolchain and native development packages. CI and Release install the same existing prerequisite list; the Android SDK/NDK alone is insufficient.
@@ -127,7 +131,53 @@ cargo xtask build --target x86_64-linux-android --manager --release
 cargo xtask package --target aarch64-linux-android --manager --version 0.1.0-beta.2 --out .work/android-test
 ```
 
-Each build imports the `cargo ndk-env` toolchain and invokes Cargo directly with `--locked`, statically links the cores whose `static_manager_targets` include the triple (RFVP, Siglus, Shinki Musica, Artemis, Impacto and Ren’Py) and stages the JNI runtime closure, metadata and licenses under its recorded target directory's `android-inputs/`. Packaging requires release receipts for **both** triples from the same source commit. Gradle then creates a universal APK containing `arm64-v8a`, `x86_64` and `assets/metadata/`; xtask checks its signature and every native library's dependency closure. Without signing secrets the output is `ShinkiEMU-<version>-android-universal-debug-signed.apk`: a debug-signed CI test APK, not a release installer. The test key is generated inside `GRADLE_USER_HOME`. The Kotlin verifier component is resolved from the official Maven archive using the Android shim version in `Cargo.lock`, not copied from Cargo's source directory.
+Each build imports the `cargo ndk-env` toolchain and invokes Cargo directly with `--locked`, statically links the cores whose `static_manager_targets` include the triple (RFVP, Siglus, Shinki Musica, Artemis, Impacto, Ren’Py and KiriKiri) and stages the JNI runtime closure, metadata and licenses under its recorded target directory's `android-inputs/`. Packaging requires release receipts for **both** triples from the same source commit. Gradle then creates a universal APK containing `arm64-v8a`, `x86_64` and `assets/metadata/`; xtask checks its signature and every native library's dependency closure. Without signing secrets the output is `ShinkiEMU-<version>-android-universal-debug-signed.apk`: a debug-signed CI test APK, not a release installer. The test key is generated inside `GRADLE_USER_HOME`. The Kotlin verifier component is resolved from the official Maven archive using the Android shim version in `Cargo.lock`, not copied from Cargo's source directory.
+
+KiriKiri is also statically embedded on both Android ABIs. Its native-static
+manifest stages the original Cocos resources and dependency notices into APK
+assets. Before query registration, Manager supplies the extracted app-private
+resource directory. Ren'Py and KiriKiri resolve their resource paths from one
+host directory lookup before either query is registered. The adapter retains
+the original VM, EGL/Cocos renderer and
+audio path; its resolved native archive closure is symbol-isolated from the
+Manager's SDL, JNI, Lua and FFmpeg implementations. Android dynamic core
+downloads/installations remain unsupported; a standalone native ZIP is not a
+Manager integration.
+
+The Android host initializes Krkr's private JavaVM/classloader services before
+static query registration. The original SDL/Cocos Java helpers compile from
+the native-static resource manifest into private Java packages; the existing
+MainActivity supplies lifecycle callbacks. No second Activity entry point or
+exported JNI_OnLoad is installed. CI runs
+`python3 Tools/verify-krkr-android.py --ci-report .work/ci-report.json --out .work/krkr-android-proof.json`
+against the real APK, checking compiled SDL RegisterNatives arrays and their
+private implementation relocations against DEX, the Cocos/host declarations,
+both native query/symbol closures, the single entry Activity, resources and authentic notices.
+Activity attributes are checked on their own manifest element; nested intent
+actions and metadata names are not counted as Activities. Extra Activities,
+unnamed Activity declarations and Activity aliases are rejected.
+The packaged Manager ELF must byte-match the receipt's actual library after
+the pinned NDK's `llvm-strip --strip-unneeded`, matching Gradle's packaging
+transformation without depending on an optional ELF build-ID note.
+The SDL table reader handles ELF extended section counts and symbol indices
+in the large resolved closure. Final linked queries may be local to the
+Manager's shared object; they must still be defined there. Cocos native
+declarations must match DEX and retain their original private implementations.
+The Spine census includes both local and external defined symbols.
+Manager corresponding-source archives include the full Git snapshot of every
+selected external static core under its `ThirdParty/` path, including native
+sources, build recipes, recursive submodules and original per-file licenses.
+`source-references.json` records each embedded fork's exact revision. Rust
+adapter crate sources alone do not supply a native fork's source closure.
+The checker also inspects native exit/environment implementations and verifies
+original UI resource hashes and both-ABI Spine membership. This inspection
+does not launch a device or establish runtime gameplay compatibility.
+Packaging compares the complete bundled manifest and every listed asset's bytes
+with its staged input. AAPT's default underscore-directory exclusion is disabled;
+the package checker enforces this host's 32 MiB per-asset extraction limit with
+bounded streaming, including Impacto's authentic 17,032,620-byte font.
+Archive-path regressions compile and partially link real NDK callers/libraries,
+covering Windows drive/backslash/space paths and generator-specific link directories.
 
 After the first Gradle dependency download, set `SHINKI_EMU_GRADLE_OFFLINE=1` to pass `--offline`; use a new package output directory each time. `cargo xtask ci --target aarch64-linux-android --component manager --report .work/android-ci.json` builds both ABIs and reports the actual APK path. CI prepares dependencies for both triples and runs this command once: `matrix --json --ci` drops the `x86_64-linux-android` Manager row, which would build the same universal APK. Release publishes one universal, release-signed `.apk` and retains the matching sources ZIP.
 
@@ -175,7 +225,7 @@ Ren'Py's macOS build interpreter uses pinned CPython 3.12.7 and a private OpenSS
 
 macOS packaging produces a real `ShinkiEMU.app` with its executable in `Contents/MacOS`, metadata/licenses in `Contents/Resources`, and a ZIP from `ci`/`release`. Apple bundles include the ShinkiEMU application icon. The iOS Manager uses Slint's winit/UIKit backend and Metal renderer on the main thread. Native Files pickers retain security-scoped authorization and bookmarks; application data lives in the app's Library sandbox. iOS process restart requires the user to close and reopen the app. The shared platform activates an actual AVAudioSession for playback; installing arbitrary downloaded core binaries on iOS is not enabled by compiling the Manager. Core-specific embedding/build blockers remain in the inventory.
 
-RFVP, Siglus, Sena, Ethornell and ReMinori build as dynamic cores on both macOS architectures and are statically registered in the iOS Manager on device and both simulator architectures. iOS does not load downloaded core dylibs. The Android Manager statically registers RFVP, Siglus, Shinki Musica, Artemis, Impacto and Ren’Py; KiriKiri is not included. Manager dependency pins are checked against `build/cores.toml`; packages include `embedded-cores.json` and each embedded core's license assets.
+RFVP, Siglus, Sena, Ethornell and ReMinori build as dynamic cores on both macOS architectures and are statically registered in the iOS Manager on device and both simulator architectures. iOS does not load downloaded core dylibs. The successor Android Manager statically registers seven cores: RFVP, Siglus, Shinki Musica, Artemis, Impacto, Ren’Py and KiriKiri. It preserves the frozen six-core Manager's pins and resource contract; its APK, complete corresponding source and exact-head CI require independent acceptance. Manager dependency pins are checked against `build/cores.toml`; packages include `embedded-cores.json` and each embedded core's license assets.
 
 Shinki Musica is included in the iOS Manager's static registry and inventory, with target-isolated static FFmpeg dependencies. Isolated commit `72ac926e1d15a452dc81ca84f3e82776aa302a26` passed exact-head CI and native compilation, packaging, signature, dependency and license checks for the device and both simulator targets. Later Manager releases combining this port with native saves require fresh integrated-head gates. Standalone dynamic-core installation remains unsupported on iOS; device launch acceptance is waived.
 
@@ -261,6 +311,23 @@ Rust dependencies are identified by the unchanged `Cargo.lock` (registry checksu
 
 Native sources cover every installed vcpkg port of the selected installation, followed from `vcpkg/status` including host-triplet build tools. `native/ports/<group>/` holds each registry port's recipe and patches, extracted from the pinned registry tree recorded by its SPDX `gitoid`; overlay ports have no tree identity and are part of the fork snapshot. `.work/vcpkg-downloads/` contains the archives whose SHA512 the installed SPDX records. The instructions clone the pinned vcpkg revision. Impacto additionally retains the prepared LibAtrac9/magic_enum sources; its in-fork mspack is in the fork snapshot.
 
+SPDX Git resources use their exact `git+https://…@<commit>` identity instead of a
+download checksum. The bundle archives that committed tree from vcpkg's Git object
+cache, or fetches the pinned commit into a private temporary repository when it is
+absent. It writes vcpkg's `<port>-<commit>.tar.gz` cache name for offline rebuilds.
+Named SPDX archive inputs retain their recorded cache-relative paths, including
+nested OpenCV caches, after matching the recorded SHA512.
+
+Native vcpkg manifest installations use one `installed-<triplet>` root per core and target. Running Windows, Android arm64 and Android x64 `deps` sequentially therefore preserves each target's dependency and license closure; CMake receives that root and the matching explicit triplet rather than inferring a different Android triplet. Corresponding-source rebuild commands retain the Apple/mobile triplet overlays used by `deps`, including the standalone Android core's `*-android-ffmpeg` triplets.
+
+Standalone Android cores ship native core packages, not APKs. The release APK-signing restriction applies only to Android Manager installers.
+
+Standalone Android native cores resolve the pinned NDK's OpenMP runtime through
+Clang's `--print-file-name=libomp.so`, bundle it when the binary closure needs it,
+and ship the NDK's `NOTICE` and `NOTICE.toolchain` texts alongside core licenses.
+Android corresponding-source recipes run on a Linux build host, require the pinned
+NDK through `ANDROID_NDK_HOME`, and resolve the host Bison rather than WinFlexBison.
+
 The bundle copies inputs that `deps` and `build` already verified: it does not re-hash `.work/downloads`, re-verify recipes, re-resolve Cargo offline or check for dirty trees a second time. `release` itself refuses a dirty product checkout and a build receipt from another source revision.
 
 `cargo xtask deps --core renpy --target x86_64-pc-windows-msvc` prepares the pinned `.work/renpy-build` checkout and its recursive submodules. It preserves dirty existing checkouts by failing before any update; release collection remains read-only.
@@ -275,6 +342,8 @@ Source notice discovery also includes nested asset licenses and font-paired text
 
 Manager and self-owned CMVS/Musica retain `manager-v<semver>` and `core-<slug>-v<semver>` tags and require `--version`. Third-party cores, including RFVP and Artemis, derive their identity from `build/cores.toml`; omit `--version`. `cargo xtask release --component <id> --dry-run` verifies the original upstream ref and full commit against the adapter pin without building or publishing. `release --target <triple>` writes binary/source ZIPs and `release.json` under `.work/release/<tag>/<target>/`. Blocked targets and `publish_blocked` cores produce nothing.
 
+Manager `0.1.0-beta.6` is published from `fef31a82104a371aa919641f1fe08c65285e5267`. Its tags and assets stay immutable. The separate `0.1.0-beta.7` candidate integrates the seven-core Android successor with current main and retains the complete Manager platform set. Every platform requires normal CI, native build, packaging, platform signature, corresponding sources and licenses at the same final product commit and release version; beta.6 records cannot be reused. Android requires the existing release certificate, not the accepted candidate's debug signer. The iOS core set remains RFVP, Siglus, Shinki Musica, Sena, Ethornell and ReMinori; independent new iOS ports do not block this release.
+
 External identities retain original `upstream {repo, ref_kind, ref_name, commit}` separately from organization `adapter {repo, branch, commit}`. Commits are full lowercase 40-hex IDs. Prefer a verified upstream tag at the upstream commit; otherwise record its real upstream branch, never the integration branch. Display is `<ref>@<upstream commit12> (adapter <adapter commit12>)`. Version filenames are `<tag|branch>-<ref slug>-<digest>`: take the first 16 ASCII ref bytes, lowercase alphanumerics and replace every other byte with `-`; digest is full SHA256 of UTF-8 upstream repo/kind/ref/commit, adapter repo/branch/commit and decimal `release_sequence`, each terminated by LF. Versions are at most 88 bytes. Release tags are `core-<plugin slug>-<version>`; plugin slugs lowercase the ID and replace `.`/`_` with `-`. Branch slashes cannot enter paths, and adapter-only changes change the digest.
 
 External plugin slugs are limited to 32 bytes, bounding release tags to 126 safe ASCII bytes.
@@ -287,7 +356,7 @@ The [Ren’Py sequence1 release](https://github.com/Project-Shinkirou/ShinkiEMU/
 
 The indexed snapshot includes `cores-v2.json` (`shinki.emu.cores.v2`) with legacy and typed entries. `cores.json` stays `shinki.emu.cores.v1` and keeps every identity-free published entry, so old Managers retain their downloadable catalog. New Managers prefer indexed v2 and accept v1 snapshots. Old beta entries remain authentic, installable history; public tags/assets are never rewritten. Installation compares package identities, not the adapter crate's independent version.
 
-Upstream-identity packages first require Manager `0.1.0-beta.6`. Beta.5 and earlier reject the added package identity and its longer version field; keep their legacy catalog and packages available. Every new external-core release states this requirement. Keep Sakura recipe 0.2 private until both a compatible Manager and the updated RFVP core are publicly obtainable.
+Upstream-identity packages first require Manager `0.1.0-beta.6`. Beta.5 and earlier reject the added package identity and its longer version field; keep their legacy catalog and packages available. Every new external-core release states this requirement. Sakura recipe 0.2 is now public: compatible Manager beta.6 and the updated RFVP core are both publicly obtainable. Conversion still requires a fresh output directory and leaves the original game and saves untouched.
 
 `cargo xtask release --component <id> --version <semver> --publish` (with `GH_TOKEN` or `GITHUB_TOKEN`) collects every prepared target of that tag. It refuses records from another product commit or core pin, a tag that already names another commit, a draft opened from another commit, and an empty or already-published Release. It creates a draft at the run's commit or reuses that draft (replacing same-name assets from an interrupted run), uploads the source and binary archives, and publishes it; GitHub creates a missing tag at that commit. For a core it then commits every platform's catalog entry under `Metadata/engines/cores/` to `metadata/release-<tag>` and opens a PR to `main`. If the organization does not allow Actions to create PRs, that last step fails with every entry already on the branch; open the PR by hand. Catalog URLs are built from the final tag, never from the draft's `untagged-*` URL. Manager releases are independent of core releases. Debug-signed Android test APKs are recorded as blocked and never uploaded.
 

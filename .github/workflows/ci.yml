@@ -121,7 +121,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends nasm pkg-config build-essential cmake ninja-build ccache clang-18 llvm-18 lld-18 autoconf autoconf-archive automake libtool-bin python3-jinja2 patch unzip zip bc libssl-dev libbz2-dev liblzma-dev libavcodec-dev libavformat-dev libswresample-dev libswscale-dev libfreetype6-dev libfribidi-dev libsdl2-dev libsdl2-image-dev libsdl2-gfx-dev libsdl2-mixer-dev libsdl2-ttf-dev libjpeg-dev libharfbuzz-dev libassimp-dev
+          sudo apt-get install -y --no-install-recommends nasm pkg-config build-essential cmake ninja-build ccache clang-18 llvm-18 lld-18 autoconf autoconf-archive automake libtool-bin python3-jinja2 patch unzip zip bc libssl-dev libbz2-dev liblzma-dev libavcodec-dev libavformat-dev libswresample-dev libswscale-dev libfreetype6-dev libfribidi-dev libsdl2-dev libsdl2-image-dev libsdl2-gfx-dev libsdl2-mixer-dev libsdl2-ttf-dev libjpeg-dev libharfbuzz-dev libassimp-dev bison flex
       - name: Select Android SDK
         if: contains(matrix.target, 'android')
         shell: bash
@@ -150,6 +150,12 @@ jobs:
           } else {
             cargo xtask deps --target $env:TARGET --core $env:COMPONENT
           }
+      - name: Exercise real Krkr archive path consumers
+        if: contains(matrix.target, 'android') && matrix.component == 'manager'
+        shell: bash
+        run: |
+          rustc --edition=2024 --test ThirdParty/kirikiri2/shinki/android_link_plan.rs -o .work/krkr-link-plan-tests
+          .work/krkr-link-plan-tests --test-threads=1
       - name: Build and package
         env:
           TARGET: ${{ matrix.target }}
@@ -165,6 +171,16 @@ jobs:
         with:
           name: source-closure-manager-${{ matrix.target }}
           path: .work/release/manager-v${{ env.SHINKI_EMU_CI_VERSION }}/${{ matrix.target }}/
+          if-no-files-found: error
+      - name: Verify Krkr Android static host contract
+        if: contains(matrix.target, 'android') && matrix.component == 'manager'
+        shell: bash
+        run: python3 Tools/verify-krkr-android.py --ci-report .work/ci-report.json --out .work/krkr-android-proof.json
+      - uses: actions/upload-artifact@v7
+        if: contains(matrix.target, 'android') && matrix.component == 'manager'
+        with:
+          name: krkr-android-static-host-proof
+          path: .work/krkr-android-proof.json
           if-no-files-found: error
       - name: Smoke packaged Linux Manager
         if: matrix.target == 'x86_64-unknown-linux-gnu' && matrix.component == 'manager'

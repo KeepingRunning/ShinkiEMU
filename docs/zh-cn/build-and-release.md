@@ -117,9 +117,11 @@ cargo xtask build --target x86_64-linux-android --manager --release
 cargo xtask package --target aarch64-linux-android --manager --version 0.1.0-beta.2 --out .work/android-test
 ```
 
-每次构建先读取 `cargo ndk-env` 的工具链环境，再直接调用 `Cargo --locked` 编译，静态链接 `static_manager_targets` 含该三元组的核心（RFVP、Siglus、Shinki Musica、Artemis、Impacto、Ren’Py），并在构建记录所指 target 目录的 `android-inputs/` 中收集 JNI 运行依赖、元数据和许可。打包需要**两个三元组**来自同一源码提交的 release 构建记录。Gradle 随后生成含 `arm64-v8a`、`x86_64` 和 `assets/metadata/` 的通用 APK；xtask 检查签名及每个原生库的依赖闭包。没有签名密钥时，输出为 `ShinkiEMU-<version>-android-universal-debug-signed.apk`，这是 debug 签名的 CI 测试包，不是正式安装包。测试密钥生成在 `GRADLE_USER_HOME` 中。证书验证器的 Kotlin 组件由 Gradle 从官方 Maven archive 获取，版本与 `Cargo.lock` 中的 Android shim 同步，不再从 Cargo 源码目录复制 AAR。
+每次构建先读取 `cargo ndk-env` 的工具链环境，再直接调用 `Cargo --locked` 编译，静态链接 `static_manager_targets` 含该三元组的核心（RFVP、Siglus、Shinki Musica、Artemis、Impacto、Ren’Py、KiriKiri），并在构建记录所指 target 目录的 `android-inputs/` 中收集 JNI 运行依赖、元数据和许可。打包需要**两个三元组**来自同一源码提交的 release 构建记录。Gradle 随后生成含 `arm64-v8a`、`x86_64` 和 `assets/metadata/` 的通用 APK；xtask 检查签名及每个原生库的依赖闭包。没有签名密钥时，输出为 `ShinkiEMU-<version>-android-universal-debug-signed.apk`，这是 debug 签名的 CI 测试包，不是正式安装包。测试密钥生成在 `GRADLE_USER_HOME` 中。证书验证器的 Kotlin 组件由 Gradle 从官方 Maven archive 获取，版本与 `Cargo.lock` 中的 Android shim 同步，不再从 Cargo 源码目录复制 AAR。
 
 首次下载 Gradle 依赖后，可设置 `SHINKI_EMU_GRADLE_OFFLINE=1` 传入 `--offline`；每次打包都使用新的输出目录。`cargo xtask ci --target aarch64-linux-android --component manager --report .work/android-ci.json` 构建两个 ABI，并报告实际 APK 路径。CI 先为两个三元组准备依赖，只运行一次该命令：`matrix --json --ci` 去掉了 `x86_64-linux-android` 的 Manager 行，那一行生成的是同一个通用 APK。Release 发布一个通用的 release 签名 APK，并保留对应的 sources ZIP。
+七核共用现有 MainActivity。KiriKiri 的原始 SDL/Cocos Java 辅助类使用私有包名，原生闭包隔离 SDL、FFmpeg 与 JNI 符号；宿主在注册查询前初始化真实 JavaVM、Activity 和资源目录。`Tools/verify-krkr-android.py` 检查实际双 ABI APK 的 DEX/JNI、原始资源和 Spine 闭包。资源解压与打包检查保持 32 MiB 单文件上限及有界流式处理，包含 Impacto 原始 17,032,620 字节字体。debug 签名证明不能代替正式发布签名。
+
 
 所有 Manager 安装包共用 `Assets/Branding/shinkiemu-icon.svg`。Rust 构建或打包时生成 Windows EXE 内嵌 ICO、macOS ICNS、iOS app icon set、Android 自适应启动器 mipmap 和 Linux hicolor PNG。Linux ZIP 还包含 `share/applications/shinkiemu.desktop`，可将它和 `share/icons/hicolor` 安装到相应的应用与图标目录。游戏替换窗口图标后，桌面运行时会在退出游戏时恢复 Manager 图标。
 
@@ -162,7 +164,7 @@ cargo xtask package --target aarch64-apple-ios-sim --manager --version 0.1.0-bet
 
 macOS 包含真实的 `ShinkiEMU.app`，可执行文件位于 `Contents/MacOS`，元数据和许可位于 `Contents/Resources`，`ci`/`release` 生成 ZIP。Apple bundle 也包含 ShinkiEMU 应用图标。iOS Manager 在主线程使用 Slint 的 winit/UIKit 后端和 Metal 渲染器，原生 Files 选择器保留安全作用域授权及书签，应用数据存入自身 Library 沙箱。iOS 重启需由用户关闭再打开应用。共享平台会激活真实的 AVAudioSession；Manager 编译成功不代表可以在 iOS 安装任意下载的核心二进制，核心自身的嵌入与构建限制仍在清单中。
 
-RFVP、Siglus、Sena、Ethornell 和 ReMinori 在两种 macOS 架构上构建动态核心，并在 iOS 真机和两种模拟器架构的 Manager 中静态注册。iOS 不加载下载的核心 dylib；Android Manager 静态注册 RFVP、Siglus、Shinki Musica、Artemis、Impacto 和 Ren’Py，不包含 KiriKiri。构建会核对 Manager 依赖与 `build/cores.toml` 的提交 pin，安装包包含 `embedded-cores.json` 和各静态核心的许可文件。
+RFVP、Siglus、Sena、Ethornell 和 ReMinori 在两种 macOS 架构上构建动态核心，并在 iOS 真机和两种模拟器架构的 Manager 中静态注册。iOS 不加载下载的核心 dylib。后继 Android Manager 静态注册 RFVP、Siglus、Shinki Musica、Artemis、Impacto、Ren’Py 和 KiriKiri 七核，保留冻结六核的提交 pin 与资源合同，独立验收新提交的 APK、完整对应源码和 CI。构建会核对 Manager 依赖与 `build/cores.toml` 的提交 pin，安装包包含 `embedded-cores.json` 和各静态核心的许可文件。
 
 Shinki Musica 已加入 iOS Manager 的静态注册表和核心清单，FFmpeg 依赖按目标隔离。独立提交 `72ac926e1d15a452dc81ca84f3e82776aa302a26` 的精确提交 CI，以及真机目标和两种模拟器目标的原生编译、打包、签名、依赖闭包和许可检查均已通过。后续 Manager 将此移植与原生存档合并时，仍须运行新集成提交的完整门禁。iOS 不支持单独安装动态核心；设备启动验收已获豁免。
 
@@ -259,6 +261,8 @@ Sena 按已批准的上游分发策略保留 MS PGothic 字体。包内 `license
 
 Manager 与自研 CMVS/Musica 保留各自的 SemVer 和 `manager-v<semver>`、`core-<slug>-v<semver>` 标签，仍需 `--version`。RFVP、Artemis 等第三方核心从 `build/cores.toml` 计算版本，不传 `--version`。`cargo xtask release --component <id> --dry-run` 只核验上游 ref、完整提交与适配分支 pin，不构建或发布；`release --target <三元组>` 在 `.work/release/<tag>/<目标>/` 写入二进制 ZIP、源码 ZIP 和 `release.json`。被阻止的目标及 `publish_blocked` 核心不产生文件。
 
+Manager `0.1.0-beta.6` 已从 `fef31a82104a371aa919641f1fe08c65285e5267` 公开，既有 tag 和资产不改写。独立的 `0.1.0-beta.7` 候选把七核 Android 后继与最新 main 合流，保留完整 Manager 支持平台。所有平台都须在同一最终产品提交和发行版本上通过正常 CI、原生构建、打包、平台签名及源码/原许可证随包门禁，不能复用 beta.6 的旧记录。Android 使用既有正式发行证书，不能拿候选的 debug 签名代替。iOS 仍是 RFVP、Siglus、Shinki Musica、Sena、Ethornell、ReMinori；独立新增 iOS 移植不阻塞本次发行。
+
 第三方身份分别保留原作者的 `upstream {repo, ref_kind, ref_name, commit}` 与组织适配仓库的 `adapter {repo, branch, commit}`，提交均为 40 位小写完整哈希。上游提交有已核验标签时用标签，否则用真实上游分支；不能把组织集成分支当上游。显示为 `<ref>@<上游提交前12位> (adapter <适配提交前12位>)`。文件版本是 `<tag|branch>-<ref slug>-<digest>`：取 ref 的前 16 个 ASCII 字节，字母转小写、非字母数字逐个换成 `-`；digest 为八个 UTF-8 字段的完整 SHA256，顺序为上游仓库、ref 类型、ref 名、上游提交、适配仓库、适配分支、适配提交、十进制 `release_sequence`，每项后接 LF。版本最长 88 字节，标签为 `core-<plugin slug>-<version>`，plugin slug 把 ID 转小写并将点和下划线换成 `-`。分支中的斜杠不会进入路径；仅适配代码更新也会生成新身份。
 
 第三方 plugin slug 最长 32 字节，因此 Release 标签最多 126 个安全 ASCII 字节。
@@ -271,7 +275,7 @@ Manager 与自研 CMVS/Musica 保留各自的 SemVer 和 `manager-v<semver>`、`
 
 同一索引额外发布 `cores-v2.json`（`shinki.emu.cores.v2`），包含旧记录和新身份。`cores.json` 保留 v1 以及所有无 identity 的已发布记录，旧 Manager 仍能下载；新 Manager 优先读索引中的 v2，也接受旧 v1 快照。已有 beta 的标签、附件与来历均不改写，仍可安装。安装更新比较包身份，不比较适配 crate 自身的版本号。
 
-上游身份核心包至少需要 Manager `0.1.0-beta.6`。beta.5 及更早版本会拒绝新增的包身份和更长的版本字段，必须保留它们可用的旧目录与旧核心包。每次新的第三方核心发布都要注明此要求。只有兼容 Manager 和新版 RFVP 都能公开获取后，才开放 Sakura 配方 0.2。
+上游身份核心包至少需要 Manager `0.1.0-beta.6`。beta.5 及更早版本会拒绝新增的包身份和更长的版本字段，必须保留它们可用的旧目录与旧核心包。每次新的第三方核心发布都要注明此要求。兼容 Manager beta.6 与新版 RFVP 均已可公开获取，Sakura 配方 0.2 现已开放；转换仍须使用新的输出目录，原游戏和存档不改。
 
 `cargo xtask release --component <id> --version <semver> --publish`（需要 `GH_TOKEN` 或 `GITHUB_TOKEN`）收集该 tag 下所有已准备的目标。它拒绝来自其他产品提交或核心固定版本的记录、已指向其他提交的 tag、从其他提交创建的 draft，以及空 Release 和已发布的 Release。它在本次运行的提交上创建 draft，或复用该提交上的 draft（替换中断运行遗留的同名附件），上传源码包和二进制包后发布；tag 不存在时由 GitHub 在该提交上创建。核心发布之后，它把每个平台的目录条目提交到 `metadata/release-<tag>` 分支的 `Metadata/engines/cores/` 下，再向 `main` 提 PR。组织设置不允许 Actions 创建 PR 时，最后这一步会失败，但所有条目已在分支上，手动提 PR 即可。目录 URL 用最终 tag 构造，不使用 draft 的 `untagged-*` URL。Manager 与核心独立发布；Android debug 签名测试包记为阻止，不会上传。
 

@@ -278,6 +278,8 @@ const STATIC_CORES: &[(&str, shinki_emu_abi::Query)] = &[
     ("impacto", shinki_emu_impacto::shinki_emu_query),
     #[cfg(target_os = "android")]
     ("renpy", shinki_emu_renpy::query),
+    #[cfg(target_os = "android")]
+    ("kirikiroid2-web", shinki_emu_kirikiroid2_web::query),
     #[cfg(target_os = "ios")]
     ("sena-rs", shinki_emu_sena_rs::shinki_emu_query),
     #[cfg(target_os = "ios")]
@@ -293,9 +295,9 @@ fn initialize(
 ) -> Result<BTreeMap<String, String>, String> {
     #[cfg(target_os = "android")]
     {
-        let resources = crate::platform::bundled_resource_dir()
-            .ok_or("SHINKI_EMU_DATA_DIRECTORY_UNAVAILABLE")?
-            .join("cores/renpy/Resources");
+        let root = crate::platform::bundled_resource_dir()
+            .ok_or("SHINKI_EMU_DATA_DIRECTORY_UNAVAILABLE")?;
+        let resources = root.join("cores/renpy/Resources");
         let path = resources.to_str().ok_or("RENPY_RESOURCE_ROOT_ENCODING")?;
         let mut error = shinki_emu_abi::Error::default();
         let status = shinki_emu_renpy::set_resource_root(path, &mut error);
@@ -304,6 +306,12 @@ fn initialize(
                 "RENPY_RESOURCE_ROOT ({status}): {}",
                 String::from_utf8_lossy(&error.message[..error.message_len as usize])
             ));
+        }
+        let resources = root.join("cores/kirikiroid2-web/Resources");
+        let path = resources.to_str().ok_or("KRKR_RESOURCE_ROOT_ENCODING")?;
+        let status = shinki_emu_kirikiroid2_web::set_resource_root(path);
+        if status != shinki_emu_abi::OK {
+            return Err(format!("KRKR_RESOURCE_ROOT ({status})"));
         }
     }
     #[cfg(any(target_os = "android", target_os = "ios", target_env = "ohos"))]

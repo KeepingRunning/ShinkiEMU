@@ -112,9 +112,11 @@ cargo xtask build --target x86_64-linux-android --manager --release
 cargo xtask package --target aarch64-linux-android --manager --version 0.1.0-beta.2 --out .work/android-test
 ```
 
-各ビルドは `cargo ndk-env` のツールチェーン環境を取り込み、Cargo を `--locked` で直接実行します。`static_manager_targets` にそのトリプルを含むコア（RFVP、Siglus、Shinki Musica、Artemis、Impacto、Ren’Py）を静的リンクし、ビルド記録が指す target ディレクトリの `android-inputs/` に、JNI ランタイムの依存関係、証明書検証用の AAR、メタデータ、ライセンスを集めます。KiriKiri は含まれません。パッケージングには、**両方のトリプル**について同じソースコミットから作られた release のビルド記録が必要です。続いて Gradle が `arm64-v8a`、`x86_64`、`assets/metadata/` を含むユニバーサル APK を生成し、xtask が署名と各ネイティブライブラリの依存関係の閉包を確認します。署名鍵がない場合の出力は `ShinkiEMU-<version>-android-universal-debug-signed.apk` です。これは debug 署名の CI テスト用パッケージで、正式なインストーラーではありません。テスト用の鍵は `GRADLE_USER_HOME` 内に生成されます。
+各ビルドは `cargo ndk-env` のツールチェーン環境を取り込み、Cargo を `--locked` で直接実行します。`static_manager_targets` にそのトリプルを含むコア（RFVP、Siglus、Shinki Musica、Artemis、Impacto、Ren’Py、KiriKiri）を静的リンクし、ビルド記録が指す target ディレクトリの `android-inputs/` に、JNI ランタイムの依存関係、証明書検証用の AAR、メタデータ、ライセンスを集めます。パッケージングには、**両方のトリプル**について同じソースコミットから作られた release のビルド記録が必要です。続いて Gradle が `arm64-v8a`、`x86_64`、`assets/metadata/` を含むユニバーサル APK を生成し、xtask が署名と各ネイティブライブラリの依存関係の閉包を確認します。署名鍵がない場合の出力は `ShinkiEMU-<version>-android-universal-debug-signed.apk` です。これは debug 署名の CI テスト用パッケージで、正式なインストーラーではありません。テスト用の鍵は `GRADLE_USER_HOME` 内に生成されます。
 
 Gradle の依存関係を一度ダウンロードしたあとは、`SHINKI_EMU_GRADLE_OFFLINE=1` を設定すると `--offline` が渡されます。パッケージングのたびに新しい出力ディレクトリを使ってください。`cargo xtask ci --target aarch64-linux-android --component manager --report .work/android-ci.json` は両方の ABI をビルドし、実際の APK のパスを報告します。CI は両方のトリプルの依存関係を準備したうえで、このコマンドを 1 回だけ実行します。`matrix --json --ci` が、同じユニバーサル APK を作るだけの `x86_64-linux-android` の Manager 行を除くためです。Release はユニバーサルな release 署名 APK を 1 つだけアップロードし、対応する sources ZIP も公開します。
+後継 Android Manager は KiriKiri を加えた七つのコアを静的登録します。既存の MainActivity と実際の JavaVM を使い、元の SDL/Cocos Java ヘルパーとネイティブ SDL/FFmpeg/JNI 閉包を隔離します。`Tools/verify-krkr-android.py` は新しい HEAD の実 APK に対して両 ABI、DEX/JNI、元のリソース、Spine 閉包を検査します。リソースの上限は 32 MiB で、有界ストリーミングと Impacto の 17,032,620 バイトの元フォントを維持します。debug 署名の証明は正式な公開署名の代わりにはなりません。
+
 
 すべての Manager パッケージは `Assets/Branding/shinkiemu-icon.svg` を共通のアイコンソースとして使います。Rust が Windows EXE の ICO リソース、macOS ICNS、iOS の app icon set、Android のアダプティブランチャー mipmap、Linux の hicolor PNG を生成します。Linux ZIP には `share/applications/shinkiemu.desktop` も含まれます。このファイルと `share/icons/hicolor` をアプリケーションとアイコンのディレクトリにインストールしてください。ゲームがウィンドウアイコンを変更した場合、ゲーム終了時に Manager アイコンへ戻ります。
 
@@ -240,6 +242,8 @@ Manager のパッケージングでは、ターゲットプラットフォーム
 
 Manager と自作 CMVS/Musica は独立した SemVer および `manager-v<semver>`、`core-<slug>-v<semver>` タグを維持し、`--version` を指定します。RFVP、Artemis を含む外部コアは `build/cores.toml` から識別子を計算するため `--version` は省略します。`cargo xtask release --component <id> --dry-run` は元の upstream ref、完全なコミットと adapter pin の関係だけを検証し、ビルド・公開しません。`release --target <トリプル>` は `.work/release/<tag>/<target>/` にバイナリ ZIP、対応ソース ZIP と `release.json` を作成します。ブロック対象と `publish_blocked` コアは成果物を作りません。
 
+Manager `0.1.0-beta.6` は `fef31a82104a371aa919641f1fe08c65285e5267` から公開済みで、既存のタグと添付ファイルは変更しません。独立した `0.1.0-beta.7` 候補では七コアの Android 後継を最新 main とマージし、Manager の対応プラットフォームをすべて維持します。全対象で同じ最終製品コミットとリリース版に対する通常の CI、ネイティブビルド、パッケージ、プラットフォーム署名、ソースと元ライセンスの同梱が必要です。beta.6 の記録や候補の Android debug 署名は流用せず、既存の正式配布用証明書を使います。iOS は RFVP、Siglus、Shinki Musica、Sena、Ethornell、ReMinori のままで、新しい独立 iOS 移植は待ちません。
+
 外部識別子は原作者の `upstream {repo, ref_kind, ref_name, commit}` と組織の `adapter {repo, branch, commit}` を別々に保持します。コミットは小文字 40 桁の完全なハッシュです。upstream の該当コミットに検証済みタグがあればタグを使い、なければ本来の upstream ブランチを使います。組織の統合ブランチを upstream と表記しません。表示は `<ref>@<upstream commit12> (adapter <adapter commit12>)` です。ファイル用の版は `<tag|branch>-<ref slug>-<digest>`。ref の先頭 16 ASCII バイトを取り、英数字を小文字化し、それ以外をそれぞれ `-` にします。digest は upstream repo/kind/ref/commit、adapter repo/branch/commit、十進数の `release_sequence` の順で、各 UTF-8 フィールドに LF を付けた列の完全な SHA256 です。版は最大 88 バイト、タグは `core-<plugin slug>-<version>` です。plugin slug は ID を小文字化して `.` と `_` を `-` に置換します。ブランチの `/` はパスに入らず、adapter のみの変更でも別の識別子になります。
 
 外部 plugin slug は最大 32 バイトで、Release タグは安全な ASCII 文字で最大 126 バイトです。
@@ -252,7 +256,7 @@ Manager と自作 CMVS/Musica は独立した SemVer および `manager-v<semver
 
 同じ index に `cores-v2.json`（`shinki.emu.cores.v2`）を追加し、旧エントリと新識別子を収録します。`cores.json` は v1 と identity のない公開済みエントリを維持するため、旧 Manager のダウンロードは継続します。新 Manager は index にある v2 を優先し、旧 v1 snapshot も受け入れます。公開済み beta のタグ、添付ファイルや来歴は変更せず、引き続きインストールできます。更新は adapter crate の版ではなくパッケージの識別子を比較します。
 
-upstream 識別子付きパッケージには Manager `0.1.0-beta.6` 以降が必要です。beta.5 以前は追加の識別子と長い版フィールドを拒否するため、旧カタログと旧パッケージを維持してください。外部コアの新規 Release にはこの要件を明記します。Sakura recipe 0.2 は、対応 Manager と更新版 RFVP の両方を公開入手できるようになってから公開します。
+upstream 識別子付きパッケージには Manager `0.1.0-beta.6` 以降が必要です。beta.5 以前は追加の識別子と長い版フィールドを拒否するため、旧カタログと旧パッケージを維持してください。外部コアの新規 Release にはこの要件を明記します。対応 Manager beta.6 と更新版 RFVP がともに公開入手可能になったため、Sakura recipe 0.2 は公開済みです。変換先は新しい出力ディレクトリとし、元のゲームとセーブは変更しません。
 
 `cargo xtask release --component <id> --version <semver> --publish`（`GH_TOKEN` または `GITHUB_TOKEN` が必要）は、その tag で準備済みのターゲットをすべて集めます。別の製品コミットや別のコア固定 revision の記録、別のコミットを指す既存の tag、別のコミットから作られた draft、空の Release、公開済みの Release は拒否します。実行中のコミットで draft を作るか、そのコミットの draft を再利用し（中断した実行が残した同名の添付ファイルは置き換えます）、ソースとバイナリのアーカイブをアップロードして公開します。tag がなければ GitHub がそのコミットに作成します。コアの場合は続けて、各プラットフォームのカタログエントリを `metadata/release-<tag>` ブランチの `Metadata/engines/cores/` にコミットし、`main` への PR を作ります。組織の設定で Actions による PR 作成が許可されていない場合、この最後の手順は失敗しますが、エントリはすべてブランチにあるので、PR を手動で作成してください。カタログ URL は最終 tag から作り、draft の `untagged-*` URL は使いません。Manager とコアは別々にリリースされます。Android の debug 署名テスト用 APK はブロック扱いとなり、アップロードされません。
 

@@ -204,14 +204,22 @@ artifact_kind = "native-shared"
 resources = []
 licenses = ["ThirdParty/kirikiri2/LICENSE", "ThirdParty/kirikiri2/shinki/README.md", "ThirdParty/kirikiri2/cpp/plugins/layerExImage/LICENSE.TXT", "ThirdParty/kirikiri2/ui/cocos-studio/DroidSansFallback.LICENSE.txt", "ThirdParty/kirikiri2/shinki/licenses/libbpg-MIT.txt", "ThirdParty/kirikiri2/shinki/licenses/minizip-zlib.txt", "ThirdParty/kirikiri2/shinki/licenses/UnRAR.txt"]
 supported_targets = ["x86_64-pc-windows-msvc"]
+static_manager_targets = ["aarch64-linux-android", "x86_64-linux-android"]
+static_features = ["static"]
 publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/kirikiroid2-web"
-branch = "shinki-apple-xplat"
-rev = "335d1536e59b5b614867aca04dcf189158e6cd15"
+branch = "shinki-common63"
+rev = "d72046c28e6ada623acdb1d72f7075edd488797d"
 upstream = "https://github.com/fenghengzhi/kirikiroid2-web"
-release_sequence = 1
+release_sequence = 2
 upstream_identity = { repo = "https://github.com/fenghengzhi/kirikiroid2-web", ref_kind = "branch", ref_name = "web", commit = "2028cbccaa91498bd36f270d349ae711d0e8fed3" }
+[[cores.blocked]]
+target = "aarch64-linux-android"
+reason = "Statically embedded in the Android Manager; standalone dynamic-core installation is not supported."
+[[cores.blocked]]
+target = "x86_64-linux-android"
+reason = "Statically embedded in the Android Manager; standalone dynamic-core installation is not supported."
 [[cores.blocked]]
 target = "x86_64-unknown-linux-gnu"
 reason = "Linux candidate build/package and ELF closure gates have not completed; the released fork pin remains Windows-only."
@@ -230,12 +238,6 @@ reason = "cocos2dx vcpkg port does not support iOS triplets; port pending."
 [[cores.blocked]]
 target = "x86_64-apple-ios"
 reason = "cocos2dx vcpkg port does not support iOS triplets; port pending."
-[[cores.blocked]]
-target = "aarch64-linux-android"
-reason = "Android Manager beta.6 does not embed KiriKiri; static embedding remains in development for a later Manager release. Standalone Android core packages do not establish Manager support."
-[[cores.blocked]]
-target = "x86_64-linux-android"
-reason = "Android Manager beta.6 does not embed KiriKiri; static embedding remains in development for a later Manager release. Standalone Android core packages do not establish Manager support."
 [[cores.blocked]]
 target = "aarch64-unknown-linux-ohos"
 reason = "Native OpenHarmony host and core adapter are not implemented; OHOS_SDK_NATIVE is additionally required."
