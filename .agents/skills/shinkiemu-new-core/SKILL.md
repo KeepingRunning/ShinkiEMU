@@ -189,7 +189,7 @@ reason = "<具体原因>"
 
 1. `build/cores.toml`：`static_manager_targets` 列 triple，`static_features` 列静态构建 feature。
 2. `Source/Manager/shinki-emu-manager/Cargo.toml` 对应的 `cfg(target_os = "android")` / `cfg(target_os = "ios")` / `cfg(target_env = "ohos")` 段：`path` 依赖，`default-features = false`，`features` 与 `static_features` 完全相同。Musica 是现成例子。
-3. `owner_worker.rs` 的 `STATIC_CORES`（`:269` 起）：例如 `("shinki.emu.musica", shinki_emu_musica::musica_query)`。
+3. `Source/Manager/shinki-emu-manager/src/static_cores.rs` 的 `STATIC_CORES`：例如 `("shinki.emu.musica", shinki_emu_musica::musica_query)`。GUI owner 和 headless runner 共用这张表。
 
 打包会把 `embedded-cores.json` 和嵌入核心的许可写进 Manager 包。
 

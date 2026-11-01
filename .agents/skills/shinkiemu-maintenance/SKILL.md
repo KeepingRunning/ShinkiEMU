@@ -22,7 +22,7 @@ description: Use when maintaining ShinkiEMU itself rather than writing a core - 
 | `build/dependencies.toml` | 工具版本和下载输入（SHA256 固定） |
 | `build/vcpkg/` | `ffmpeg/`、`subtitle/` manifest；`apple-triplets/`（arm64/x64-osx、arm64-ios、arm64-ios-simulator、x64-ios）；`mobile-triplets/`（`*-android-ffmpeg`、`arm64-ohos`、`ohos-toolchain.cmake`） |
 | `Source/Manager/shinki-emu-manager/Cargo.toml` | 静态核心依赖，分 `cfg(target_env = "ohos")`、`cfg(target_os = "ios")`、`cfg(target_os = "android")` 三段 |
-| `Source/Manager/shinki-emu-manager/src/manager_app/owner_worker.rs` | `STATIC_CORES` 表，`register_static` 注册 |
+| `Source/Manager/shinki-emu-manager/src/static_cores.rs` | `STATIC_CORES` 表；GUI owner（`manager_app/owner_worker.rs` 用 `register_static` 注册）和 headless runner 共用 |
 | 根 `Cargo.toml` | `[patch."https://github.com/Project-Shinkirou/ShinkiEMU"]` 把 fork 里 git 依赖的 `shinki-emu-abi/build/sdk` 重定向到树内；`[patch.crates-io]` 固定 kira、cpal、ffmpeg-sys-next、mlua-sys |
 
 `Inventory::load`（`xtask/src/cores.rs`）在每条命令开头校验清单：每个 triple 在 supported 或 blocked 中恰好出现一次；`ThirdParty/` 下的 manifest 必须有 `[cores.source]`，树内核心不能有；slug 不能重复；外部 plugin slug 不超过 32 字节；`validate_static_dependencies` 要求 Manager 的 git/rev/path/features 与清单逐项一致，`default-features` 不能为 true。改清单后先跑 `cargo xtask matrix`，它会直接报出违反的规则。
@@ -121,7 +121,7 @@ upstream_identity = { repo = "<与 upstream 相同>", ref_kind = "tag|branch", r
 
 1. `build/cores.toml`：`static_manager_targets` 列出 triple，`static_features` 列出静态构建用的 feature；动态导出 feature（`dynamic-plugin-export` 等）不能出现在这里。
 2. Manager `Cargo.toml` 对应 `cfg` 段：外部核心写 `git` + 与清单相同的 `rev`，树内核心写 `path`；`default-features = false`，`features` 与 `static_features` 完全一致。
-3. `owner_worker.rs` 的 `STATIC_CORES`：加 `#[cfg(...)] ("<plugin_id>", <crate>::<rust-path query>)`。
+3. `src/static_cores.rs` 的 `STATIC_CORES`：加 `#[cfg(...)] ("<plugin_id>", <crate>::<rust-path query>)`。GUI 和 headless runner 都从这里读。
 
 打包会写 `embedded-cores.json` 和每个嵌入核心的许可文件。Android 常见坑：
 
@@ -204,7 +204,7 @@ shinki-emu-headless compare --actual a.png --baseline b.png [--max-channel-delta
 shinki-emu-headless ui --page library|cores|patches|settings --language zh-CN|en|ja --theme dark|light --output <dir>   # Manager: headless-ui
 ```
 
-构建：`cargo build -p shinki-emu-headless`。`--features static-cmvs` 会把 CMVS 以 `shinki.emu.cmvs` 静态链进去；`--no-default-features` 只构建核心 runner，不含 Manager UI。
+构建：`cargo build -p shinki-emu-headless`。`--features static-cmvs` 会把 CMVS 以 `shinki.emu.cmvs` 静态链进去，`--features static-siglus` 以 `siglus_rs` 链入（与 Manager 同 pin）；`--no-default-features` 只构建核心 runner，不含 Manager UI。
 
 `run` 的主要参数：
 
@@ -253,9 +253,11 @@ shinki-emu-headless ui --page library|cores|patches|settings --language zh-CN|en
 1. **新核心出帧验收**（`shinkiemu-new-core` §11 第 5 项）：`run --core <打包好的 ZIP> --game-dir <真实游戏> --frames 600 --capture-frame 120,600 --output .work/headless/<slug>`。要求 `run.json` 存在、`acquired_frames > 0`，并打开 PNG 确认是游戏画面而不是全黑或纯色。把 `run.json` 和 PNG 路径写进报告。静态嵌入的核心再用 `shinki-emu-manager headless --core <plugin_id>` 跑一次。
 2. **回归对比**：把第一次运行的输出目录作为 `--baseline`。GPU 合成可能有细微差异，给小容差，例如 `--max-channel-delta 4 --changed-pixel-ratio 0.001`。单张图用 `compare`。
 3. **流程回放**：在关键步骤后放 `checkpoint`，用 `await` + `frame.sha256` 断言到达已知画面。
-4. **Manager UI 截图**：`ui` / `headless-ui` 用真实 `ManagerWindow` 经软件渲染出图，不创建窗口，不启动数据库、库扫描、账号、商店或网络服务。默认数据是自写的合成文本；`--demo-data` 只提供显示字符串，不会被扫描。不同主题用不同输出目录。
+4. **Manager UI 截图**：`ui` / `headless-ui` 用真实 `ManagerWindow` 经软件渲染出图，不创建窗口，不启动数据库、库扫描、账号、商店或网络服务。默认数据是自写的合成文本，不含封面、游戏可执行文件或商业截图；`--demo-data demo.json` 只提供显示字符串，不会被扫描。语言用 `zh-CN`、`en`、`ja`，主题用 `dark`、`light`，宽高为物理像素（360..8192）。设置页分类为 `library-roots`、`appearance`、`network`、`translation`、`input`、`about`。不同主题用不同输出目录。
 
-**限制。** 复制游戏只是隔离普通存储，不是给不可信核心用的系统沙箱。配置里故意指向游戏外的路径，要改到临时位置。用 `E:/Games` 下的游戏时原目录同样只读。核心自己需要的 GPU 或音频设备照样需要；runner 不会关掉音频、影片或脚本。Musica、CMVS 这类硬件 GPU 合成的核心，软件 adapter 的结果不算通过。Windows x64 是首个支持平台，其他平台的状态以 HeadlessRunner 的交付报告为准。
+**限制。** 复制游戏只是隔离普通存储，不是给不可信核心用的系统沙箱。核心运行在隔离子进程中，AppData/HOME/XDG 目录和 TEMP 环境临时化；核心声明的字符串 `save_root` 路径被强制指向临时目录。`RUST_MIN_STACK` 默认至少 8 MiB，保留显式更大值。配置里故意指向游戏外的路径，要改到临时位置。用 `E:/Games` 下的游戏时原目录同样只读。核心自己需要的 GPU 或音频设备照样需要；runner 不会关掉音频、影片或脚本。Musica、CMVS 这类硬件 GPU 合成的核心，软件 adapter 的结果不算通过。
+
+**平台状态。** Windows x64 已用两个真实核心验收：静态 Siglus（`siglus_rs`）跑 Rewrite_PLUS，动态 RFVP ZIP 跑樱花萌放，各 360 个采样、8 条回放、1280×720 截图和 hash，独立重跑后容差基线比较通过。Linux x64 默认构建（含 UI）只做过 `cargo check`。macOS、Android、iOS、OHOS 没有运行过，不能写成已验证。
 
 **调试。** 先用 runner 复现问题，再看核心的 `tracing` 事件（`shinki.emu.<family>.*`）。核心 `SESSION_FAILED` 时，错误码和消息会写进 stderr 和 `failure.json`。Musica 另有只读诊断 CLI `shinki-emu-musica-cli data list|read|validate`（见 `Source/Programs/shinki-emu-musica-cli/README.md`），它不运行 VM。
 
