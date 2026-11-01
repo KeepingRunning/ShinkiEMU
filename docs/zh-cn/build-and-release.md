@@ -178,6 +178,8 @@ RFVP 的 Apple 字幕依赖在原生 macOS/Xcode 上按固定 vcpkg 清单构建
 
 SDK 验收需保留真实产物路径、大小，以及 `file`、`llvm-objdump --macho --dylibs-used --private-headers <executable>`、`rcodesign verify <executable>` 的输出。缺少合法 SDK 时，这项验收仍受阻；编译成功本身不代表游戏运行兼容。
 
+Apple Manager 的 `build.json` 记录打包改写和签名前的原生输入，不是签名后可执行文件的字节哈希。签名后哈希、真实验签输出，以及原生输入到签名产物的完整变换证明需分别保留。只能核对该包已观察到的签名变换，并要求整文件哈希精确对应；不能忽略 `__LINKEDIT` 或对未知差异做任意归一化。
+
 ## OpenHarmony Manager
 
 本地构建需要 DevEco Studio 自带的 OpenHarmony Native SDK 5.0.5（API 17，HAP 面向 API 12 及以上）和 Rust 1.99.1。将 `OHOS_SDK_NATIVE` 指向 `sdk/default/openharmony/native`，xtask 会在同一 DevEco 安装中找到 Node、hvigor、ohpm、CMake/Ninja、`hap-sign-tool.jar` 和 `llvm-readelf`。把 `SHINKI_EMU_OHOS_SIGNING_DIR` 设为仓库外的目录（例如 `.shinki-secrets/ohos-debug`）：
@@ -264,6 +266,8 @@ Manager 与自研 CMVS/Musica 保留各自的 SemVer 和 `manager-v<semver>`、`
 `release_sequence` 是每个第三方核心独立、严格递增的正整数发布序号，上限为 9007199254740991；换上游、换适配 pin 或主动重构建时递增。标签版与分支快照共同按此序号选最新，不比较分支名或哈希大小。新身份优先于旧 beta 记录，其余版本按 SemVer 排序；不同版本不能复用序号，跨平台也一样。核心包、嵌入核心清单、源码引用和目录携带一致的来源身份；上游版权许可与完整对应源码要求不变。
 
 [Impacto 序号 3 发行版](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/core-impacto-tag-0-10-8-930-96de7434c8b1a57df7ff24dcee829282194873fe596677056fa168485cb1555e) 已公开 Windows、Linux 和两种 macOS 架构的包，产品提交为 `5b197c1c656186d3a535bb3486311623516166e5`，上游为 `0.10.8.930`，适配提交为 `34b89c29123d025d96f73ac9a746fb388e572065`。四个平台的对应源码、原生输入、许可和包审计均通过，八个公开二进制/源码附件也已无认证实际下载并核对哈希。此独立发行不替换 Manager6 内置的 `910a820ba3ea8d4dd8d6e19c560df1d5a3bc5157`/序号 2，也不改写已公开的序号 1 资产；目录按序号选中 3，不按发布完成先后排序。
+
+[Ren’Py 序号 1 发行版](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/core-renpy-tag-8-5-3-26051504-5f537560e1a1b852070dec65946d6c027e9f4f7482bddd8349ed47960c383133) 已公开四个桌面平台，产品提交为 `05326439dcfafb81df79f3dabe0997fb696ad3f3`，上游为 `8.5.3.26051504`，适配提交为 `a52d9d9c006223c2b5a276c05e1b97ffeecbe66f`。每份真实对应源码包的固定重构建配方均逐项核验通过 389/389，包括 107 字节的符号链接目标。八个公开二进制/源码附件已无认证实际下载，哈希均与已验收记录一致；原生许可正文也已逐字节核对固定 fork 和原始输入。
 
 同一索引额外发布 `cores-v2.json`（`shinki.emu.cores.v2`），包含旧记录和新身份。`cores.json` 保留 v1 以及所有无 identity 的已发布记录，旧 Manager 仍能下载；新 Manager 优先读索引中的 v2，也接受旧 v1 快照。已有 beta 的标签、附件与来历均不改写，仍可安装。安装更新比较包身份，不比较适配 crate 自身的版本号。
 
