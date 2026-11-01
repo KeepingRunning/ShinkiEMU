@@ -22,6 +22,7 @@ store-dmm = ["dep:shinki-emu-dmm"]
 
 [dependencies]
 shinki-emu-manager-core = { path = "../shinki-emu-manager-core" }
+shinki-emu-headless = { path = "../../Programs/shinki-emu-headless" }
 shinki-emu-manager-ui-slint = { path = "../shinki-emu-manager-ui-slint" }
 shinki-emu-abi = { path = "../../FamilyApi/shinki-emu-abi" }
 shinki-emu-patch = { path = "../../Tools/shinki-emu-patch" }

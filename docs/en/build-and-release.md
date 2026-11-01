@@ -5,6 +5,8 @@ description: Cargo orchestration, native build scripts, packaging and explicit b
 
 # Build and release
 
+For windowless core acceptance, input replay, PNG/hash baselines and screenshots of the Manager itself, see [Headless execution](headless.md).
+
 ## Game-local on-disk layout
 
 Every file written by ShinkiEMU itself inside a game directory belongs under `<game>/.shinki/`; never write product saves, cache, logs, receipts, patch artifacts or temporary outputs into the commercial game's root or original save paths. Allocate each owner its own subtree: `musica/saves/` for Musica, `patch/` for downloaded artifacts, `staging/` for transactions, `backup/<id>/` for original files plus manifest, and `patch-result.json` for the in-place receipt. Keep path validation and no-follow directory resolution when adding owners. Third-party cores retain their upstream storage contracts.

@@ -31,6 +31,10 @@ struct Arguments {
 #[cfg(not(any(target_os = "android", target_env = "ohos")))]
 #[derive(clap::Subcommand)]
 enum Command {
+    /// Run a core and capture frames without creating a window.
+    Headless(shinki_emu_headless::Arguments),
+    /// Render the Manager UI with synthetic data and no OS window.
+    HeadlessUi(shinki_emu_headless::ui::Arguments),
     /// Apply trusted offline file patches without starting the GUI or a core.
     Patch {
         #[command(subcommand)]
@@ -81,6 +85,11 @@ fn main() -> ExitCode {
         attach_cli_console();
         return match command {
             Command::Patch { command } => patch_cli::run(command),
+            Command::Headless(arguments) => shinki_emu_headless::run_cli(
+                arguments,
+                shinki_emu_manager::static_cores::STATIC_CORES,
+            ),
+            Command::HeadlessUi(arguments) => shinki_emu_headless::ui::run_cli(arguments),
             Command::Extension(command) => match manager_app::run_extension_command(command) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(error) => {

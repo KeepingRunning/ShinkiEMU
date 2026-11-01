@@ -5,6 +5,8 @@ description: Cargo 编排、核心构建脚本、打包及明确的 blocked 状�
 
 # 构建与发布
 
+无窗口核心验收、输入回放、PNG/hash 基线比较与 Manager 自身界面截图，见[无窗口运行](headless.md)。
+
 ## 游戏目录中的磁盘布局
 
 ShinkiEMU 自身在游戏目录内写入的文件一律放在 `<game>/.shinki/` 下；产品存档、缓存、日志、回执、补丁附件及临时文件不得写进商业游戏根目录或原版存档目录。各组件使用自己的子路径：Musica 存档为 `musica/saves/`，下载附件为 `patch/`，事务暂存为 `staging/`，原文件及清单为 `backup/<id>/`，原位覆盖回执为 `patch-result.json`。增加写入者时沿用安全路径校验，不跟随目录链接。第三方核心继续遵守各自上游的存储约定。
