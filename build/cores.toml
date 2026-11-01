@@ -210,7 +210,7 @@ publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/kirikiroid2-web"
 branch = "shinki-common63"
-rev = "57470e061f391864f4ee11c7f0f04a9095a45e95"
+rev = "d72046c28e6ada623acdb1d72f7075edd488797d"
 upstream = "https://github.com/fenghengzhi/kirikiroid2-web"
 release_sequence = 2
 upstream_identity = { repo = "https://github.com/fenghengzhi/kirikiroid2-web", ref_kind = "branch", ref_name = "web", commit = "2028cbccaa91498bd36f270d349ae711d0e8fed3" }
