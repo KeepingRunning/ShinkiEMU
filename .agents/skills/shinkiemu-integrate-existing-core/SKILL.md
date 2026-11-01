@@ -1,131 +1,144 @@
 ---
 name: shinkiemu-integrate-existing-core
-description: Use when bringing an existing third-party engine implementation (a Rust crate or a C/C++ project) into ShinkiEMU as an external core, or when changing an existing fork adapter, its pin, its Cargo.lock entries, its save/config behaviour or its license bundle. Covers the Project-Shinkirou fork with a single `shinki` branch, a thin adapter crate or vendored C header, the worker/frame-lease mapping, vcpkg deps, sources zip, publish_blocked and upstream PRs. Not for a new in-repo core; use shinkiemu-new-core for that.
+description: Use when porting an existing third-party engine implementation (a Rust crate or a C/C++ project) into ShinkiEMU as an external core, or when changing an existing fork adapter, its pin, upstream_identity or release_sequence, its Cargo.lock entries, its save/config behaviour, its static Manager embedding or its license and source bundle. Covers the Project-Shinkirou fork and shinki-<topic> adapter branches, the thin adapter crate or vendored C header, worker/frame-lease mapping, vcpkg dependencies and overlay ports, merging per-platform fork lines, ABI query probes and headless acceptance. Not for a new in-repo SDK core; use shinkiemu-new-core.
 ---
 
-# Bring an existing engine into ShinkiEMU
+# 把第三方引擎移植进 ShinkiEMU
 
-An external core is the upstream engine left as it is, plus a thin adapter that implements C ABI v3. Both live in an organization fork. ShinkiEMU pins the fork by exact commit and does not copy the adapter.
+外部核心 = 原样保留的上游引擎 + 一个实现 C ABI v3 的薄 adapter。两者都在组织 fork 里。ShinkiEMU 用精确 commit 固定 fork，不复制 adapter 代码。
 
-Contract docs, which you link to rather than copy: [Core ABI](../../../docs/en/core-abi.md), [Build and release](../../../docs/en/build-and-release.md), [ThirdParty/README](../../../ThirdParty/README.md), [THIRD_PARTY_NOTICES](../../../THIRD_PARTY_NOTICES.md), [ORIGINS](../../../ORIGINS.md). The SDK runtime model (worker, frames, lifecycle, boundary) is described in [shinkiemu-new-core](../shinkiemu-new-core/SKILL.md).
+先确认该走移植路径：上游能跑，许可证允许再分发且我们能履行义务。否则用 `shinkiemu-new-core` 基于 SDK 自研（决策表在那里的 §0）。
 
-## Worked examples
+契约文档：[Core ABI](../../../docs/en/core-abi.md)、[Build and release](../../../docs/en/build-and-release.md)、[ThirdParty/README](../../../ThirdParty/README.md)、[THIRD_PARTY_NOTICES](../../../THIRD_PARTY_NOTICES.md)、[ORIGINS](../../../ORIGINS.md)。运行模型（worker、帧、生命周期、boundary）见 `shinkiemu-new-core` §3–§4，构建/CI/发布流程见 `shinkiemu-maintenance`。
 
-| Core | Kind | Adapter | Static query in the Manager |
+## 现有例子
+
+| 核心 | 类型 | adapter | 移动端 Rust 路径 query |
 |---|---|---|---|
-| siglus_rs | Rust | `shinki/shinki-emu-siglus_rs` (with a `[package.metadata.shinki]` provenance block) | `shinki_emu_siglus_rs::query` |
-| rfvp | Rust | `crates/shinki-emu-rfvp`; `src/lib.rs:496-529`: `CoreApi` + `cfg_attr(feature = "dynamic-plugin-export", no_mangle)` | `shinki_emu_rfvp::shinki_emu_query` |
-| ReMinori | Rust, AGPL | `crates/shinki` (`lib.rs:965-1000`, `build.rs`, `MODIFICATIONS.md`) | `shinki_emu_ReMinori::shinki_emu_query` |
-| sena-rs | Rust | `crates/shinki-emu-sena-rs`; `lib.rs:41-53`: `cfg_attr(feature = "diagnostic-bridge", no_mangle)` + `pub const QUERY`; worker in `session.rs:131-191` | `shinki_emu_sena_rs::QUERY` |
-| ethornell-rs | Rust | `crates/shinki-emu-ethornell-rs` (`lib.rs:1282-1317`) | `shinki_emu_ethornell_rs::QUERY` |
-| art3m1s-core | Rust + Luau | `crates/shinki-emu-art3m1s-core`, feature `static-core` | `shinki_emu_art3m1s_core::artemis_query` |
-| impacto | C++ | `shinki/` Cargo wrapper + `src/shinki/core.cpp`; vendored `vendor/shinki-emu-abi/include/shinki_emu.h` | (not embedded) |
-| kirikiroid2-web | C++ | native shared library with the vendored header | (not embedded) |
-| renpy | C++ + Python | `shinki/core.cpp` + `shinki_renpy_bridge.py`; embeds the official Ren'Py SDK | `shinki_emu_renpy::QUERY` |
+| rfvp | Rust | `crates/shinki-emu-rfvp`；`#[cfg_attr(feature = "dynamic-plugin-export", no_mangle)]` 门控导出 | `shinki_emu_rfvp::shinki_emu_query`（Android、iOS） |
+| siglus_rs | Rust | `shinki/shinki-emu-siglus_rs`，带 `[package.metadata.shinki]` 来源块 | `shinki_emu_siglus_rs::query`（Android、iOS） |
+| art3m1s-core | Rust + Luau | `crates/shinki-emu-art3m1s-core`，静态 feature `static-core` | `shinki_emu_art3m1s_core::artemis_query`（Android） |
+| sena-rs | Rust | `crates/shinki-emu-sena-rs`；另有 `pub const QUERY`；ready 握手在 `session.rs` | `shinki_emu_sena_rs::shinki_emu_query`（iOS） |
+| ethornell-rs | Rust | `crates/shinki-emu-ethornell-rs`；另有 `pub const QUERY` | `shinki_emu_ethornell_rs::shinki_emu_query`（iOS） |
+| ReMinori | Rust, AGPL | `crates/shinki`（`build.rs`、`MODIFICATIONS.md`） | `shinki_emu_ReMinori::shinki_emu_query`（iOS） |
+| impacto | C++ | `shinki/` Cargo 包装 + `src/shinki/core.cpp`（worker `Run`、`GetFrame`）；`vendor/shinki-emu-abi/include/shinki_emu.h` | `shinki_emu_impacto::shinki_emu_query`（Android，feature `static`） |
+| kirikiroid2-web | C++ | `shinki/`（`build.rs`、`native/NativeSession.cpp`、`NativeOwner.cpp`）；`shinki/native/include/shinki_emu.h` | `shinki_emu_kirikiroid2_web::query`（Android，feature `static`；在 beta7 候选 `candidate/manager-beta7-publishclose63` 上，尚未进 main） |
+| renpy | C++ + Python | `shinki/core.cpp` + `shinki_renpy_bridge.py`，打包官方 Ren'Py SDK | `shinki_emu_renpy::query`（Android，feature `static`） |
 
-All paths are inside the fork checkout at `ThirdParty/<dir>/`, which `cargo xtask deps --core <id>` populates at the pinned revision.
+fork 在 `ThirdParty/<dir>/`，由 `cargo xtask deps --core <id>` 检出到 pin。`kirikiri2/` 对应组织仓库 `kirikiroid2-web`。
 
-## 1. Fork setup
+## 1. fork 与分支
 
-1. Create `Project-Shinkirou/<upstream-repo-name>` as a fork. Keep the upstream repository name and case for the plugin_id (`siglus_rs`, `ReMinori`, `sena-rs`). Keep upstream's history, authors and default branch.
-2. The fork has exactly one integration branch, `shinki`. Put feature work on `shinki-<topic>` and land it on `shinki` by fast-forward. Never rewrite `shinki`.
-3. Add `upstream` as a remote and branch `shinki` from the upstream commit you build on. Record that base commit in the fork's modification notice (step 7).
-4. External cores are **not** submodules. Pin them in `build/cores.toml`:
+1. 在组织下 fork 为 `Project-Shinkirou/<上游仓库名>`。plugin_id 保留上游仓库名和大小写（`siglus_rs`、`ReMinori`、`sena-rs`）。保留上游历史、作者和默认分支。
+2. 加 `upstream` remote。adapter 从一个明确的上游 commit 开始，最好是上游 tag。
+3. 分支：`shinki` 是长期集成分支；平台或专题工作放在 `shinki-<topic>`（实际在用的有 `shinki-android-ports`、`shinki-android-isolation`、`shinki-apple-xplat`、`shinki-sakura-native`、`shinki-common63`）。`build/cores.toml` 的 `branch` 写 pin 所在的真实分支。已推送的分支不 rebase、不 force push。
+4. 同一 fork 的多条平台线要合到一个共同分支时用真实 merge，保留每条线的祖先，然后在共同 head 上重跑所有目标的门禁。KrkrCommon63 就是这样把 Linux、Mac、Android 三条 kirikiroid2-web 线合到 `shinki-common63` 的。合流常见冲突：平台专用的静态 host/资源路径被误用到其他平台；同一个 helper 在共享头文件和平台文件里各定义一次。冲突按平台条件收窄，不删功能。
+5. 外部核心不是子模块（唯一的子模块是 `ThirdParty/cpal`），用 `build/cores.toml` 固定：
 
 ```toml
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/<repo>"
-branch = "shinki"
-rev = "<full 40-hex lowercase commit on shinki>"
-upstream = "https://github.com/<owner>/<repo>"
+branch = "<pin 所在分支>"
+rev = "<adapter 完整 40 位小写 commit>"
+upstream = "https://github.com/<原作者>/<repo>"
+release_sequence = 1
+upstream_identity = { repo = "https://github.com/<原作者>/<repo>", ref_kind = "tag", ref_name = "<上游 tag>", commit = "<上游完整 commit>" }
 ```
 
-`CoreSource::validate` (`xtask/src/cores.rs:58-95`) accepts only organization repos, a 40-hex lowercase `rev` and a GitHub `upstream`. The `manifest` must be under `ThirdParty/`, and only `ThirdParty/` manifests may have a source (`cores.rs:190-195`). The only real submodule in ShinkiEMU is `ThirdParty/cpal`.
+`CoreSource::validate`（`xtask/src/cores.rs`）要求：`repo` 是组织下的单个仓库；`rev` 是 40 位小写 hex；`upstream` 是原作者的 GitHub 仓库（不能是 Project-Shinkirou），并且等于 `upstream_identity.repo`；manifest 在 `ThirdParty/` 下。上游 commit 有 tag 时 `ref_kind = "tag"`，否则用原上游包含该 commit 的真实分支。身份、序号和 tag 规则见 `shinkiemu-maintenance` §4。写完跑 `cargo xtask release --component <id> --dry-run`，它会真实验证上游 ref 和 adapter 祖先。
 
-## 2. Adapter shape
+## 2. adapter 形态
 
-**Rust upstream: a thin adapter crate inside the fork.**
-- Add one crate (e.g. `crates/shinki-emu-<id>` or `crates/shinki`) with `crate-type = ["rlib", "cdylib"]`. Add `"staticlib"` only if a native host needs it, as sena-rs does.
-- Depend on `shinki-emu-abi` (and, if you use it, `shinki-emu-sdk`) by git on `https://github.com/Project-Shinkirou/ShinkiEMU` at a full `rev`. Do the same for `shinki-emu-build` under `[build-dependencies]`. Inside ShinkiEMU the root `Cargo.toml` `[patch."https://github.com/Project-Shinkirou/ShinkiEMU"]` (lines 176-179) redirects these to the in-tree crates, so the fork's pin only matters for standalone fork builds. Keep the pin on a real ShinkiEMU commit anyway.
-- `build.rs` calls `CoreBuildManifest::new("<plugin_id>", "rust-cdylib")` and lists the fork's `LICENSE` and modification notice under `licenses/<plugin_id>/`. ReMinori's `crates/shinki/build.rs` is the template. Assert supported targets there, so unsupported triples fail early with a clear message.
+**Rust 上游：fork 内一个薄 adapter crate。**
+- 新建一个 crate（`crates/shinki-emu-<id>` 或 `crates/shinki`），`crate-type = ["rlib", "cdylib"]`；只有原生宿主需要时才加 `"staticlib"`。
+- 用 git 依赖 `https://github.com/Project-Shinkirou/ShinkiEMU` 的 `shinki-emu-abi`（需要时加 `shinki-emu-sdk`），`[build-dependencies]` 同样引 `shinki-emu-build`，`rev` 写完整 SHA。在 ShinkiEMU 里，根 `Cargo.toml` 的 `[patch."https://github.com/Project-Shinkirou/ShinkiEMU"]` 会把它们换成树内 crate，所以 fork 里的 pin 只影响 fork 单独构建，但仍要指向真实存在的 ShinkiEMU commit。
+- `build.rs` 调用 `CoreBuildManifest::new("<plugin_id>", "rust-cdylib")`，把 fork 的 `LICENSE` 和修改声明列到 `licenses/<plugin_id>/` 下。不支持的 triple 在 `build.rs` 里尽早报错。ReMinori 的 `crates/shinki/build.rs` 可作模板。
 
-**C/C++ upstream: a vendored header and a native shared library.**
-- Copy `Source/FamilyApi/shinki-emu-abi/include/shinki_emu.h` into the fork, e.g. `vendor/shinki-emu-abi/include/shinki_emu.h` as impacto does, and implement the `CoreApi` in C++ (`src/shinki/`).
-- A small Cargo package (`shinki/Cargo.toml` + `build.rs`) drives CMake (impacto: `configure_cmake` with the vcpkg toolchain) and writes `core-build.json` with `artifact_kind = "native-shared"` and an absolute `native_library`.
-- **Re-copy the header whenever you bump the ShinkiEMU ABI pin.** At 151a79c the vendored copies in impacto, renpy and kirikiroid2-web match ShinkiEMU `9cd899ba`. They lack the later `CAP_ASYNC_TEXT`/`AsyncTextServiceV1` additions. Those additions are only additive, but a stale header hides new capabilities.
+**C/C++ 上游：复制头文件 + 原生共享库。**
+- 把 `Source/FamilyApi/shinki-emu-abi/include/shinki_emu.h` 复制进 fork（impacto、renpy 放 `vendor/shinki-emu-abi/include/`，kirikiroid2-web 放 `shinki/native/include/`），用 C++ 实现 `CoreApi`。
+- fork 里一个小 Cargo 包（`shinki/Cargo.toml` + `build.rs`）通过 `shinki_emu_build::configure_cmake` 驱动 CMake，写 `artifact_kind = "native-shared"` 和绝对 `native_library`；Android 静态嵌入用 `native-static` 和 `link_android_static_core`。
+- 升 ABI 时重新复制头文件。目前三个 fork 的头文件相同，但都比产品头文件旧，没有 `CAP_ASYNC_TEXT`/`AsyncTextServiceV1`。这些新增是向后兼容的，旧头文件仍能工作，只是看不到新能力。要用异步文本时先同步头文件。
 
-**Query exports: dynamic vs static.**
-- Desktop loads `shinki_emu_query` by its unmangled name. Mobile Managers link the `rlib` and call a Rust path, so two cores that both export an unmangled `shinki_emu_query` would collide in one binary.
-- Gate the unmangled export behind a feature that only the dynamic build enables. rfvp and ReMinori use `#[cfg_attr(feature = "dynamic-plugin-export", unsafe(no_mangle))]`; sena-rs uses `diagnostic-bridge`. Put that feature in `cores.toml` `features`, and leave it out of `static_features`.
-- Expose a Rust-path entry for `STATIC_CORES`: either the function itself (`shinki_emu_rfvp::shinki_emu_query`), a `pub const QUERY: Query = shinki_emu_query;` (sena-rs `lib.rs:53`, ethornell-rs `lib.rs:1317`), or a named function (`artemis_query`, `siglus_rs::query`).
-- `query` writes null first, returns `UNSUPPORTED` for any version other than `ABI_VERSION`, and never creates native state.
+**动态与静态 query。**
+- 桌面按未修饰名 `shinki_emu_query` 加载。移动端 Manager 链接 `rlib` 并调用 Rust 路径；两个核心都导出未修饰 `shinki_emu_query` 会在同一个二进制里冲突。
+- 未修饰导出用只在动态构建打开的 feature 门控（rfvp 用 `dynamic-plugin-export`）。这个 feature 写进 `cores.toml` 的 `features`，不能进 `static_features`。
+- 给 `STATIC_CORES` 提供 Rust 路径入口：函数本身、`pub const QUERY: Query = shinki_emu_query;`，或具名函数（`artemis_query`、`siglus_rs::query`）。
+- `query` 先把输出置空，版本不是 `ABI_VERSION` 时返回 `UNSUPPORTED`，不创建任何原生状态。
 
-## 3. Mapping the upstream main loop
+## 3. 把上游主循环改成会话
 
-Most engines own a `loop { poll events; update; render; present }` and a window. The adapter turns that into a session:
-- **One worker thread per session** runs the upstream loop. `open` spawns it and waits for a ready signal with a bounded `recv_timeout` that checks cancellation on every step. sena-rs `session.rs:131-191` is the template: a `sync_channel(1)` ready handshake; `Disconnected` joins the worker and returns its recorded error; cancellation returns `CANCELLED`. In C++, impacto runs the loop in its worker `Run` at `src/shinki/core.cpp:459`.
-- **Replace the window with offscreen output.** Render to an offscreen target, read it back into immutable CPU buffers, and publish them with an incremented generation. ReMinori keeps three immutable slots, so held leases never stop VM or render progress. `frame` hands out a `CpuLease` (impacto `GetFrame` at `core.cpp:905`; rfvp `lib.rs:443-455`).
-- **Input/control/state** become commands queued to the worker. Pause stops the upstream clock; it does not block the thread.
-- **Panics and exceptions** never cross the ABI. Wrap every export and the worker body in `catch_unwind` (Rust) or `try/catch` (C++), turn the failure into `SESSION_FAILED` with a message, and still let `close` join and release everything.
-- **Windows/modals** go through the host's window/modal services. They must never be opened directly by the engine.
-- Keep upstream's VM, scheduling, composition, audio mixer, menus and save code. The adapter only translates. If upstream needs a hook (an offscreen target, a cancellable wait), add the smallest general hook and offer it upstream (step 9).
+多数引擎自带 `loop { poll events; update; render; present }` 和一个窗口。adapter 要把它改成会话：
 
-## 4. Saves, keys and config: minimal adaptation
+- **每个会话一个 worker 线程** 跑上游循环。`open` 启动它，用有界 `recv_timeout` 等 ready 信号，每一步检查取消。sena-rs 的 `session.rs` 是模板：`sync_channel(1)` 握手；`Disconnected` 时 join worker 并返回它记录的错误；取消返回 `CANCELLED`。C++ 里 impacto 的 worker 是 `core.cpp` 的 `Run`。
+- **窗口换成离屏输出。** 渲染到离屏目标，回读到不可变 CPU 缓冲，递增 generation 后发布。ReMinori 用三个不可变槽，借出的租约不会卡住 VM 或渲染。`frame` 返回 `CpuLease`（impacto 的 `GetFrame`）。
+- **input/control/state** 变成发给 worker 的命令。暂停是停上游时钟，不是阻塞线程。
+- **panic 和异常** 不跨 ABI。每个导出和 worker 主体用 `catch_unwind`（Rust）或 `try/catch`（C++）包住，转成带消息的 `SESSION_FAILED`，`close` 仍要 join 并释放所有资源。
+- **窗口和模态框** 走宿主的 window/modal 服务，引擎不能自己开。
+- 保留上游的 VM、调度、合成、混音、菜单和存档代码，adapter 只做转换。上游需要钩子时（离屏目标、可取消的等待），加最小的通用钩子并尝试提交上游（§9）。
 
-- External engines keep the upstream project's own save, key and config behaviour, locations and formats, AppData/Documents included. Never redirect them into `.shinki`. Only our own engines (CMVS, Musica) use `<game>/.shinki/<core>/`.
-- Every file that ShinkiEMU itself (the adapter) writes in a game directory goes under `<game>/.shinki/`.
-- Don't add managed save roots, game-directory overlap guards, required `save_root`/`save_directory` fields or invented AppData namespaces. ReMinori removed its adapter-only `save_directory` and now uses upstream's `userdata/` resolution, passing the game directory in place of the executable directory (`ReMinori/MODIFICATIONS.md`, 2026-10-29).
-- Before you finish, diff the save/key/config paths against upstream at the fork base. Give a reason for every remaining difference in the modification notice.
-- Removing a config field is a migration. Stored values for unknown field ids fail launch, so the Manager prunes retired ids. Migrate old adapter-only paths once, without clobbering, then read only the upstream path.
+## 4. 存档、key、配置：最小改动
 
-## 5. Native dependencies
+- 外部引擎保持上游自己的存档、key、配置行为、位置和格式，AppData/Documents 也一样，不要重定向到 `.shinki`。只有自研引擎（CMVS、Musica）用 `<game>/.shinki/<core>/`。
+- adapter 自己在游戏目录写的文件放 `<game>/.shinki/` 下。
+- 不要加托管存档根、游戏目录重叠检查、必填的 `save_root`/`save_directory` 字段或自造的 AppData 命名空间。ReMinori 删掉了 adapter 专用的 `save_directory`，改用上游的 `userdata/` 解析，只是把可执行文件目录换成游戏目录（`ReMinori/MODIFICATIONS.md`，2026-10-29）。
+- 收尾前对比 fork base 和上游的存档/key/配置路径，剩下的每处差异都在修改声明里写明原因。
+- 删配置字段是一次迁移：未知字段 id 的存储值会导致启动失败，Manager 会清理退役 id。旧的 adapter 专用路径迁移一次（不覆盖已有文件），之后只读上游路径。
 
-- Declare native inputs in `cores.toml` `dependencies` using existing `deps` recipes. The recipe names are parsed in `xtask/src/dependencies.rs:64-76`: `subtitle`, `ffmpeg`, `dxc`, `native-vcpkg`, `impacto-sources`, `renpy`, `bison`, `gstreamer`. The vcpkg manifests and triplets are under `build/vcpkg/`.
-- `cargo xtask deps --target <triple> --core <id>` fetches the fork at its pin and prepares locked native inputs. `build.rs` only consumes and validates them; it never downloads anything.
-- Add a new recipe only when an existing one can't express the dependency. Pin its source exactly and route its license into the package.
+## 5. 原生依赖
 
-## 6. Register and embed
+- 在 `cores.toml` 的 `dependencies` 里用现有 `deps` 配方声明原生输入，配方名在 `xtask/src/dependencies.rs` 解析：`subtitle`、`ffmpeg`、`dxc`、`native-vcpkg`、`impacto-sources`、`renpy`、`bison`、`gstreamer`（只在 Linux x64 生效）。
+- `cargo xtask deps --target <triple> --core <id>` 检出 fork 并准备锁定的原生依赖。`build.rs` 只消费和校验，不下载。
+- fork 自带的 vcpkg 依赖放在 fork 的 `vcpkg/ports/<port>/`（overlay port），会随 fork 快照进入源码包。修 port 时改 patch 或 portfile，不关配置校验、不伪造 probe 结果（具体案例见 `shinkiemu-maintenance` §6）。
+- 只有现有配方表达不了时才加新配方：来源精确固定，许可路由进包。
 
-- Add a `[[cores]]` entry with `manifest = "ThirdParty/<dir>/<adapter>/Cargo.toml"`, `[cores.source]`, `licenses = ["ThirdParty/<dir>/LICENSE", ...]`, and one supported or blocked entry per triple in `build/targets.toml`. See [shinkiemu-new-core §5](../shinkiemu-new-core/SKILL.md#5-register-the-core) for the field rules.
-- For Android/iOS static embedding, set `static_manager_targets` and `static_features`. Add the fork under the matching `[target.'cfg(target_os = "…")'.dependencies]` in `Source/Manager/shinki-emu-manager/Cargo.toml` with `git` = `[cores.source].repo`, `rev` = the same full SHA, and `default-features = false` (lines 86-101). Then add the Rust-path query to `STATIC_CORES` in `Source/Manager/shinki-emu-manager/src/manager_app/owner_worker.rs:268-287`. `validate_static_dependencies` (`xtask/src/cores.rs:228-298`) fails when the repo, rev or features differ from the inventory.
-- A statically linked core shares the Manager's dependency graph. It must resolve to the same kira (patched to `Project-Shinkirou/kira` in the root `[patch.crates-io]`, `Cargo.toml:181-185`), the same mlua/mlua-sys, cpal and wgpu majors. Two versions of a `links =` crate fail resolution. Align the fork rather than adding another patch. Artemis uses Luau on every platform, including Android static embedding (`ThirdParty/README.md`).
+## 6. 注册与嵌入
 
-## 7. Licenses and the sources bundle
+- 加 `[[cores]]`：`manifest = "ThirdParty/<dir>/<adapter>/Cargo.toml"`、`[cores.source]`、`licenses = ["ThirdParty/<dir>/LICENSE", ...]`，`build/targets.toml` 里每个 triple 各有一条 supported 或 blocked。字段规则见 `shinkiemu-new-core` §6。
+- 移动端静态嵌入三处一致：`cores.toml` 的 `static_manager_targets`/`static_features`；Manager `Cargo.toml` 对应 `cfg` 段写 `git` = `[cores.source].repo`、相同的 `rev`、`default-features = false`；`owner_worker.rs` 的 `STATIC_CORES`。`validate_static_dependencies` 发现 repo、rev、features 不一致时报错。
+- 静态核心与 Manager 共享依赖图：kira（根 `[patch.crates-io]` 指向 `Project-Shinkirou/kira`）、mlua/mlua-sys、cpal、wgpu 必须统一。两个版本的 `links =` crate 会让解析失败。改 fork 对齐，不要再加 patch。Artemis 在所有平台都用 Luau，Android 嵌入时共用 Manager 的运行时。
+- Android 嵌入 C++ 核心时：Java 方法名不能和 SDK 父类冲突（Krkr 把 `getDeviceId` 改成 `getAndroidDeviceId`），整个 APK 只有一个 `JNI_OnLoad` 和一个 Activity，资源上限遵守 Manager 当前契约。
 
-- Keep upstream's `LICENSE`, attribution and notices. Add a modification notice to the fork (`MODIFICATIONS.md` in ReMinori). It records the upstream URL, the base revision, what the adapter changed and why, and where the corresponding source is published.
-- List every license file in both `build.rs` (`licenses/<plugin_id>/…`) and `cores.toml` `licenses`, and add the core to `THIRD_PARTY_NOTICES.md` and `ORIGINS.md`.
-- Each release ships `shinki-emu-<slug>-<version>-<platform>-sources.zip`. It holds the product tree at the release commit and the fork at its exact pin, plus `rust-sources/` for crates whose licenses require source distribution ([Build and release](../../../docs/en/build-and-release.md#package-and-release)). Only committed content enters it.
-- Set `publish_blocked = "<reason>"` until every license and notice obligation is met. Blocked cores are never released.
-- Never commit commercial game data, text, keys, private profiles or saves. Tests use synthetic fixtures.
+## 7. 许可证与源码包
 
-## 8. Pin bump and Cargo.lock discipline
+- 保留上游 `LICENSE`、署名和 notice。fork 里加修改声明（`MODIFICATIONS.md`），写明上游 URL、base commit、adapter 改了什么和原因、对应源码在哪发布。
+- 每个许可文件同时列进 `build.rs`（`licenses/<plugin_id>/…`）和 `cores.toml` 的 `licenses`，并在 `THIRD_PARTY_NOTICES.md`、`ORIGINS.md` 里登记。
+- 每个 release 附 `shinki-emu-<slug>-<version>-<platform>-sources.zip`，含发布 commit 的产品树、pin 处的完整 fork 快照，以及许可要求源码分发的 crate 的 `rust-sources/`。只有已提交的内容会进去。打包后确认 fork 文件确实在里面。
+- 第三方特殊条款（FMOD、Spine、MS PGothic 等）原文保留并单独说明，不改标成 MIT。
+- 许可或声明义务未满足时设 `publish_blocked = "<原因>"`，这样的核心不会发布。
+- 商业游戏数据、正文、key、私有配置和存档不能提交。测试用合成 fixture。
 
-1. Land the fork change on `shinki` by fast-forward and take its full SHA.
-2. Replace the old SHA with the new one as text in `build/cores.toml` and, for static cores, in the Manager `Cargo.toml`. In `Cargo.lock`, change only the fork's `source = "git+…?rev=<old>#<old>"` lines, the same way.
-3. Never run `cargo update -p <crate>` or a bare `cargo update` for a pin bump. Both drift unrelated registry versions (wgpu-hal's `windows` version has broken D3D12 builds this way).
-4. Accept the lock only when `git diff -- Cargo.lock` shows just the fork's rev lines, and `cargo metadata --locked` succeeds.
-5. If the fork pins RoukakuEngine directly (rfvp: `roukaku-subtitle`), bump it to the same RoukakuEngine rev as ShinkiEMU in the same change. Otherwise a duplicate `links` crate fails `--locked` resolution.
+## 8. pin 升级
 
-## 9. Upstreaming
+步骤和 `Cargo.lock` 规则见 `shinkiemu-maintenance` §5。要点：
 
-- Fixes that are not specific to ShinkiEMU (VM bugs, format edge cases, portability) go upstream as PRs from a `upstream/<topic>` branch based on `upstream/main`. Include a synthetic test and run upstream's own checks.
-- Keep adapter-only changes (ABI glue, offscreen output, packaging) in the fork, and list them in the modification notice.
-- Once an upstream PR lands, drop the fork's copy when the fork next rebases onto upstream.
+1. fork 改动提交并非 force 推送，取完整 SHA。
+2. 文本替换 `build/cores.toml` 的 `rev`（以及静态嵌入的 Manager `Cargo.toml`），`Cargo.lock` 只改该 fork 的 `source = "git+…?rev=<old>#<old>"` 行。
+3. 不用 `cargo update`。`git diff -- Cargo.lock` 只有 fork rev 行，`cargo metadata --locked` 成功才算完成。
+4. 要发布新版本时 `release_sequence` +1，序号由发布 owner 确认。
 
-## Release
+## 9. 回馈上游
 
-Tag `core-<slug>-v<semver>`; the slug is the lowercased plugin_id with `.`/`_` → `-`, so `ReMinori` → `reminori`. Remote GitHub CI is the gate and does the publishing, including the catalog PR under `Metadata/engines/cores/`. Local runners are only an optional pre-check.
+- 与 ShinkiEMU 无关的修复（VM bug、格式边界、可移植性）从基于 `upstream/main` 的 `upstream/<topic>` 分支提 PR，附合成测试并跑上游自己的检查。
+- adapter 专用改动（ABI 胶水、离屏输出、打包）留在 fork，写进修改声明。
+- 上游合入后，fork 下次跟进上游时删掉自己的副本。
 
-## Finish checklist
+## 10. 验收
 
-- [ ] The fork has a single `shinki` branch with upstream history; the `upstream` remote is set; the base commit is recorded.
-- [ ] `[cores.source]` has the full SHA; static Manager deps carry the same SHA and exact `static_features`; `STATIC_CORES` is updated.
-- [ ] The adapter keeps the upstream VM, render, audio and saves; only the ABI glue and minimal hooks are added.
-- [ ] The unmangled `shinki_emu_query` is feature-gated for dynamic builds; a Rust-path query exists for static builds.
-- [ ] C/C++: the vendored `shinki_emu.h` matches the pinned ShinkiEMU ABI.
-- [ ] Panics/exceptions are contained; `open` is cancellable; `close` joins the worker; held leases never stall progress.
-- [ ] Save/key/config paths match upstream; any remaining differences are justified in the modification notice.
-- [ ] Licenses are listed in `build.rs`, `cores.toml`, `THIRD_PARTY_NOTICES.md` and `ORIGINS.md`; `publish_blocked` is cleared only when they are met.
-- [ ] The `Cargo.lock` diff touches only the fork rev lines; `cargo metadata --locked` passes.
-- [ ] `docs/{zh-cn,en,ja}/cores/<slug>.md` link the upstream project; the README engine tables are updated.
-- [ ] General fixes are offered upstream as PRs.
+完成标准与 `shinkiemu-new-core` §11 相同：所有支持目标构建和打包成功；干净进程里的 ABI query 探针通过；同一 commit 上 exact-head CI 全绿；源码包和原许可证随包；用 headless runner 打开一款真实游戏并出帧，导出截图和帧 hash。
+
+ABI 探针要在独立原生进程里加载打包后的库，不要用 Python ctypes：Linux 上 Python 的 hashlib 会先加载系统 libcrypto，和核心自带的 OpenSSL 冲突；Windows 上 ctypes 持有 DLL 会让临时目录删不掉。kirikiroid2-web 的共同候选分支（`candidate/krkr-common63`）用 `Tools/krkr-query-probe.c`：用 pin 的 `shinki_emu.h` 编译，`LoadLibraryExW`/`dlopen` 加载后检查 ABI 3 返回完整表、其他版本返回 `UNSUPPORTED`、空输出指针返回 `INVALID_ARGUMENT`。这份 probe 合入 main 之前，其他核心照同样方式写。
+
+## 完成检查
+
+- [ ] fork 保留上游历史，设好 `upstream` remote，base commit 已记录；`branch` 是 pin 所在的真实分支。
+- [ ] `[cores.source]` 含完整 SHA、`upstream_identity`、`release_sequence`；`release --dry-run` 通过。
+- [ ] 静态嵌入的 Manager 依赖用同一 SHA 和 `static_features`；`STATIC_CORES` 已更新。
+- [ ] adapter 保留上游 VM、渲染、音频和存档，只加 ABI 胶水和最小钩子。
+- [ ] 未修饰 `shinki_emu_query` 只在动态构建导出；静态构建有 Rust 路径 query。
+- [ ] C/C++：复制的 `shinki_emu.h` 覆盖所用的 ABI 能力。
+- [ ] panic/异常被拦住；`open` 可取消；`close` join worker；借出的租约不阻塞推进。
+- [ ] 存档/key/配置路径与上游一致，差异在修改声明里说明。
+- [ ] 许可列在 `build.rs`、`cores.toml`、`THIRD_PARTY_NOTICES.md`、`ORIGINS.md`；源码包含完整 fork 快照。
+- [ ] `Cargo.lock` diff 只有 fork rev 行。
+- [ ] `docs/{zh-cn,en,ja}/cores/<slug>.md` 链接上游项目；README 引擎表已更新。
+- [ ] §10 验收全部满足。
