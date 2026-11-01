@@ -128,6 +128,17 @@ binary/archive provenance. Cocos source remains MIT; FMOD is not relicensed MIT.
 The source bundle contains the original dependency archive and rebuild recipes,
 including genuine FMOD headers/prebuilt input, not invented FMOD source or EULA.
 
+The common KiriKiri desktop candidate merges the accepted Linux, macOS and Android
+fork histories on `shinki-common63`, with a new upstream-derived release sequence.
+Its desktop gates rebuild and package Windows x64, Linux x64 and both macOS
+architectures at the same fork revision. CI also prepares corresponding source
+archives without publishing a release or tag. Those archives retain the complete
+fork snapshot, recursive Gitlinks/LFS payloads, native recipe inputs and original
+third-party licenses; the shared PAX-link handling preserves long link targets.
+The product keeps the modern Manager pins and 32 MiB resource contract. Android
+seven-core integration is gated by its own product owner; broad iOS integration
+remains a separate candidate and is not enabled by merging source history.
+
 RFVP additionally uses the distribution's GStreamer 1.x (at least 1.14) and GLib 2.x (at least 2.56), including the base, good and libav plugin packages for native movie decoding. These are system runtime requirements, not bundled copies. On Ubuntu install `libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libglib2.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav`. Package `build.json` records the actual required system SONAMEs in `system_dependencies`.
 
 For unreliable archive downloads, preseed `.work/vcpkg-downloads` with the exact pinned source/tool archives. Transfer with resumable chunks or `rsync --partial`; vcpkg still checks each archive's SHA512 against its selected versioned port. Do not substitute a distribution libass/FFmpeg for the pinned native build.
