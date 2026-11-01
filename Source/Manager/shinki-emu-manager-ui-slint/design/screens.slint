@@ -417,6 +417,68 @@ export component PatchConfirmInPlaceMismatch inherits ManagerWindow {
     }
 }
 
+// A local patch file picked from disk; it is shown as unreviewed.
+export component PatchLocal inherits ManagerWindow {
+    init => {
+        Mock.patch-bound(false);
+        Patch.step = 2;
+        Patch.state.script = "D:\\Patches\\perseus-fan-fix.zip";
+    }
+}
+
+// A run in progress: the script downloads files and reports its checks.
+export component PatchRunning inherits ManagerWindow {
+    init => {
+        Mock.patch-bound(true);
+        Patch.step = 4;
+        Patch.state.running = true;
+        Patch.state.phase = "正在下载 fonts.zip";
+        Patch.state.completed = 3;
+        Patch.state.total = 8;
+        Patch.downloads = [
+            { name: "script-cn.pak", bytes: "48.0 MB / 48.0 MB", progress: 1, sha256: "9f2c4e0b7a61d3a58c1e2f4b6d7a8c90e1f2a3b4c5d6e7f8091a2b3c4d5e6f70", verify: "ok" },
+            { name: "fonts.zip", bytes: "7.4 MB / 18.0 MB", progress: 0.41, sha256: "4b1d9e2c3a5f6078192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80", verify: "pending" },
+        ];
+        Patch.checks = [
+            { label: "游戏版本 r36790", state: "passed", detail: "data/script.pak 大小与 SHA256 一致" },
+            { label: "补丁文件完整性", state: "running", detail: "" },
+        ];
+    }
+}
+
+// The script raised an error; the transaction rolled back.
+export component PatchScriptError inherits ManagerWindow {
+    init => {
+        Mock.patch-bound(false);
+        Patch.step = 4;
+        Patch.state.error = "patch.luau:42: fonts.zip 的 SHA256 与预期不符（预期 4b1d9e2c…，实际 07aa31f9…）";
+        Patch.state.rolled-back = true;
+        Patch.downloads = [
+            { name: "script-cn.pak", bytes: "48.0 MB / 48.0 MB", progress: 1, sha256: "9f2c4e0b7a61d3a58c1e2f4b6d7a8c90e1f2a3b4c5d6e7f8091a2b3c4d5e6f70", verify: "ok" },
+            { name: "fonts.zip", bytes: "18.0 MB / 18.0 MB", progress: 1, sha256: "4b1d9e2c3a5f6078192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80", verify: "failed" },
+        ];
+        Patch.checks = [
+            { label: "游戏版本 r36790", state: "passed", detail: "data/script.pak 大小与 SHA256 一致" },
+            { label: "补丁文件完整性", state: "failed", detail: "fonts.zip 校验失败" },
+        ];
+    }
+}
+
+// In-place run that failed after writing began; the game directory was restored.
+export component PatchScriptErrorInPlace inherits ManagerWindow {
+    init => {
+        Mock.patch-bound(true);
+        Patch.step = 4;
+        Patch.state.in-place = true;
+        Patch.state.output-directory = "";
+        Patch.state.error = "patch.luau:88: 找不到要替换的资源 bg/title_cn.png";
+        Patch.state.rolled-back = true;
+        Patch.checks = [
+            { label: "游戏版本 r36790", state: "passed", detail: "" },
+        ];
+    }
+}
+
 // ---- Settings ----
 
 export component SettingsNetwork inherits ManagerWindow {
