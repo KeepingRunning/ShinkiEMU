@@ -145,6 +145,9 @@ null output; it never initializes a core or opens a session. Linux additionally
 checks every packaged ELF with `ldd -r` without `LD_LIBRARY_PATH`; macOS verifies
 every Mach-O with strict codesign and resolves its relocatable dependencies.
 Windows retains the existing unsigned core distribution contract.
+The ABI probe is a separate native consumer compiled against the pinned C header.
+It cannot inherit Python's already-loaded OpenSSL when auditing the bundled
+OpenSSL runtime, and it retains the same real loader and ABI failure checks.
 
 RFVP additionally uses the distribution's GStreamer 1.x (at least 1.14) and GLib 2.x (at least 2.56), including the base, good and libav plugin packages for native movie decoding. These are system runtime requirements, not bundled copies. On Ubuntu install `libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libglib2.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav`. Package `build.json` records the actual required system SONAMEs in `system_dependencies`.
 

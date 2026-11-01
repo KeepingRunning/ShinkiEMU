@@ -1,6 +1,5 @@
 """Audit the actual KiriKiri desktop package without opening a game/session."""
 import argparse
-import ctypes
 import hashlib
 import json
 import os
@@ -30,26 +29,20 @@ def plain_member(name):
     assert '..' not in Path(name).parts and ':' not in name, name
 
 
-def query_abi(path):
-    # Query is pure: do not initialize, describe, probe, open, or invoke callbacks.
-    class Api(ctypes.Structure):
-        _fields_ = [('size', ctypes.c_uint32), ('abi', ctypes.c_uint32),
-                    ('callbacks', ctypes.c_void_p * 11)]
-    library = ctypes.CDLL(str(path))
-    query = library.shinki_emu_query
-    query.argtypes = [ctypes.c_uint32, ctypes.POINTER(ctypes.POINTER(Api))]
-    query.restype = ctypes.c_int32
-    api = ctypes.POINTER(Api)()
-    assert query(3, ctypes.byref(api)) == 0 and api
-    assert api.contents.size == ctypes.sizeof(Api) and api.contents.abi == 3
-    assert all(api.contents.callbacks)
-    address = ctypes.addressof(api.contents)
-    rejected = ctypes.cast(ctypes.c_void_p(address), ctypes.POINTER(Api))
-    assert query(4, ctypes.byref(rejected)) == 1 and not rejected
-    assert query(3, None) == 2
-    return dict(abi=3, table_size=ctypes.sizeof(Api), callbacks=11,
-                unsupported_version_status=1, null_output_status=2,
-                game_or_session_opened=False)
+def query_abi(root, path, temporary):
+    # A clean native process cannot inherit Python hashlib's loaded OpenSSL ABI.
+    include = root / 'ThirdParty/kirikiri2/shinki/native/include'
+    source = root / 'Tools/krkr-query-probe.c'
+    probe = temporary / ('query-probe.exe' if sys.platform == 'win32' else 'query-probe')
+    if sys.platform == 'win32':
+        run('cl.exe', '/nologo', '/O2', '/TC', '/std:c17', '/I' + str(include), source,
+            '/Fo' + str(temporary / 'query-probe.obj'), '/Fe' + str(probe))
+    else:
+        libraries = ['-ldl'] if sys.platform.startswith('linux') else []
+        run('cc', '-std=c11', '-O2', '-I', include, source, '-o', probe, *libraries)
+    environment = dict(os.environ)
+    environment.pop('LD_LIBRARY_PATH', None)
+    return json.loads(run(probe, path, env=environment))
 
 
 def main(args):
@@ -145,12 +138,7 @@ def main(args):
                 # The real loader resolves all imports below when loading the core.
                 native.append(dict(path=path.relative_to(stage).as_posix(), sha256=digest(path), authenticode='not configured; unsigned distribution contract'))
         assert native
-        dll_directory = os.add_dll_directory(str(stage)) if sys.platform == 'win32' else None
-        try:
-            abi = query_abi(stage / core['library'])
-        finally:
-            if dll_directory is not None:
-                dll_directory.close()
+        abi = query_abi(root, stage / core['library'], stage)
         result = dict(product=product, fork=record['core_source']['rev'], target=args.target,
                       archive_sha256=digest(binary), indexed_files=len(indexed),
                       original_asset_hashes=assets, original_ui_resources=len(ui_files),

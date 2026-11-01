@@ -189,7 +189,7 @@ jobs:
             .work/native-vcpkg/kirikiroid2-web/installed-*/vcpkg/info/*.list
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
-        if: matrix.component == 'kirikiroid2-web'
+        if: always() && matrix.component == 'kirikiroid2-web'
         with:
           name: source-closure-kirikiroid2-web-${{ matrix.target }}
           path: .work/release/core-kirikiroid2-web-*/${{ matrix.target }}/
