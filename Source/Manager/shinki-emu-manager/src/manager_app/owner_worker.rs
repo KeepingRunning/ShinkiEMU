@@ -295,9 +295,9 @@ fn initialize(
 ) -> Result<BTreeMap<String, String>, String> {
     #[cfg(target_os = "android")]
     {
-        let resources = crate::platform::bundled_resource_dir()
-            .ok_or("SHINKI_EMU_DATA_DIRECTORY_UNAVAILABLE")?
-            .join("cores/renpy/Resources");
+        let root = crate::platform::bundled_resource_dir()
+            .ok_or("SHINKI_EMU_DATA_DIRECTORY_UNAVAILABLE")?;
+        let resources = root.join("cores/renpy/Resources");
         let path = resources.to_str().ok_or("RENPY_RESOURCE_ROOT_ENCODING")?;
         let mut error = shinki_emu_abi::Error::default();
         let status = shinki_emu_renpy::set_resource_root(path, &mut error);
@@ -307,9 +307,7 @@ fn initialize(
                 String::from_utf8_lossy(&error.message[..error.message_len as usize])
             ));
         }
-        let resources = crate::platform::bundled_resource_dir()
-            .ok_or("SHINKI_EMU_DATA_DIRECTORY_UNAVAILABLE")?
-            .join("cores/kirikiroid2-web/Resources");
+        let resources = root.join("cores/kirikiroid2-web/Resources");
         let path = resources.to_str().ok_or("KRKR_RESOURCE_ROOT_ENCODING")?;
         let status = shinki_emu_kirikiroid2_web::set_resource_root(path);
         if status != shinki_emu_abi::OK {

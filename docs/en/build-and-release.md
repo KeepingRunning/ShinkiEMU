@@ -136,7 +136,9 @@ Each build imports the `cargo ndk-env` toolchain and invokes Cargo directly with
 KiriKiri is also statically embedded on both Android ABIs. Its native-static
 manifest stages the original Cocos resources and dependency notices into APK
 assets. Before query registration, Manager supplies the extracted app-private
-resource directory. The adapter retains the original VM, EGL/Cocos renderer and
+resource directory. Ren'Py and KiriKiri resolve their resource paths from one
+host directory lookup before either query is registered. The adapter retains
+the original VM, EGL/Cocos renderer and
 audio path; its resolved native archive closure is symbol-isolated from the
 Manager's SDL, JNI, Lua and FFmpeg implementations. Android dynamic core
 downloads/installations remain unsupported; a standalone native ZIP is not a
