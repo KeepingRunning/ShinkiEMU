@@ -138,6 +138,13 @@ third-party licenses; the shared PAX-link handling preserves long link targets.
 The product keeps the modern Manager pins and 32 MiB resource contract. Android
 seven-core integration is gated by its own product owner; broad iOS integration
 remains a separate candidate and is not enabled by merging source history.
+`Tools/verify-krkr-desktop.py` checks the actual package's indexed bytes,
+original resource/license assets and native closure. It loads only the packaged
+library and calls the real ABI query for version 3, an unsupported version and a
+null output; it never initializes a core or opens a session. Linux additionally
+checks every packaged ELF with `ldd -r` without `LD_LIBRARY_PATH`; macOS verifies
+every Mach-O with strict codesign and resolves its relocatable dependencies.
+Windows retains the existing unsigned core distribution contract.
 
 RFVP additionally uses the distribution's GStreamer 1.x (at least 1.14) and GLib 2.x (at least 2.56), including the base, good and libav plugin packages for native movie decoding. These are system runtime requirements, not bundled copies. On Ubuntu install `libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libglib2.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav`. Package `build.json` records the actual required system SONAMEs in `system_dependencies`.
 

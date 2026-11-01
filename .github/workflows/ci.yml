@@ -167,6 +167,25 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
         run: cargo xtask release --component kirikiroid2-web --target $env:TARGET
+      - uses: actions/setup-python@v6
+        if: matrix.component == 'kirikiroid2-web'
+        with:
+          python-version: '3.13'
+      - name: Verify actual KiriKiri desktop package
+        if: matrix.component == 'kirikiroid2-web'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: python Tools/verify-krkr-desktop.py --target $env:TARGET --report .work/krkr-desktop-proof.json
+      - uses: actions/upload-artifact@v7
+        if: always() && matrix.component == 'kirikiroid2-web'
+        with:
+          name: native-proof-kirikiroid2-web-${{ matrix.target }}
+          path: |
+            .work/krkr-desktop-proof.json
+            .work/build/${{ matrix.target }}/kirikiroid2-web.json
+            .work/native-vcpkg/kirikiroid2-web/installed-*/**/share/**/vcpkg.spdx.json
+            .work/native-vcpkg/kirikiroid2-web/installed-*/**/share/**/copyright
+          if-no-files-found: error
       - uses: actions/upload-artifact@v7
         if: matrix.component == 'kirikiroid2-web'
         with:

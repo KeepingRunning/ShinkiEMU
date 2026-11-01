@@ -208,7 +208,7 @@ publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/kirikiroid2-web"
 branch = "shinki-common63"
-rev = "de2f29de51ad3b13ab6a4e2a8cb88ffbcb20db6a"
+rev = "57470e061f391864f4ee11c7f0f04a9095a45e95"
 upstream = "https://github.com/fenghengzhi/kirikiroid2-web"
 release_sequence = 2
 upstream_identity = { repo = "https://github.com/fenghengzhi/kirikiroid2-web", ref_kind = "branch", ref_name = "web", commit = "2028cbccaa91498bd36f270d349ae711d0e8fed3" }
@@ -217,10 +217,10 @@ target = "aarch64-apple-ios"
 reason = "Integrated iOS KiriKiri Manager gates are owned by a separate candidate and have not been accepted for this desktop release."
 [[cores.blocked]]
 target = "aarch64-apple-ios-sim"
-reason = "cocos2dx vcpkg port does not support iOS triplets; port pending."
+reason = "Integrated iOS KiriKiri Manager gates are owned by a separate candidate and have not been accepted for this desktop release."
 [[cores.blocked]]
 target = "x86_64-apple-ios"
-reason = "cocos2dx vcpkg port does not support iOS triplets; port pending."
+reason = "Integrated iOS KiriKiri Manager gates are owned by a separate candidate and have not been accepted for this desktop release."
 [[cores.blocked]]
 target = "aarch64-linux-android"
 reason = "Android Manager beta.6 does not embed KiriKiri; static embedding remains in development for a later Manager release. Standalone Android core packages do not establish Manager support."
