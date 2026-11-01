@@ -168,7 +168,7 @@ upstream_identity = { repo = "<与 upstream 相同>", ref_kind = "tag|branch", r
    SHINKI_EMU_RELEASE_CI_RUN_ID=<run> GH_TOKEN=<token> cargo xtask release --component manager --version <semver> --publish
    ```
    含 OHOS 的 Manager 还需要先建 draft、上传 HAP/源码/`ohos-handoff.json`，dispatch `verify_local_manager=true`，再加 `SHINKI_EMU_RELEASE_HANDOFF_RUN_ID`。
-4. 核心公开后，xtask 把每个平台的 catalog 条目提交到 `metadata/release-<tag>` 并开 PR 到 main（`Metadata/engines/cores/<plugin_id>/<platform>/<version>.json`）。用真实 merge 合入，不要 squash。
+4. 核心公开后，xtask 把每个平台的 catalog 条目提交到 `metadata/release-<tag>` 并开 PR 到 main（`Metadata/engines/cores/<plugin_id>/<platform>/<version>.json`）。这个目录 PR 由既有的 GitHub Actions bot 按批准流程自动 squash 合入，这是唯一允许 squash 的地方，不要改它的自动策略。"不 squash、不 rebase"约束的是被 pin 的产品源码和 fork 历史。
 5. 公开后匿名 HEAD 每个资产，确认 HTTP 200，并核对 API digest/size 与本地记录一致。不需要重复整包下载。
 
 签名边界要在 release 说明里如实写明：Windows 包未签名；macOS/iOS 用 ad-hoc 签名，iOS 是测试产物；OHOS HAP 用 SDK 的 debug test PKI；Android 必须是 c415 发布证书。
@@ -268,4 +268,4 @@ shinki-emu-headless ui --page library|cores|patches|settings --language zh-CN|en
 - [ ] `Cargo.lock` diff 只含 fork rev 行；静态嵌入三处一致。
 - [ ] 每个支持目标在同一 exact head 上 CI 成功，并且只有一个 watcher。
 - [ ] 源码包包含完整 fork 快照和原许可证；签名边界写进 release 说明。
-- [ ] 公开 tag/资产没有改写；catalog 用真实 merge 合入。
+- [ ] 公开 tag/资产没有改写；源码和 fork 历史用真实 merge，catalog PR 走既有 bot 自动 squash。
