@@ -1,0 +1,27 @@
+{
+  "abi": "shinki.emu.native.c.v3",
+  "display_name": "impacto",
+  "family_name": "MAGES.",
+  "identity": {
+    "adapter": {
+      "branch": "shinki-linux-runtime-closure",
+      "commit": "34b89c29123d025d96f73ac9a746fb388e572065",
+      "repo": "https://github.com/Project-Shinkirou/impacto"
+    },
+    "release_sequence": 3,
+    "upstream": {
+      "commit": "3706ddd89d4ad4aed0e32e127355c4251f22e574",
+      "ref_kind": "tag",
+      "ref_name": "0.10.8.930",
+      "repo": "https://github.com/CommitteeOfZero/impacto"
+    }
+  },
+  "license": "ISC",
+  "platform": "linux-x86_64",
+  "plugin_id": "impacto",
+  "release_tag": "core-impacto-tag-0-10-8-930-96de7434c8b1a57df7ff24dcee829282194873fe596677056fa168485cb1555e",
+  "sha256": "d8886289f3d73753d729ee3c5f6975f717762b7a158a1f7cd5c75780e0a4be83",
+  "size": 119555798,
+  "url": "https://github.com/Project-Shinkirou/ShinkiEMU/releases/download/core-impacto-tag-0-10-8-930-96de7434c8b1a57df7ff24dcee829282194873fe596677056fa168485cb1555e/shinki-emu-core-impacto-tag-0-10-8-930-96de7434c8b1a57df7ff24dcee829282194873fe596677056fa168485cb1555e-linux-x86_64.zip",
+  "version": "tag-0-10-8-930-96de7434c8b1a57df7ff24dcee829282194873fe596677056fa168485cb1555e"
+}
