@@ -1,0 +1,27 @@
+{
+  "abi": "shinki.emu.native.c.v3",
+  "display_name": "Ren’Py",
+  "family_name": "Ren’Py",
+  "identity": {
+    "adapter": {
+      "branch": "shinki-android-ports",
+      "commit": "a52d9d9c006223c2b5a276c05e1b97ffeecbe66f",
+      "repo": "https://github.com/Project-Shinkirou/renpy"
+    },
+    "release_sequence": 1,
+    "upstream": {
+      "commit": "39895c1e017f0b36ffea2447d97eccd69d76ee1c",
+      "ref_kind": "tag",
+      "ref_name": "8.5.3.26051504",
+      "repo": "https://github.com/renpy/renpy"
+    }
+  },
+  "license": "MIT AND LGPL-2.1-or-later",
+  "platform": "macos-aarch64",
+  "plugin_id": "renpy",
+  "release_tag": "core-renpy-tag-8-5-3-26051504-5f537560e1a1b852070dec65946d6c027e9f4f7482bddd8349ed47960c383133",
+  "sha256": "001fe335fc4d5b400bd34e71716eb5190aebbde33753aee492d21a34971af951",
+  "size": 37733029,
+  "url": "https://github.com/Project-Shinkirou/ShinkiEMU/releases/download/core-renpy-tag-8-5-3-26051504-5f537560e1a1b852070dec65946d6c027e9f4f7482bddd8349ed47960c383133/shinki-emu-core-renpy-tag-8-5-3-26051504-5f537560e1a1b852070dec65946d6c027e9f4f7482bddd8349ed47960c383133-macos-aarch64.zip",
+  "version": "tag-8-5-3-26051504-5f537560e1a1b852070dec65946d6c027e9f4f7482bddd8349ed47960c383133"
+}
