@@ -7,6 +7,8 @@ description: Windowless core acceptance, replay, baseline comparisons and Manage
 
 The shared runner uses Manager's C ABI v3 loader, native session owner and immutable CPU frame leases. Scripts use the existing `roukaku.user_input_sequence.v1` messages from `roukaku-headless-protocol` at the workspace's pinned RoukakuEngine revision. No engine checkout changes are required.
 
+These commands are available in repository source for the release after Manager `0.1.0-beta.7`; they are not included in the beta.7 downloads. Build the source as shown below to use them now.
+
 ## Build
 
 ```powershell
