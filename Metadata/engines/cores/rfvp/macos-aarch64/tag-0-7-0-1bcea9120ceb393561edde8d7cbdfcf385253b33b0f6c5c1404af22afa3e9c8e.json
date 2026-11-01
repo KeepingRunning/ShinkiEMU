@@ -1,0 +1,27 @@
+{
+  "abi": "shinki.emu.native.c.v3",
+  "display_name": "RFVP",
+  "family_name": "FVP",
+  "identity": {
+    "adapter": {
+      "branch": "shinki-sakura-native",
+      "commit": "f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03",
+      "repo": "https://github.com/Project-Shinkirou/rfvp"
+    },
+    "release_sequence": 1,
+    "upstream": {
+      "commit": "99435f22e94eaec27c0c1b9f22cc2a6b1910d7d1",
+      "ref_kind": "tag",
+      "ref_name": "0.7.0",
+      "repo": "https://github.com/xmoezzz/rfvp"
+    }
+  },
+  "license": "MPL-2.0",
+  "platform": "macos-aarch64",
+  "plugin_id": "rfvp",
+  "release_tag": "core-rfvp-tag-0-7-0-1bcea9120ceb393561edde8d7cbdfcf385253b33b0f6c5c1404af22afa3e9c8e",
+  "sha256": "e68cce8300edcc0611cdf22771abfa85be78f234ae1fe2da80270359d30f88e8",
+  "size": 26326787,
+  "url": "https://github.com/Project-Shinkirou/ShinkiEMU/releases/download/core-rfvp-tag-0-7-0-1bcea9120ceb393561edde8d7cbdfcf385253b33b0f6c5c1404af22afa3e9c8e/shinki-emu-core-rfvp-tag-0-7-0-1bcea9120ceb393561edde8d7cbdfcf385253b33b0f6c5c1404af22afa3e9c8e-macos-aarch64.zip",
+  "version": "tag-0-7-0-1bcea9120ceb393561edde8d7cbdfcf385253b33b0f6c5c1404af22afa3e9c8e"
+}
