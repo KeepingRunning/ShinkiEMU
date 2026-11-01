@@ -201,8 +201,11 @@ msgstr "Restores the latest in-place overwrite. Patched files you edited are not
 msgid "还原最近一次补丁"
 msgstr "Restore latest patch"
 
-msgid "补丁目录中适用于这部作品的补丁配方列在下面，标题注明适用的发行版本。应用前会核对游戏的发行版本，不一致时拒绝执行。也可以使用本地的 Luau 转换脚本。"
-msgstr "Catalog patch recipes for this title are listed below; each title names the release it applies to. The game's release is checked before applying, and a mismatch stops the run. You can also use a local Luau recipe."
+msgid "补丁都是 Luau 脚本，可以在线获取，也可以加载本地文件。在线补丁的标题注明适用的发行版本，应用前会核对游戏的发行版本，不一致时拒绝执行。"
+msgstr "Every patch is a Luau script, fetched online or loaded from a local file. Online patch titles name the release they apply to; the game's release is checked before applying, and a mismatch stops the run."
+
+msgid "在线补丁"
+msgstr "Online patches"
 
 msgid "补丁目录中没有适用于这部作品的补丁。"
 msgstr "The catalog has no patches for this title."
@@ -210,11 +213,44 @@ msgstr "The catalog has no patches for this title."
 msgid "推荐"
 msgstr "Recommended"
 
-msgid "本地脚本"
-msgstr "Local recipe"
+msgid "本地 · 未经目录审核"
+msgstr "Local · not reviewed by the catalog"
 
-msgid "选择本地脚本…"
-msgstr "Choose local recipe…"
+msgid "加载本地补丁…"
+msgstr "Load local patch…"
+
+msgid "选择本地补丁（.luau 或 .zip）"
+msgstr "Choose a local patch (.luau or .zip)"
+
+msgid "Luau 补丁"
+msgstr "Luau patch"
+
+msgid "脚本下载的文件"
+msgstr "Files downloaded by the script"
+
+msgid "校验步骤"
+msgstr "Checks"
+
+msgid "SHA256 校验通过：{}"
+msgstr "SHA256 verified: {}"
+
+msgid "SHA256 校验失败：{}"
+msgstr "SHA256 check failed: {}"
+
+msgid "预期 SHA256：{}"
+msgstr "Expected SHA256: {}"
+
+msgid "脚本未提供 SHA256"
+msgstr "The script gave no SHA256"
+
+msgid "已回滚：游戏目录已恢复到运行前的状态。"
+msgstr "Rolled back: the game directory is back to how it was before the run."
+
+msgid "已回滚：没有生成输出目录。"
+msgstr "Rolled back: no output directory was created."
+
+msgid "原生内嵌译文"
+msgstr "Native embedded text"
 
 msgid "补丁输入目录默认是游戏目录；可选择新目录或原位覆盖。原位覆盖会把修改前的文件保存在游戏目录的 .shinki/backup。"
 msgstr "The patch input directory defaults to the game directory. Choose New directory or In-place overwrite; in-place mode keeps the original files in the game's .shinki/backup."
@@ -1982,9 +2018,6 @@ msgstr "{h}h {m}m left"
 msgid "Anime4K 固定为 2 倍"
 msgstr "Anime4K is fixed at 2×"
 
-msgid "Luau 脚本"
-msgstr "Luau script"
-
 msgid "ShinkiEMU 启动失败"
 msgstr "ShinkiEMU failed to start"
 
@@ -2296,9 +2329,6 @@ msgstr "Choose a Store library folder"
 
 msgid "选择发行版本以查看兼容性"
 msgstr "Choose a release to see compatibility"
-
-msgid "选择可信的本地 Luau 补丁脚本"
-msgstr "Choose a trusted local Luau patch script"
 
 msgid "选择外部画面效果（HLSL）"
 msgstr "Choose an external screen effect (HLSL)"
