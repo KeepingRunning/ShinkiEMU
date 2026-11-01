@@ -1516,6 +1516,30 @@ fn prepare_linux_runtime_tree(install: &Path, runtime: &Path, target: &str) -> R
             .arg(&output))?;
         crate::binary::inspect(&output, target, false)?;
     }
+    // Cocos' pinned Linux SDK keeps FMOD outside lib/ and omits its SONAME link.
+    // This is an authorized bundled runtime, never a distribution/system ABI.
+    let fmod = install.join("share/cocos2dx/linux-specific/fmod/prebuilt/64-bit/libfmod.so");
+    if fmod.is_file() {
+        package::plain(&fmod)?;
+        if package::sha256(&fmod)?
+            != "d4454884763c746c70c4ea2a9b0ca35555fef2bf174072be21924cb9a80d84a9"
+        {
+            bail!("Cocos FMOD runtime differs from the reviewed SDK 1.06.08 input");
+        }
+        let soname = capture(Command::new("patchelf").arg("--print-soname").arg(&fmod))?;
+        if String::from_utf8(soname)?.trim() != "libfmod.so.6" {
+            bail!("Cocos FMOD runtime must declare SONAME libfmod.so.6");
+        }
+        let output = runtime.join("libfmod.so.6");
+        if fs::symlink_metadata(&output).is_ok() {
+            package::plain(&output)?;
+        }
+        fs::copy(&fmod, &output)?;
+        run(Command::new("patchelf")
+            .args(["--set-rpath", "$ORIGIN"])
+            .arg(&output))?;
+        crate::binary::inspect(&output, target, false)?;
+    }
     Ok(())
 }
 fn vcpkg_install_command(inv: &Inventory, executable: &Path) -> Result<Command> {

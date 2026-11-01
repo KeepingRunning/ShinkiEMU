@@ -68,7 +68,7 @@ Manager initializes the process-wide Rustls crypto provider once, before creatin
 Use the repository's pinned Rust 1.99.1 toolchain. On Ubuntu 22.04/24.04 install the native development packages explicitly:
 
 ```sh
-sudo apt-get install -y --no-install-recommends build-essential cmake ninja-build pkg-config nasm patchelf autoconf automake libtool libltdl-dev autoconf-archive python3-jinja2 python3-venv libxtst-dev libxxf86vm-dev bison flex gperf libssl-dev libasound2-dev libudev-dev libx11-dev libx11-xcb-dev libxcb1-dev libxrandr-dev libxi-dev libxcursor-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libfontconfig1-dev libegl1-mesa-dev libgl1-mesa-dev libvulkan-dev mesa-vulkan-drivers xvfb xauth unzip jq
+sudo apt-get install -y --no-install-recommends build-essential cmake ninja-build pkg-config nasm patchelf autoconf automake libtool libltdl-dev autoconf-archive python3-jinja2 python3-venv libxtst-dev libxxf86vm-dev libxinerama-dev bison flex gperf libssl-dev libasound2-dev libudev-dev libx11-dev libx11-xcb-dev libxcb1-dev libxrandr-dev libxi-dev libxcursor-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libfontconfig1-dev libegl1-mesa-dev libgl1-mesa-dev libvulkan-dev mesa-vulkan-drivers xvfb xauth unzip jq
 sudo apt-get install -y --no-install-recommends libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libglib2.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
@@ -105,6 +105,28 @@ Linux Manager `deps` checks the distribution's development libraries; it does no
 The Linux package uses the distribution's glibc, libstdc++, OpenSSL 3, fontconfig, udev and ALSA ABI libraries, plus GTK 3 and WebKitGTK 4.1 for store web sign-in. Install their runtime packages (on Ubuntu `libwebkit2gtk-4.1-0`, which pulls in GTK 3) on the destination system and provide an X11 or Wayland desktop with a graphics driver.
 Impacto's Linux VA-API libraries also require the distribution's `libdrm.so.2`
 (Ubuntu package `libdrm2`), which remains part of the system graphics stack.
+KiriKiri2 also uses the distribution's OpenGL dispatch libraries `libGL.so.1`,
+`libGLX.so.0` and `libOpenGL.so.0` (Ubuntu packages `libgl1 libglx0 libopengl0`).
+Its X11 and OpenMP dependencies use the distribution's `libX11.so.6` and
+`libgomp.so.1` (Ubuntu packages `libx11-6 libgomp1`).
+Its gdiplus text renderer uses the distribution's Pango Cairo/FreeType modules
+`libpangocairo-1.0.so.0` and `libpangoft2-1.0.so.0`
+(Ubuntu packages `libpangocairo-1.0-0 libpangoft2-1.0-0`).
+The GTK dialog ABI `libgtk-3.so.0` is also supplied by the distribution
+(Ubuntu 24.04 package `libgtk-3-0t64`). Pinned OpenSSL libraries are bundled:
+the vcpkg curl build requires OpenSSL symbols newer than Ubuntu 24.04 supplies,
+so matching `libssl.so.3`/`libcrypto.so.3` cannot be treated as system ABI files.
+Linux disables Cocos' unused `BUILD_EDITOR_SPINE` module; the core/plugin
+consumers, CocoStudio UI and MotionPlayer/Emote remain intact. The original
+Spine license stays in the untouched source tar, not the binary's used-module
+notice set. This Linux-only choice does not change Android or Apple builds.
+KiriKiri2 Linux bundles the pinned Cocos FMOD runtime as `libfmod.so.6`,
+using relative `$ORIGIN` lookup. It is a third-party runtime, not a system ABI.
+The project owner authorized its redistribution on 2026-10-31. The package's
+`licenses/kirikiroid2-web/FMOD.txt` preserves Firelight attribution and exact
+binary/archive provenance. Cocos source remains MIT; FMOD is not relicensed MIT.
+The source bundle contains the original dependency archive and rebuild recipes,
+including genuine FMOD headers/prebuilt input, not invented FMOD source or EULA.
 
 RFVP additionally uses the distribution's GStreamer 1.x (at least 1.14) and GLib 2.x (at least 2.56), including the base, good and libav plugin packages for native movie decoding. These are system runtime requirements, not bundled copies. On Ubuntu install `libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libglib2.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav`. Package `build.json` records the actual required system SONAMEs in `system_dependencies`.
 

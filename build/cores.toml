@@ -202,19 +202,16 @@ features = []
 dependencies = ["native-vcpkg", "bison"]
 artifact_kind = "native-shared"
 resources = []
-licenses = ["ThirdParty/kirikiri2/LICENSE", "ThirdParty/kirikiri2/shinki/README.md", "ThirdParty/kirikiri2/cpp/plugins/layerExImage/LICENSE.TXT", "ThirdParty/kirikiri2/ui/cocos-studio/DroidSansFallback.LICENSE.txt", "ThirdParty/kirikiri2/shinki/licenses/libbpg-MIT.txt", "ThirdParty/kirikiri2/shinki/licenses/minizip-zlib.txt", "ThirdParty/kirikiri2/shinki/licenses/UnRAR.txt"]
-supported_targets = ["x86_64-pc-windows-msvc"]
+licenses = ["ThirdParty/kirikiri2/LICENSE", "ThirdParty/kirikiri2/shinki/README.md", "ThirdParty/kirikiri2/cpp/plugins/layerExImage/LICENSE.TXT", "ThirdParty/kirikiri2/ui/cocos-studio/DroidSansFallback.LICENSE.txt", "ThirdParty/kirikiri2/shinki/licenses/libbpg-MIT.txt", "ThirdParty/kirikiri2/shinki/licenses/minizip-zlib.txt", "ThirdParty/kirikiri2/shinki/licenses/UnRAR.txt", "ThirdParty/kirikiri2/shinki/licenses/FMOD.txt"]
+supported_targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]
 publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/kirikiroid2-web"
-branch = "shinki-apple-xplat"
-rev = "335d1536e59b5b614867aca04dcf189158e6cd15"
+branch = "shinki-linux-fmod61"
+rev = "f4ce58c90055f1a3456705b81aed48730f38401d"
 upstream = "https://github.com/fenghengzhi/kirikiroid2-web"
 release_sequence = 1
 upstream_identity = { repo = "https://github.com/fenghengzhi/kirikiroid2-web", ref_kind = "branch", ref_name = "web", commit = "2028cbccaa91498bd36f270d349ae711d0e8fed3" }
-[[cores.blocked]]
-target = "x86_64-unknown-linux-gnu"
-reason = "Linux candidate build/package and ELF closure gates have not completed; the released fork pin remains Windows-only."
 [[cores.blocked]]
 target = "x86_64-apple-darwin"
 reason = "macOS native dependency closure (vcpkg gperf) has not built in CI; port pending."

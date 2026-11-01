@@ -1070,7 +1070,11 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
         ));
     }
     if selected.bison {
-        instructions.push_str("$env:BISON_EXECUTABLE = (Get-Command win_bison.exe).Source\n");
+        if target.contains("windows") {
+            instructions.push_str("$env:BISON_EXECUTABLE = (Get-Command win_bison.exe).Source\n");
+        } else {
+            instructions.push_str("$env:BISON_EXECUTABLE = \"$(command -v bison)\"\n");
+        }
     }
     let build_command = if target.contains("android") {
         format!(
@@ -1104,6 +1108,20 @@ pub(crate) fn bundle(inv: &Inventory, component: &str, target: &str, out: &Path)
              .work/vcpkg-downloads/ holds the original source archives vcpkg consumed. \
              Static libraries can be modified, rebuilt with these recipes, and relinked by rebuilding the consumer above. \
              Compatible replacement and reverse engineering for debugging modifications to LGPL components are permitted.\n",
+        );
+    }
+    if component == "kirikiroid2-web" && target == "x86_64-unknown-linux-gnu" {
+        instructions.push_str(
+            "\n## Cocos and FMOD Linux inputs\n\n\
+             Cocos2d-x 3.17.2 source is MIT licensed with its original per-file and third-party notices retained. \
+             Linux disables Cocos' unused BUILD_EDITOR_SPINE module. Its original Spine license remains in the full upstream source tar for that uncompiled component; the binary notice set does not claim Spine is linked. \
+             Its separately supplied FMOD runtime remains a proprietary Firelight component; see ThirdParty/kirikiri2/shinki/licenses/FMOD.txt for original attribution, exact input hashes and the project owner's redistribution authorization.\n\n\
+             The checksum-matched cocos2d-x-3rd-party-libs-bin.tar.gz in .work/vcpkg-downloads contains the original FMOD headers and prebuilt Linux runtime, not FMOD implementation source. \
+             DownloadDeps.cmake in the pinned fork supplies the exact archive URL and SHA512. Rebuild the supplied Cocos/core source against those headers and that binary; no FMOD implementation source is invented or substituted. \
+             Install the Linux host packages listed in docs/en/build-and-release.md, including Bison and patchelf. \
+             After rebuilding, run `cargo xtask deps --target x86_64-unknown-linux-gnu --core kirikiroid2-web` and \
+             `cargo xtask package --target x86_64-unknown-linux-gnu --core kirikiroid2-web --version <version> --out <new-directory>` \
+             to stage the reviewed FMOD input under its SONAME libfmod.so.6 and apply relative $ORIGIN lookup.\n",
         );
     }
     if selected.renpy && target.ends_with("-linux-android") {
