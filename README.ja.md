@@ -7,7 +7,9 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md) · 日本語
 
-ShinkiEMU はプレリリース段階で、ビルドは beta として公開しています。ビルドが成功しても、個々のゲームが遊べることの確認にはなりません。ゲームごとの報告は[ポータル](https://project-shinkirou.github.io/ja/shinkiemu/)にあります。
+ShinkiEMU はプレリリース段階で、ビルドは beta として公開しています。ビルドが成功しても、個々のゲームが遊べることの確認にはなりません。ゲームごとの結果は[互換性レポート](https://project-shinkirou.github.io/ja/shinkiemu/compatibility/)で確認してください。
+
+**ポータル：**[ダウンロード](https://project-shinkirou.github.io/ja/shinkiemu/#download) · [互換性](https://project-shinkirou.github.io/ja/shinkiemu/compatibility/) · [コア](https://project-shinkirou.github.io/ja/shinkiemu/cores/) · [パッチ](https://project-shinkirou.github.io/ja/shinkiemu/patches/) · [よくある質問](https://project-shinkirou.github.io/ja/shinkiemu/faq/) · [プロジェクトの状況](https://project-shinkirou.github.io/ja/status/)
 
 ## 機能
 
@@ -38,7 +40,7 @@ ShinkiEMU はプレリリース段階で、ビルドは beta として公開し�
 
 ## インストール
 
-1. [Releases](https://github.com/Project-Shinkirou/ShinkiEMU/releases) から自分のプラットフォーム用の Manager パッケージをダウンロードします。
+1. [ポータル](https://project-shinkirou.github.io/ja/shinkiemu/#download)または [Releases](https://github.com/Project-Shinkirou/ShinkiEMU/releases) から自分のプラットフォーム用の Manager パッケージをダウンロードします。
 2. 展開して `shinki-emu-manager`（Windows では `shinki-emu-manager.exe`）を起動します。
 3. Linux では、[ビルドとリリース](docs/ja/build-and-release.md)の Linux デスクトップの節にあるランタイムライブラリを先にインストールします。
 
@@ -84,7 +86,7 @@ cargo xtask test --core rfvp
 
 ## 問題の報告
 
-issue フォームを使ってください。
+よくある質問は[よくある質問](https://project-shinkirou.github.io/ja/shinkiemu/faq/)のページにまとめています。それ以外は issue フォームを使ってください。
 
 - [バグ報告](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=bug.yml)
 - [ゲーム互換性報告](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=compatibility.yml)

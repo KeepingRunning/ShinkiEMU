@@ -7,7 +7,9 @@
 
 [English](README.md) · 简体中文 · [日本語](README.ja.md)
 
-ShinkiEMU 仍处于预发布阶段，构建以 beta 版发布。构建成功不等于某个游戏已验证可玩，逐个游戏的报告见[门户](https://project-shinkirou.github.io/zh-cn/shinkiemu/)。
+ShinkiEMU 仍处于预发布阶段，构建以 beta 版发布。构建成功不等于某个游戏已验证可玩，逐个游戏的结论见[兼容性报告](https://project-shinkirou.github.io/zh-cn/shinkiemu/compatibility/)。
+
+**门户：**[下载](https://project-shinkirou.github.io/zh-cn/shinkiemu/#download) · [兼容性](https://project-shinkirou.github.io/zh-cn/shinkiemu/compatibility/) · [核心](https://project-shinkirou.github.io/zh-cn/shinkiemu/cores/) · [补丁](https://project-shinkirou.github.io/zh-cn/shinkiemu/patches/) · [常见问题](https://project-shinkirou.github.io/zh-cn/shinkiemu/faq/) · [项目状态](https://project-shinkirou.github.io/zh-cn/status/)
 
 ## 功能
 
@@ -38,7 +40,7 @@ ShinkiEMU 仍处于预发布阶段，构建以 beta 版发布。构建成功不�
 
 ## 安装
 
-1. 从 [Releases](https://github.com/Project-Shinkirou/ShinkiEMU/releases) 下载对应平台的 Manager 包。
+1. 从[门户](https://project-shinkirou.github.io/zh-cn/shinkiemu/#download)或 [Releases](https://github.com/Project-Shinkirou/ShinkiEMU/releases) 下载对应平台的 Manager 包。
 2. 解压后运行 `shinki-emu-manager`（Windows 上是 `shinki-emu-manager.exe`）。
 3. Linux 需要先装好[构建与发布](docs/zh-cn/build-and-release.md)里 Linux 桌面一节列出的运行库。
 
@@ -84,7 +86,7 @@ cargo xtask test --core rfvp
 
 ## 问题反馈
 
-请使用 issue 表单：
+常见问题见[常见问题](https://project-shinkirou.github.io/zh-cn/shinkiemu/faq/)页面。其他问题请使用 issue 表单：
 
 - [Bug 报告](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=bug.yml)
 - [游戏兼容性报告](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=compatibility.yml)
