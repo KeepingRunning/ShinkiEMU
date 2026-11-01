@@ -1,7 +1,7 @@
 name: Component release
-# One component: push its tag. Many components: dispatch this workflow. Either way one
-# run builds every (component x target) row, then publishes each component whose rows
-# all succeeded; GitHub creates a missing tag at the run's commit when it publishes.
+# One component: push its tag. Many components: dispatch this workflow.
+# Preparation uses the selected exact product commit; prepare-only dispatches
+# keep every build/source gate but never create a tag or public release.
 on:
   push:
     tags: ['manager-v*', 'core-*']
@@ -17,6 +17,14 @@ on:
         description: 'Verify staged OHOS HAP/source in the draft Manager release; no rebuild or publication'
         type: boolean
         default: false
+      prepare_only:
+        description: 'Prepare and retain every selected platform without publishing; audit actual artifacts before a separate publication'
+        type: boolean
+        default: false
+      source_commit:
+        description: 'Optional exact lowercase 40-hex product SHA for prepare-only; omit to use the workflow commit'
+        type: string
+        required: false
 permissions:
   contents: read
 env:
@@ -29,10 +37,12 @@ jobs:
       components: ${{ steps.select.outputs.components }}
       version: ${{ steps.select.outputs.version }}
       local_manager: ${{ steps.select.outputs.local_manager }}
+      source_commit: ${{ steps.select.outputs.source_commit }}
     steps:
       # The inventory needs the cpal submodule for workspace resolution, not LFS payloads.
       - uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.source_commit || github.sha }}
           submodules: true
       - run: rustup show
       - id: select
@@ -40,8 +50,17 @@ jobs:
         env:
           INPUT_COMPONENTS: ${{ inputs.components }}
           INPUT_VERSION: ${{ inputs.version }}
+          INPUT_SOURCE_COMMIT: ${{ inputs.source_commit }}
+          EXPECTED_SOURCE_COMMIT: ${{ inputs.source_commit || github.sha }}
+          PREPARE_ONLY: ${{ inputs.prepare_only }}
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
+          if ($env:EXPECTED_SOURCE_COMMIT -cnotmatch '^[0-9a-f]{40}$') { throw 'source_commit must be an exact lowercase 40-hex product SHA' }
+          if ($env:INPUT_SOURCE_COMMIT -and $env:PREPARE_ONLY -ne 'true') { throw 'An explicit source_commit requires prepare_only=true' }
+          $sourceCommit = (git rev-parse HEAD).Trim()
+          if ($sourceCommit -cne $env:EXPECTED_SOURCE_COMMIT) { throw 'Checked-out product SHA differs from the selected source_commit' }
+          "source_commit=$sourceCommit" >> $env:GITHUB_OUTPUT
+          "Workflow dispatch SHA: $env:GITHUB_SHA; actual product/source SHA: $sourceCommit; prepare_only=$env:PREPARE_ONLY" >> $env:GITHUB_STEP_SUMMARY
           $localManager = @((cargo xtask matrix) | Where-Object { $_ -match '^manager\taarch64-unknown-linux-ohos\tsupported\t' }).Count -gt 0
           $rows = @((cargo xtask matrix --json --ci | ConvertFrom-Json).include)
           $known = @($rows.component | Sort-Object -Unique -CaseSensitive)
@@ -108,6 +127,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ needs.select.outputs.source_commit }}
           submodules: true
           lfs: true
       - run: rustup show
@@ -208,6 +228,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ needs.select.outputs.source_commit }}
           submodules: true
       - run: rustup show
       - name: Download actual test-signed HAP and corresponding source from draft
@@ -246,6 +267,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ needs.select.outputs.source_commit }}
           submodules: true
       - run: rustup show
       - uses: actions/download-artifact@v8
@@ -257,6 +279,7 @@ jobs:
         shell: bash
         env:
           MATRIX: ${{ needs.select.outputs.matrix }}
+          SOURCE_COMMIT: ${{ needs.select.outputs.source_commit }}
         run: |
           set -euo pipefail
           # Prepared files sit at .work/release/<tag>/<target>/release.json.
@@ -267,13 +290,26 @@ jobs:
             echo "::error::$COMPONENT not published; build rows failed or were cancelled: $missing"
             exit 1
           fi
+          while IFS= read -r target; do
+            records=(.work/release/*/"$target"/release.json)
+            test "${#records[@]}" -eq 1
+            jq -e --arg commit "$SOURCE_COMMIT" --arg component "$COMPONENT" --arg version "$VERSION" --arg target "$target" \
+              '.source_commit == $commit and .component == $component and .version == $version and .target == $target' \
+              "${records[0]}" >/dev/null
+          done < <(jq -r --arg c "$COMPONENT" '.include[] | select(.component == $c) | .target' <<<"$MATRIX")
       - name: Local Manager artifact handoff
         if: matrix.component == 'manager' && needs.select.outputs.local_manager == 'true'
         run: |
           echo "Manager $VERSION requires its DevEco-signed local-only artifact. Download all release-files-manager@* artifacts from this exact-head run, prepare the OHOS release record locally, and publish only after ci.yml succeeds at the same head SHA." >> "$GITHUB_STEP_SUMMARY"
+      - name: Prepare-only artifact handoff
+        if: inputs.prepare_only == true
+        env:
+          SOURCE_COMMIT: ${{ needs.select.outputs.source_commit }}
+        run: |
+          echo "Prepared every $COMPONENT platform from actual product/source SHA $SOURCE_COMMIT (workflow dispatch SHA $GITHUB_SHA). No tag or public release was created. Download this run's release-files artifacts and audit their actual binary/source/native/license bytes before publishing from the clean product commit." >> "$GITHUB_STEP_SUMMARY"
       - name: Publish every prepared platform as one Release
         id: publish
-        if: matrix.component != 'manager' || needs.select.outputs.local_manager != 'true'
+        if: inputs.prepare_only != true && (matrix.component != 'manager' || needs.select.outputs.local_manager != 'true')
         env:
           GH_TOKEN: ${{ github.token }}
         run: cargo xtask release --component "$COMPONENT" --version "$VERSION" --publish

@@ -273,6 +273,8 @@ Manager 与自研 CMVS/Musica 保留各自的 SemVer 和 `manager-v<semver>`、`
 
 `release.yml` 构建所选组件在托管平台的所有行，并自动发布不含本地专用目标的组件。含受支持 OHOS 目标的 Manager 由上文有门禁的本地流程补齐 HAP 与源码后发布。单个核心可推送 tag；多个组件用 `version` 和 `components` 手动触发工作流。一次推送超过三个新 tag 不会触发工作流。
 
+需要先验收再公开时，仍运行这份 `release.yml`，传入 `prepare_only=true`，并可用 `source_commit` 指定精确的 40 位产品提交。显式指定源码提交只允许用于仅准备模式。原矩阵、依赖、原生、签名、打包和对应源码命令保持不变；最终交接要求每个平台的记录都与实际产品提交、组件、版本和目标一致，并跳过公开发行步骤。workflow dispatch SHA 只标识编排代码，不是产品来源。下载实际附件，逐项核验二进制、源码及嵌套重构建配方的文件和链接后，再从已接受产品提交的干净检出用现有 xtask 公开；不能把工具提交改标为产品源码，也不能用 CI 成功代替源码实物验收。
+
 工作流的 `version` 只适用于 Manager/自研核心；第三方组件在展开平台矩阵前分别核验并计算自己的版本。第三方执行上面的发布命令时省略 `--version`，Manager/自研核心仍须传入。
 
 元数据命令见 [Metadata](metadata.md)，核心包契约见[核心 ABI](core-abi.md)。
