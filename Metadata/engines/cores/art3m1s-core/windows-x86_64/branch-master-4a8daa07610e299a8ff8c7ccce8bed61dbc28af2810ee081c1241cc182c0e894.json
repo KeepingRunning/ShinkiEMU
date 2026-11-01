@@ -1,0 +1,27 @@
+{
+  "abi": "shinki.emu.native.c.v3",
+  "display_name": "Art3m1s",
+  "family_name": "Artemis",
+  "identity": {
+    "adapter": {
+      "branch": "shinki-android-isolation",
+      "commit": "5243005cf0aaaeac89b1803e57381e9c0b14b95c",
+      "repo": "https://github.com/Project-Shinkirou/art3m1s-core"
+    },
+    "release_sequence": 1,
+    "upstream": {
+      "commit": "ad90a62cb192b119b7cf8589aa7f87a94bd747c8",
+      "ref_kind": "branch",
+      "ref_name": "master",
+      "repo": "https://github.com/Alphaly2K/art3m1s-core"
+    }
+  },
+  "license": "MPL-2.0",
+  "platform": "windows-x86_64",
+  "plugin_id": "art3m1s-core",
+  "release_tag": "core-art3m1s-core-branch-master-4a8daa07610e299a8ff8c7ccce8bed61dbc28af2810ee081c1241cc182c0e894",
+  "sha256": "e44859bc692699fdbd69ebf9012d8b69b6076474b20787175a2df2250abba5be",
+  "size": 17646236,
+  "url": "https://github.com/Project-Shinkirou/ShinkiEMU/releases/download/core-art3m1s-core-branch-master-4a8daa07610e299a8ff8c7ccce8bed61dbc28af2810ee081c1241cc182c0e894/shinki-emu-core-art3m1s-core-branch-master-4a8daa07610e299a8ff8c7ccce8bed61dbc28af2810ee081c1241cc182c0e894-windows-x86_64.zip",
+  "version": "branch-master-4a8daa07610e299a8ff8c7ccce8bed61dbc28af2810ee081c1241cc182c0e894"
+}
