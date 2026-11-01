@@ -1,0 +1,27 @@
+{
+  "abi": "shinki.emu.native.c.v3",
+  "display_name": "KiriKiri2",
+  "family_name": "KiriKiri",
+  "identity": {
+    "adapter": {
+      "branch": "shinki-common63",
+      "commit": "d72046c28e6ada623acdb1d72f7075edd488797d",
+      "repo": "https://github.com/Project-Shinkirou/kirikiroid2-web"
+    },
+    "release_sequence": 2,
+    "upstream": {
+      "commit": "2028cbccaa91498bd36f270d349ae711d0e8fed3",
+      "ref_kind": "branch",
+      "ref_name": "web",
+      "repo": "https://github.com/fenghengzhi/kirikiroid2-web"
+    }
+  },
+  "license": "(MIT OR Apache-2.0) AND LicenseRef-KiriKiri2",
+  "platform": "windows-x86_64",
+  "plugin_id": "kirikiroid2-web",
+  "release_tag": "core-kirikiroid2-web-branch-web-1e3603089b4951c8e2831d978ea6fe5a8097bceeb0a56fdeb65aa3953e67eecf",
+  "sha256": "d7283e6be2e5e3e39524382fc45b0a4f9f0d9c93d78fa31744ad932905c54ca0",
+  "size": 30055418,
+  "url": "https://github.com/Project-Shinkirou/ShinkiEMU/releases/download/core-kirikiroid2-web-branch-web-1e3603089b4951c8e2831d978ea6fe5a8097bceeb0a56fdeb65aa3953e67eecf/shinki-emu-core-kirikiroid2-web-branch-web-1e3603089b4951c8e2831d978ea6fe5a8097bceeb0a56fdeb65aa3953e67eecf-windows-x86_64.zip",
+  "version": "branch-web-1e3603089b4951c8e2831d978ea6fe5a8097bceeb0a56fdeb65aa3953e67eecf"
+}
