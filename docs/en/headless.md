@@ -17,6 +17,8 @@ cargo clippy -p shinki-emu-headless --all-targets -- -D warnings
 
 `--no-default-features` builds the core runner without the Manager UI. `--features static-cmvs` embeds CMVS under `shinki.emu.cmvs`; `--features static-siglus` embeds the same pinned Siglus core used by Manager under `siglus_rs`. Manager shares the runner through `shinki-emu-manager headless ...` and `shinki-emu-manager headless-ui ...`; its embedded core IDs come from the same `static_cores::STATIC_CORES` inventory used by the graphical owner. The library's `run_cli(arguments, STATIC_CORES)` entry accepts any host's linked inventory.
 
+Build Manager with `cargo build -p shinki-emu-manager --features static-cmvs` to register `shinki.emu.cmvs` in both its GUI owner and `shinki-emu-manager headless --core shinki.emu.cmvs ...`. Enabling the standalone runner's feature alone does not register CMVS in Manager. Desktop builds without this optional feature keep their dynamic-core discovery.
+
 ## Core acceptance and captures
 
 ```powershell

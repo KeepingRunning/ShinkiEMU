@@ -265,7 +265,6 @@ pub(super) fn service_due(
     }
 }
 
-#[cfg(any(target_os = "android", target_os = "ios", target_env = "ohos"))]
 use shinki_emu_manager::static_cores::STATIC_CORES;
 
 fn initialize(
@@ -288,7 +287,6 @@ fn initialize(
             ));
         }
     }
-    #[cfg(any(target_os = "android", target_os = "ios", target_env = "ohos"))]
     for (id, query) in STATIC_CORES {
         unsafe { registry.register_static(*query) }.map_err(|error| error.to_string())?;
         tracing::info!(event = "shinki.emu.core.static_registered", core = id);
