@@ -1,6 +1,6 @@
 ---
 name: shinkiemu-maintenance
-description: Use when maintaining ShinkiEMU itself rather than writing a core - xtask doctor/deps/build/package/release, build/cores.toml and targets.toml edits, external-core version identity (upstream_identity, release_sequence, canonical core tags), fork pin bumps and Cargo.lock discipline, vcpkg baseline/overlay triplets/overlay ports, Android/iOS static Manager embedding, corresponding-source and license bundles, GitHub CI exact-head runs and watchers, release/catalog publication, signing (Android release certificate, Apple ad-hoc, OHOS test PKI), native macOS builds over SSH and Mac disk capacity, and headless acceptance runs. Not for writing a new core (shinkiemu-new-core) or porting a third-party engine (shinkiemu-integrate-existing-core).
+description: Use when maintaining ShinkiEMU itself rather than writing a core - xtask doctor/deps/build/package/release, build/cores.toml and targets.toml edits, external-core version identity (upstream_identity, release_sequence, canonical core tags), fork pin bumps and Cargo.lock discipline, vcpkg baseline/overlay triplets/overlay ports, Android/iOS static Manager embedding, corresponding-source and license bundles, GitHub CI exact-head runs and watchers, release/catalog publication, signing (Android release certificate, Apple ad-hoc, OHOS test PKI), native macOS builds over SSH and Mac disk capacity, and headless runs (shinki-emu-headless run/compare/ui, shinki-emu-manager headless/headless-ui) for frame acceptance, screenshot and hash baselines, input replay scripts and windowless Manager UI screenshots. Not for writing a new core (shinkiemu-new-core) or porting a third-party engine (shinkiemu-integrate-existing-core).
 ---
 
 # ShinkiEMU 项目维护
@@ -190,66 +190,74 @@ upstream_identity = { repo = "<与 upstream 相同>", ref_kind = "tag|branch", r
 
 ## 13. Headless 验收与调试
 
-headless runner 由 HeadlessRunner 在分支 `feat/headless-runner`（worktree `D:/Workspace/Shinkirou-wt/emu-headless-runner`）实现，合入 main 前以该分支为准。它复用现有通用层，不另建协议：
+headless runner 是 crate `Source/Programs/shinki-emu-headless`。完整契约写在 [Headless execution](../../../docs/en/headless.md)，本节只讲验收时怎么用。它复用现有通用层，没有另建协议：
 
-- 核心加载与会话走 Manager 同一套 `shinki-emu-manager-core`（`LoadedFamilyPlugin::load`/`from_query`、`NativeSession`），不建窗口，不启动 Slint 事件循环。
-- 输入脚本沿用 RoukakuEngine `roukaku-headless-protocol` 的 `roukaku.user_input_sequence.v1`（ShinkiEMU 已 pin 的 Engine revision），时钟是 60 Hz 主机采样（`TICK_DURATION_NS` = 16 666 667 ns），游戏时间仍由核心自己推进。
+- 核心加载和会话走 Manager 同一套 `shinki-emu-manager-core`（C ABI v3 loader、原生会话 owner、不可变 CPU 帧租约）。跑核心时不创建 Slint 窗口、显示表面或事件循环。
+- 输入脚本沿用 RoukakuEngine `roukaku-headless-protocol` 的 `roukaku.user_input_sequence.v1`，用的是工作区已经 pin 的 Engine revision。
 
-两个入口参数相同：
+入口：
 
 ```sh
-# 动态核心：core ZIP、解开的核心目录或库文件
-shinki-emu-headless --core .work/packages/<slug>/<zip> --game-dir <游戏目录> --output .work/headless/<run> --frames 600 --capture-frame 120,600
-# Manager 内嵌静态核心：--core 写 plugin_id，用 Manager 的子命令
-shinki-emu-manager headless --core <plugin_id> --game-dir <游戏目录> --output .work/headless/<run> --duration-ms 10000 --capture-ms 3000
+shinki-emu-headless run     <参数>      # 动态核心：--core 写 core ZIP、解开的核心目录或库路径
+shinki-emu-manager  headless <参数>     # Manager 内嵌静态核心：--core 写 plugin_id（来自 static_cores::STATIC_CORES）
+shinki-emu-headless compare --actual a.png --baseline b.png [--max-channel-delta N --changed-pixel-ratio R]
+shinki-emu-headless ui --page library|cores|patches|settings --language zh-CN|en|ja --theme dark|light --output <dir>   # Manager: headless-ui
 ```
+
+构建：`cargo build -p shinki-emu-headless`。`--features static-cmvs` 会把 CMVS 以 `shinki.emu.cmvs` 静态链进去；`--no-default-features` 只构建核心 runner，不含 Manager UI。
+
+`run` 的主要参数：
 
 | 参数 | 作用 |
 |---|---|
-| `--core` | core ZIP / 核心目录 / 库路径；或宿主已链接的 plugin_id |
-| `--game-dir` | 源游戏目录。运行前整体复制到私有临时目录，核心看不到原目录，存档也写在副本里 |
-| `--frames`（默认 60）/ `--duration-ms` | 时间线长度，取两者和脚本结束点中的最大值 |
-| `--capture-frame`、`--capture-ms` | 截图时间点（逗号分隔，采样号从 1 开始）；最后一帧总会截图 |
-| `--output` | 输出目录：每个截图一张 PNG，外加 `run.json`（schema `shinki.emu.headless_run.v1`） |
-| `--baseline <目录>` | 与目录中同名 PNG 比较 |
-| `--max-channel-delta`（默认 0）/ `--changed-pixel-ratio`（默认 0.0） | 容差：超过通道差的像素所占比例不能大于 ratio；两者都为 0 即精确比较 |
-| `--baseline-hash sha256:<hex>` | 最后一帧的像素 hash 必须相等 |
-| `--script <file>` | 输入脚本（JSON 数组） |
-| `--configuration <file>` | Manager `ConfigEntry` 的 JSON 数组 |
-| `--startup-timeout-ms`（默认 30000） | 等第一帧的上限 |
+| `--core` | core ZIP / 核心目录 / 库路径，或宿主已链接的 plugin_id |
+| `--game-dir` | 源游戏目录。核心拿到路径之前，整个目录先复制到唯一的临时目录，存档和相对路径配置都写在副本里。symlink 和特殊文件会被拒绝；大游戏会占磁盘和时间 |
+| `--frames`（默认 60）、`--duration-ms` | 时间线长度，取两者和脚本结束点中的最大值 |
+| `--capture-frame`、`--capture-ms` | 截图时间点，逗号分隔；采样号从 1 开始，毫秒向上取整到下一个采样。最后一个采样总会截图 |
+| `--output` | 输出目录 |
+| `--baseline <目录>` | 与目录中同名 PNG 比较；`--max-channel-delta`、`--changed-pixel-ratio` 给容差，都为 0 时精确比较，尺寸必须一致 |
+| `--baseline-hash sha256:<hex>` | 断言最后一帧的规范像素 hash |
+| `--script <file>` | 输入脚本 |
+| `--configuration <file>` | Manager `ConfigEntry` 数组，例如 `[{"id":"profile_path","value":{"String":"key.toml"}}]`，字段 id 用核心实际声明的 |
+| `--startup-timeout-ms`（默认 30000） | native open 之后等第一帧完成的上限 |
 
-帧 hash 是 `sha256:` 加上规范像素的 SHA256。规范像素为 RGBA8 sRGB、行序自上而下、alpha 固定 255；BGRA 和 linear 格式先转换。所以不同核心像素格式不同也能比较。PNG 自身的 hash 另记在 `png_hash`。
+**时钟的含义。** C ABI v3 下游戏时钟归核心所有，没有确定性的单步推进。runner 从第一帧完成后开始，按 16 666 667 ns 的主机时间线采样。`--frames N` 是 N 个主机采样点，不是 N 个 VM tick。`acquired_frames` 是实际取到的不同帧数；静态标题画面在多个采样点相同是正常的。两次运行逐像素一致取决于核心和游戏自身的时序，不能宣称 native stepping 是确定的；需要时用容差比较。
 
-退出码：0 成功；3 断言失败（基线不符、`await` 超时、脚本没在时间线内跑完）；1 运行错误（加载失败、probe 不认游戏、核心 `SESSION_FAILED`、等不到第一帧）。
+**输出。** 每个截图是 `<id>.png` 加 `<id>.json`。sidecar 记录尺寸、采样号、`pixel_hash`、`png_hash` 和比较结果。成功时写 `run.json`，失败时写 `failure.json`（诊断信息和退出码）。比较失败也会保留实际 PNG 和比较 sidecar。`pixel_hash` 是规范像素的 SHA256（加 `sha256:` 前缀）：自上而下、紧密排列的 RGBA8 sRGB，alpha 固定 255，BGRA、带 padding 的 stride、自下而上的行序和 linear 格式都先归一化。所以 PNG 编码差异不影响它。
 
-脚本每一项是一条 `InputMessage`，`sequence` 递增，`tick` 不减，`session` 不变：
+**退出码。** 0 成功；1 运行、输入、文件、ABI 错误或没出帧；2 命令行语法错误（仅独立二进制）；3 基线或回放断言失败。
+
+**脚本。** JSON 数组，每项一条 `InputMessage`：`sequence` 严格递增，`tick` 不减，`session` 不变。指针坐标是归一化的 0..65535，映射到核心的逻辑画面。一次点击是 move + press + release，按键的按下和抬起都要显式写：
 
 ```json
 [
-  {"schema":"roukaku.user_input_sequence.v1","session":"title","sequence":1,"tick":0,"event":{"type":"advance_ticks","count":180}},
-  {"schema":"roukaku.user_input_sequence.v1","session":"title","sequence":2,"tick":180,"event":{"type":"checkpoint","id":"title"}},
-  {"schema":"roukaku.user_input_sequence.v1","session":"title","sequence":3,"tick":180,"event":{"type":"pointer_move","x":640,"y":600}},
-  {"schema":"roukaku.user_input_sequence.v1","session":"title","sequence":4,"tick":181,"event":{"type":"pointer_button","button":"primary","state":"pressed"}},
-  {"schema":"roukaku.user_input_sequence.v1","session":"title","sequence":5,"tick":182,"event":{"type":"pointer_button","button":"primary","state":"released"}},
-  {"schema":"roukaku.user_input_sequence.v1","session":"title","sequence":6,"tick":183,"event":{"type":"keyboard","physical_key":"Enter","logical_key":null,"state":"pressed","repeat":false}},
-  {"schema":"roukaku.user_input_sequence.v1","session":"title","sequence":7,"tick":300,"event":{"type":"await","observation":{"kind":"exists","key":"frame"},"timeout_ticks":120}},
-  {"schema":"roukaku.user_input_sequence.v1","session":"title","sequence":8,"tick":300,"event":{"type":"checkpoint","id":"after-start"}}
+  {"schema":"roukaku.user_input_sequence.v1","session":"game","sequence":1,"tick":0,"event":{"type":"advance_ticks","count":30}},
+  {"schema":"roukaku.user_input_sequence.v1","session":"game","sequence":2,"tick":30,"event":{"type":"pointer_move","x":32768,"y":32768}},
+  {"schema":"roukaku.user_input_sequence.v1","session":"game","sequence":3,"tick":30,"event":{"type":"pointer_button","button":"primary","state":"pressed"}},
+  {"schema":"roukaku.user_input_sequence.v1","session":"game","sequence":4,"tick":31,"event":{"type":"pointer_button","button":"primary","state":"released"}},
+  {"schema":"roukaku.user_input_sequence.v1","session":"game","sequence":5,"tick":40,"event":{"type":"keyboard","physical_key":"Enter","logical_key":"Enter","state":"pressed","repeat":false}},
+  {"schema":"roukaku.user_input_sequence.v1","session":"game","sequence":6,"tick":41,"event":{"type":"keyboard","physical_key":"Enter","logical_key":"Enter","state":"released","repeat":false}},
+  {"schema":"roukaku.user_input_sequence.v1","session":"game","sequence":7,"tick":60,"event":{"type":"await","observation":{"kind":"exists","key":"frame"},"timeout_ticks":60}},
+  {"schema":"roukaku.user_input_sequence.v1","session":"game","sequence":8,"tick":60,"event":{"type":"checkpoint","id":"after-confirm"}}
 ]
 ```
 
-- 支持的事件：`resume`、`focus`、`keyboard`（`physical_key` 用 W3C code 名，如 `KeyA`、`Enter`、`Space`、`ArrowDown`、`ControlLeft`）、`ime_commit`、`pointer_move`（坐标是当前帧的光栅像素）、`pointer_button`（primary/secondary/middle/back/forward）、`wheel`、`advance_ticks`、`checkpoint`、`await`。触摸、手柄、`ime_preedit`、`shutdown` 会被拒绝。
-- `checkpoint` 截图名用 `id`，id 唯一且不能以 `frame-` 开头（`--capture-*` 产生的截图叫 `frame-<6 位采样号>`）。
-- `await` 只支持 `{"kind":"exists","key":"frame"}` 和 `{"kind":"equals","key":"frame.sha256","value_hash":"sha256:..."}`，不支持 `continue_at_match`。
+- 支持的事件：`resume`、`focus`、`keyboard`、`ime_commit`、`pointer_move`、`pointer_button`、`wheel`、`advance_ticks`、`await`、`checkpoint`。其他协议事件会明确报错。
+- 按键名用 Manager 的物理键名（`KeyA`、`Enter`、`ControlLeft`、`ArrowDown`、`F1` 等）。
+- `advance_ticks` 推迟后续消息，不影响已排好的截图。
+- `await` 只支持 `{"kind":"exists","key":"frame"}` 和 `{"kind":"equals","key":"frame.sha256","value_hash":"sha256:<64 hex>"}`；超过 `timeout_ticks` 未满足即断言失败。`continue_at_match` 必须为 false，因为核心时钟无法回退。
+- `checkpoint` 导出 `<id>.png`，并与 `--baseline` 里的同名文件比较。id 是唯一的扁平文件名，`frame-` 前缀留给定时截图。
 
-常见用法：
+**常见用法。**
 
-1. **新核心出帧验收**：`--frames 600 --capture-frame 120,600`，检查 `run.json` 的 `acquired_frames > 0`，打开 PNG 看画面确实是游戏内容（不是全黑或纯色）。把 `run.json` 和 PNG 路径写进报告。
-2. **回归对比**：第一次运行的输出目录作为 `--baseline`；GPU 合成可能有细微差异时给小容差，例如 `--max-channel-delta 2 --changed-pixel-ratio 0.001`。
-3. **流程回放**：脚本里在关键步骤后放 `checkpoint`，用 `await` + `frame.sha256` 断言到达已知画面。
+1. **新核心出帧验收**（`shinkiemu-new-core` §11 第 5 项）：`run --core <打包好的 ZIP> --game-dir <真实游戏> --frames 600 --capture-frame 120,600 --output .work/headless/<slug>`。要求 `run.json` 存在、`acquired_frames > 0`，并打开 PNG 确认是游戏画面而不是全黑或纯色。把 `run.json` 和 PNG 路径写进报告。静态嵌入的核心再用 `shinki-emu-manager headless --core <plugin_id>` 跑一次。
+2. **回归对比**：把第一次运行的输出目录作为 `--baseline`。GPU 合成可能有细微差异，给小容差，例如 `--max-channel-delta 4 --changed-pixel-ratio 0.001`。单张图用 `compare`。
+3. **流程回放**：在关键步骤后放 `checkpoint`，用 `await` + `frame.sha256` 断言到达已知画面。
+4. **Manager UI 截图**：`ui` / `headless-ui` 用真实 `ManagerWindow` 经软件渲染出图，不创建窗口，不启动数据库、库扫描、账号、商店或网络服务。默认数据是自写的合成文本；`--demo-data` 只提供显示字符串，不会被扫描。不同主题用不同输出目录。
 
-游戏只读：runner 只复制源目录，不改原游戏和原存档。用 `E:/Games` 下的游戏时也一样。硬件 GPU 合成的核心（Musica、CMVS）需要真实 GPU，软件 adapter 的结果不作为通过依据。首个支持平台是 Windows x64；其他平台的状态以 HeadlessRunner 的报告为准。
+**限制。** 复制游戏只是隔离普通存储，不是给不可信核心用的系统沙箱。配置里故意指向游戏外的路径，要改到临时位置。用 `E:/Games` 下的游戏时原目录同样只读。核心自己需要的 GPU 或音频设备照样需要；runner 不会关掉音频、影片或脚本。Musica、CMVS 这类硬件 GPU 合成的核心，软件 adapter 的结果不算通过。Windows x64 是首个支持平台，其他平台的状态以 HeadlessRunner 的交付报告为准。
 
-调试核心时，先用 runner 复现，再看核心的 `tracing` 事件（`shinki.emu.<family>.*`）。`SESSION_FAILED` 的错误码和消息会原样出现在 stderr。Musica 另有只读诊断 CLI `shinki-emu-musica-cli data list|read|validate`（见 `Source/Programs/shinki-emu-musica-cli/README.md`），不运行 VM。
+**调试。** 先用 runner 复现问题，再看核心的 `tracing` 事件（`shinki.emu.<family>.*`）。核心 `SESSION_FAILED` 时，错误码和消息会写进 stderr 和 `failure.json`。Musica 另有只读诊断 CLI `shinki-emu-musica-cli data list|read|validate`（见 `Source/Programs/shinki-emu-musica-cli/README.md`），它不运行 VM。
 
 ## 完成检查
 
