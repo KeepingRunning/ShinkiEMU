@@ -285,6 +285,8 @@ Manager `0.1.0-beta.6` 已从 `fef31a82104a371aa919641f1fe08c65285e5267` 公开�
 
 `cargo xtask release --component <id> --version <semver> --publish`（需要 `GH_TOKEN` 或 `GITHUB_TOKEN`）收集该 tag 下所有已准备的目标。它拒绝来自其他产品提交或核心固定版本的记录、已指向其他提交的 tag、从其他提交创建的 draft，以及空 Release 和已发布的 Release。它在本次运行的提交上创建 draft，或复用该提交上的 draft（替换中断运行遗留的同名附件），上传源码包和二进制包后发布；tag 不存在时由 GitHub 在该提交上创建。核心发布之后，它把每个平台的目录条目提交到 `metadata/release-<tag>` 分支的 `Metadata/engines/cores/` 下，再向 `main` 提 PR。组织设置不允许 Actions 创建 PR 时，最后这一步会失败，但所有条目已在分支上，手动提 PR 即可。目录 URL 用最终 tag 构造，不使用 draft 的 `untagged-*` URL。Manager 与核心独立发布；Android debug 签名测试包记为阻止，不会上传。
 
+目录自动化通过既有可信数据检查后使用正常 merge commit，保留目录分支祖先；不得 squash、rebase 或 force-push 发布历史。
+
 `release.yml` 构建所选组件在托管平台的所有行，并自动发布不含本地专用目标的组件。含受支持 OHOS 目标的 Manager 由上文有门禁的本地流程补齐 HAP 与源码后发布。单个核心可推送 tag；多个组件用 `version` 和 `components` 手动触发工作流。一次推送超过三个新 tag 不会触发工作流。
 
 需要只准备、不公开时，仍运行这份 `release.yml`，传入 `prepare_only=true`，并可用 `source_commit` 指定精确的 40 位产品提交。显式指定源码提交只允许用于仅准备模式。原生构建、打包、平台签名及源码和许可证打包命令保持不变；最终交接要求每份记录对应实际产品提交、组件、版本和目标，并跳过公开发行步骤。workflow dispatch SHA 只标识编排代码，不是产品来源。从已接受产品提交的干净检出用现有 xtask 发布实际产物；CI 成功不代替产物可获取、正常包结构及平台签名要求。
