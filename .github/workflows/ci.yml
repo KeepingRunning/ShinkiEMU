@@ -185,6 +185,8 @@ jobs:
             .work/build/${{ matrix.target }}/kirikiroid2-web.json
             .work/native-vcpkg/kirikiroid2-web/installed-*/**/share/**/vcpkg.spdx.json
             .work/native-vcpkg/kirikiroid2-web/installed-*/**/share/**/copyright
+            .work/native-vcpkg/kirikiroid2-web/installed-*/vcpkg/status
+            .work/native-vcpkg/kirikiroid2-web/installed-*/vcpkg/info/*.list
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
         if: matrix.component == 'kirikiroid2-web'
