@@ -353,16 +353,16 @@ pub(crate) fn execute(
                         })?;
                         let translations = writer.finish();
                         let resources = lua.from_value(resources)?;
-                        crate::musica::embed(
-                            &staging_path,
-                            &native_files.output,
-                            &profile,
-                            &translations,
-                            &resources,
-                            &destination,
-                            &native_files.cancelled,
+                        crate::musica::embed(crate::musica::MusicaEmbedConfig {
+                            root: &staging_path,
+                            output: &native_files.output,
+                            profile: &profile,
+                            translations: &translations,
+                            resources: &resources,
+                            destination: &destination,
+                            cancelled: &native_files.cancelled,
                             progress,
-                        )
+                        })
                         .map_err(mlua::Error::external)
                     },
                 )?,

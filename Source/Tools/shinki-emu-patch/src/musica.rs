@@ -7,17 +7,30 @@ use crate::{
 use shinki_emu_musica::{MusicaResourcePaths, MusicaTranslationTable, ScriptEncoding};
 use std::{io::Write, path::Path, sync::atomic::AtomicBool};
 
-#[allow(clippy::too_many_arguments)]
+pub(crate) struct MusicaEmbedConfig<'a, Progress> {
+    pub root: &'a Path,
+    pub output: &'a AuthorizedRoot,
+    pub profile: &'a str,
+    pub translations: &'a [u8],
+    pub resources: &'a MusicaResourcePaths,
+    pub destination: &'a str,
+    pub cancelled: &'a AtomicBool,
+    pub progress: &'a Progress,
+}
+
 pub(crate) fn embed(
-    root: &Path,
-    output: &AuthorizedRoot,
-    profile: &str,
-    translations: &[u8],
-    resources: &MusicaResourcePaths,
-    destination: &str,
-    cancelled: &AtomicBool,
-    progress: &(impl Fn(PatchProgress) + Send + Sync),
+    config: MusicaEmbedConfig<'_, impl Fn(PatchProgress) + Send + Sync>,
 ) -> Result<usize, PatchError> {
+    let MusicaEmbedConfig {
+        root,
+        output,
+        profile,
+        translations,
+        resources,
+        destination,
+        cancelled,
+        progress,
+    } = config;
     crate::paths::relative(profile, false)?;
     crate::paths::relative(destination, false)?;
     let table = MusicaTranslationTable::from_json(translations).map_err(native_error)?;
