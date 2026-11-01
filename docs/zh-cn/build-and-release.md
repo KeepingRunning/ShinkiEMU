@@ -269,7 +269,9 @@ Sena 按已批准的上游分发策略保留 MS PGothic 字体。包内 `license
 
 Manager 与自研 CMVS/Musica 保留各自的 SemVer 和 `manager-v<semver>`、`core-<slug>-v<semver>` 标签，仍需 `--version`。RFVP、Artemis 等第三方核心从 `build/cores.toml` 计算版本，不传 `--version`。`cargo xtask release --component <id> --dry-run` 只核验上游 ref、完整提交与适配分支 pin，不构建或发布；`release --target <三元组>` 在 `.work/release/<tag>/<目标>/` 写入二进制 ZIP、源码 ZIP 和 `release.json`。被阻止的目标及 `publish_blocked` 核心不产生文件。
 
-Manager `0.1.0-beta.6` 已从 `fef31a82104a371aa919641f1fe08c65285e5267` 公开，既有 tag 和资产不改写。独立的 `0.1.0-beta.7` 候选把七核 Android 后继与最新 main 合流，保留完整 Manager 支持平台。所有平台都须在同一最终产品提交和发行版本上通过正常 CI、原生构建、打包、平台签名及源码/原许可证随包门禁，不能复用 beta.6 的旧记录。Android 使用既有正式发行证书，不能拿候选的 debug 签名代替。iOS 仍是 RFVP、Siglus、Shinki Musica、Sena、Ethornell、ReMinori；独立新增 iOS 移植不阻塞本次发行。
+Manager [0.1.0-beta.7](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.7) 已从 `fd9c78a4cabf1d80430744e4bb5d140c2a837bb9` 公开全部九个目标。同提交的 CI、托管准备和 OHOS 交接均成功，每份安装包及对应源码都属于该产品提交。Android 内置七核，使用既有正式发行证书 `c415bd462d26574758ed455055ff528a3bd6036e39d5ac6887308f8cf69e97fc`。iOS 保持 RFVP、Siglus、Shinki Musica、Sena、Ethornell、ReMinori 六核，设备和模拟器包仍为测试产物；OHOS 保持 SDK debug-test-PKI 测试签名边界。来自 `fef31a82104a371aa919641f1fe08c65285e5267` 的 beta.6 及更早公开 tag、资产不改写。后续仅源码中的功能和核心 pin 更新不属于 beta.7 下载包。
+
+[KiriKiri2 序号 2 发行版](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/core-kirikiroid2-web-branch-web-1e3603089b4951c8e2831d978ea6fe5a8097bceeb0a56fdeb65aa3953e67eecf) 已从产品 `fe4e6f2d82c8b61f3f14e13d48af6d57722b9952`、适配提交 `d72046c28e6ada623acdb1d72f7075edd488797d` 公开 Windows、Linux 和两种 macOS 架构。相同适配已静态嵌入 beta.7 Android，不代表 KiriKiri 已进入 iOS 或 OHOS。桌面包附对应源码和原许可证，FMOD 条款单独保留。
 
 第三方身份分别保留原作者的 `upstream {repo, ref_kind, ref_name, commit}` 与组织适配仓库的 `adapter {repo, branch, commit}`，提交均为 40 位小写完整哈希。上游提交有已核验标签时用标签，否则用真实上游分支；不能把组织集成分支当上游。显示为 `<ref>@<上游提交前12位> (adapter <适配提交前12位>)`。文件版本是 `<tag|branch>-<ref slug>-<digest>`：取 ref 的前 16 个 ASCII 字节，字母转小写、非字母数字逐个换成 `-`；digest 为八个 UTF-8 字段的完整 SHA256，顺序为上游仓库、ref 类型、ref 名、上游提交、适配仓库、适配分支、适配提交、十进制 `release_sequence`，每项后接 LF。版本最长 88 字节，标签为 `core-<plugin slug>-<version>`，plugin slug 把 ID 转小写并将点和下划线换成 `-`。分支中的斜杠不会进入路径；仅适配代码更新也会生成新身份。
 
