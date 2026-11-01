@@ -346,23 +346,30 @@ fn collect(root: &Path, timestamp: i64, schemas: bool) -> Result<BTreeMap<String
         if let Some(id) = &preset.patch {
             ensure!(
                 patches.entries.iter().any(|p| p.id == *id
-                    && p.kind == PatchKind::Recipe
-                    && p.vn_ids.contains(&preset.vn_id)
                     && p.emulators.contains(&preset.emulator)
-                    && (p.release_ids.is_empty() || p.release_ids.contains(&preset.release_id))),
+                    && p.releases
+                        .iter()
+                        .any(|release| release.vn_id == preset.vn_id
+                            && release.release_id == preset.release_id)),
                 "preset references missing or inapplicable recipe: {id}"
             );
         }
     }
-    let recipes: Vec<Value> = patches.entries.iter().filter_map(|p| p.recipe.as_ref().map(|r| json!({"id":p.id,"title":p.title["zh-CN"],"script":r.script,"vn_ids":p.vn_ids,"emulators":p.emulators}))).collect();
     let mut files = BTreeMap::from([
         ("compatibility.json".into(), pretty(&legacy_compatibility)?),
         ("compatibility-v5.json".into(), pretty(&compatibility)?),
         ("presets.json".into(), pretty(&presets)?),
         ("cores.json".into(), pretty(&legacy_cores)?),
         ("cores-v2.json".into(), pretty(&cores)?),
-        ("patches.json".into(), pretty(&patches)?),
-        ("patches/catalog.json".into(), pretty(&recipes)?),
+        ("patches-v2.json".into(), pretty(&patches)?),
+        (
+            "patches.json".into(),
+            read(&root.join("legacy/patches.json"))?,
+        ),
+        (
+            "patches/catalog.json".into(),
+            read(&root.join("legacy/patches/catalog.json"))?,
+        ),
     ]);
     let mut script_paths = Vec::new();
     walk(root, "patches", &mut script_paths)?;
@@ -371,14 +378,35 @@ fn collect(root: &Path, timestamp: i64, schemas: bool) -> Result<BTreeMap<String
             files.insert(path.clone(), read(&root.join(path))?);
         }
     }
-    for p in &patches.entries {
-        if let Some(r) = &p.recipe {
-            ensure!(
-                files.contains_key(&format!("patches/{}", r.script)),
-                "missing recipe script: {}",
-                r.script
+    let mut legacy_scripts = Vec::new();
+    walk(root, "legacy/patches", &mut legacy_scripts)?;
+    for path in legacy_scripts {
+        if let Some(relative) = path.strip_prefix("legacy/patches/")
+            && path.ends_with(".luau")
+        {
+            files.insert(
+                format!("patches/legacy/{relative}"),
+                read(&root.join(&path))?,
             );
         }
+    }
+    for p in &patches.entries {
+        ensure!(
+            files.contains_key(&format!("patches/{}", p.recipe.script)),
+            "missing recipe script: {}",
+            p.recipe.script
+        );
+        let manifest = format!(
+            "patches/{}.patch.json",
+            p.recipe
+                .script
+                .strip_suffix(".luau")
+                .expect("validated recipe suffix")
+        );
+        ensure!(
+            files.insert(manifest, pretty(&p.releases)?).is_none(),
+            "duplicate recipe manifest"
+        );
     }
     let mut case_paths = BTreeSet::new();
     for path in files.keys() {
@@ -462,144 +490,8 @@ fn write_new_tree(out: &Path, files: &BTreeMap<String, Vec<u8>>) -> Result<()> {
     }
     result
 }
-fn form(body: &str) -> Result<BTreeMap<String, String>> {
-    ensure!(body.len() <= 64 * 1024, "issue body too large");
-    let body = body.replace("\r\n", "\n");
-    let mut result = BTreeMap::new();
-    let mut heading = None;
-    let mut lines = Vec::new();
-    let save = |heading: Option<String>,
-                lines: &mut Vec<&str>,
-                result: &mut BTreeMap<String, String>|
-     -> Result<()> {
-        if let Some(key) = heading {
-            let v = lines.join("\n").trim().to_owned();
-            ensure!(!result.contains_key(&key), "duplicate form section: {key}");
-            result.insert(
-                key,
-                if v == "_No response_" {
-                    String::new()
-                } else {
-                    v
-                },
-            );
-        }
-        lines.clear();
-        Ok(())
-    };
-    for line in body.lines() {
-        if let Some(h) = line.strip_prefix("### ") {
-            save(heading.take(), &mut lines, &mut result)?;
-            heading = Some(h.trim().to_owned());
-        } else if heading.is_some() {
-            lines.push(line);
-        }
-    }
-    save(heading, &mut lines, &mut result)?;
-    Ok(result)
-}
-fn intake(kind: IntakeKind, event: &Path, out: &Path) -> Result<()> {
-    let event: Value = parse_unique_json(&read(event)?)?;
-    let issue = event.get("issue").context("missing issue")?;
-    let body = issue["body"].as_str().context("missing body")?;
-    let number = issue["number"]
-        .as_u64()
-        .filter(|n| *n > 0)
-        .context("invalid issue number")?;
-    let updated = issue["updated_at"].as_str().context("missing updated_at")?;
-    let timestamp = chrono::DateTime::parse_from_rfc3339(updated)?.timestamp_millis();
-    ensure!(timestamp >= 0, "negative timestamp");
-    let fields = form(body)?;
-    let required = |key: &str| -> Result<String> {
-        fields
-            .get(key)
-            .filter(|v| !v.is_empty())
-            .cloned()
-            .with_context(|| format!("missing form field: {key}"))
-    };
-    let optional = |key: &str| fields.get(key).filter(|v| !v.is_empty()).cloned();
-    let list = |key: &str| -> Vec<String> {
-        fields
-            .get(key)
-            .map(|v| {
-                v.split([',', '\n'])
-                    .map(str::trim)
-                    .filter(|v| !v.is_empty())
-                    .map(str::to_owned)
-                    .collect()
-            })
-            .unwrap_or_default()
-    };
-    let (path, bytes) = match kind {
-        IntakeKind::Compatibility => {
-            let e = CompatibilityEntry {
-                vn_id: required("VNDB vID")?,
-                release_id: required("VNDB rID")?,
-                emulator: required("Core")?,
-                status: serde_json::from_value(Value::String(required("Status")?))?,
-                notes: optional("Notes / reproduction"),
-                emulator_version: Some(required("Core version")?),
-                manager_version: Some(required("Manager version")?),
-                platform: required("Platform")?,
-                architecture: required("Architecture")?,
-                variant: required("Variant")?,
-                issue: Some(number),
-                updated_at_unix_ms: timestamp,
-            };
-            e.validate()?;
-            (compat_path(&e), pretty(&e)?)
-        }
-        IntakeKind::Patch => {
-            let kind: PatchKind = serde_json::from_value(Value::String(required("Kind")?))?;
-            let artifact = optional("Artifact URL")
-                .map(|url| -> Result<PatchArtifact> {
-                    Ok(PatchArtifact {
-                        url,
-                        sha256: required("SHA256")?,
-                        size: required("Size (bytes)")?.parse()?,
-                        file_name: required("File name")?,
-                    })
-                })
-                .transpose()?;
-            let e = PatchCatalogEntry {
-                id: required("Patch id")?,
-                title: BTreeMap::from([
-                    ("zh-CN".into(), required("Title (zh-CN)")?),
-                    ("en".into(), required("Title (en)")?),
-                ]),
-                version: required("Version")?,
-                vn_ids: list("VNDB vIDs"),
-                release_ids: list("VNDB rIDs"),
-                emulators: list("Cores"),
-                kind,
-                source_url: optional("Source URL"),
-                license: required("License")?,
-                authorization_url: optional("Authorization URL"),
-                summary: BTreeMap::from([
-                    ("zh-CN".into(), required("Summary (zh-CN)")?),
-                    ("en".into(), required("Summary (en)")?),
-                ]),
-                issue_url: Some(format!(
-                    "https://github.com/Project-Shinkirou/ShinkiEMU/issues/{number}"
-                )),
-                artifact,
-                recipe: optional("Recipe script").map(|script| PatchRecipe { script }),
-            };
-            e.validate()?;
-            (format!("patches/entries/{}.json", e.id), pretty(&e)?)
-        }
-    };
-    let binding = json!({"issue":number,"body_sha256":digest(body.as_bytes()),"updated_at":updated,"path":path});
-    write_new_tree(
-        out,
-        &BTreeMap::from([
-            (format!("Metadata/{path}"), bytes),
-            ("approval.json".into(), pretty(&binding)?),
-        ]),
-    )?;
-    println!("{}", serde_json::to_string(&binding)?);
-    Ok(())
-}
+mod intake;
+use intake::intake;
 
 #[cfg(test)]
 mod tests {
@@ -609,6 +501,13 @@ mod tests {
         for (n, s) in metadata_json_schemas() {
             fs::write(path.join("schema").join(n), pretty(&s).unwrap()).unwrap();
         }
+        fs::create_dir_all(path.join("legacy/patches")).unwrap();
+        fs::write(
+            path.join("legacy/patches.json"),
+            br#"{"schema":"shinki.emu.patches.v1","entries":[]}"#,
+        )
+        .unwrap();
+        fs::write(path.join("legacy/patches/catalog.json"), b"[]").unwrap();
     }
     fn event(path: &Path, platform: &str) {
         let body = format!(
@@ -804,69 +703,5 @@ mod tests {
         let out = t.path().join("out");
         assert!(intake(IntakeKind::Compatibility, &ev, &out).is_err());
         assert!(!out.exists());
-    }
-
-    #[test]
-    fn patch_intake_roundtrip_requires_authorization_before_hosting() {
-        let t = tempfile::tempdir().unwrap();
-        let r = t.path().join("root");
-        root(&r);
-        let fields = [
-            ("Patch id", "public-test"),
-            ("Title (zh-CN)", "公开测试"),
-            ("Title (en)", "Public test"),
-            ("Version", "1.0.0"),
-            ("VNDB vIDs", "v1"),
-            ("Cores", "ReMinori"),
-            ("Kind", "hosted"),
-            ("License", "MIT"),
-            ("Summary (zh-CN)", "公开测试附件"),
-            ("Summary (en)", "Public test attachment"),
-            (
-                "Artifact URL",
-                "https://github.com/Project-Shinkirou/ShinkiEMU/releases/download/patch-public-test-v1.0.0/test.bin",
-            ),
-            (
-                "SHA256",
-                "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
-            ),
-            ("Size (bytes)", "1"),
-            ("File name", "test.bin"),
-        ];
-        let body: String = fields
-            .iter()
-            .map(|(k, v)| format!("### {k}\n\n{v}\n\n"))
-            .collect();
-        let ev = t.path().join("patch-event.json");
-        let make = |body: String| {
-            pretty(&json!({"issue":{"number":2,"body":body,"updated_at":"2026-10-24T02:00:00Z"}}))
-                .unwrap()
-        };
-        fs::write(&ev, make(body.clone())).unwrap();
-        let rejected = t.path().join("rejected");
-        assert!(intake(IntakeKind::Patch, &ev, &rejected).is_err());
-        assert!(!rejected.exists());
-        fs::write(
-            &ev,
-            make(format!(
-                "{body}### Authorization URL\n\nhttps://example.org/public-test-license\n"
-            )),
-        )
-        .unwrap();
-        let accepted = t.path().join("accepted");
-        intake(IntakeKind::Patch, &ev, &accepted).unwrap();
-        fs::create_dir_all(r.join("patches/entries")).unwrap();
-        fs::copy(
-            accepted.join("Metadata/patches/entries/public-test.json"),
-            r.join("patches/entries/public-test.json"),
-        )
-        .unwrap();
-        let files = collect(&r, 0, true).unwrap();
-        let patches = parse_patch_catalog(&files["patches.json"]).unwrap();
-        assert_eq!(patches.entries[0].kind, PatchKind::Hosted);
-        assert_eq!(
-            parse_unique_json(&files["patches/catalog.json"]).unwrap(),
-            json!([])
-        );
     }
 }

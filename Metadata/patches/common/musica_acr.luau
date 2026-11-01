@@ -74,6 +74,44 @@ function M.read(ctx, source)
     return records
 end
 
+-- Original executable data, never executed. Pinned, equal-length replacements
+-- retain all PE offsets and code. Only the independent output copy is changed.
+function M.embed_executable(ctx, names, edition)
+    local source = ctx.open("source", edition.path)
+    if source:size() ~= edition.size or source:sha256() ~= edition.sha256 then
+        fail(ctx, "UNSUPPORTED_INPUT", "Yorino executable does not match its supported edition")
+    end
+    ctx.copy("source", edition.path, edition.path)
+    local output = ctx.edit(edition.path)
+    for _, item in edition.constants do
+        local record = names[item.row + 1]
+        if buffer.len(record.source) ~= buffer.len(record.replacement)
+            or buffer.tostring(source:read(item.offset, buffer.len(record.source))) ~= buffer.tostring(record.source)
+            or buffer.readu8(source:read(item.offset + buffer.len(record.source), 1), 0) ~= 0 then
+            fail(ctx, "INTEGRITY", "Yorino executable name constant binding changed")
+        end
+        output:write(item.offset, record.replacement)
+    end
+    for _, item in edition.brackets do
+        if buffer.tostring(source:read(item.offset, 2)) ~= buffer.tostring(ctx.encoding.encode(item.text, "cp932")) then
+            fail(ctx, "INTEGRITY", "Yorino generated-name bracket binding changed")
+        end
+        output:write(item.offset, ctx.encoding.encode(item.text, "gbk"))
+    end
+    for _, binding in edition.generated_names do
+        local generated, base = names[binding[1] + 1], names[binding[2] + 1]
+        local from = ctx.encoding.encode("【", "cp932")
+        local to = ctx.encoding.encode("【", "gbk")
+        local from_text = buffer.tostring(from) .. buffer.tostring(base.source) .. buffer.tostring(ctx.encoding.encode("】", "cp932"))
+        local to_text = buffer.tostring(to) .. buffer.tostring(base.replacement) .. buffer.tostring(ctx.encoding.encode("】", "gbk"))
+        if buffer.tostring(generated.source) ~= from_text or buffer.tostring(generated.replacement) ~= to_text then
+            fail(ctx, "INTEGRITY", "Yorino generated name no longer derives from its native SC speaker")
+        end
+    end
+    output:close()
+end
+
+
 -- ACR stores the original raw bytes, so its own index establishes byte identity.
 -- This does not establish which native display endpoints can produce those bytes.
 -- Preserve every ordered row; the native lookup uses the first hash match, while

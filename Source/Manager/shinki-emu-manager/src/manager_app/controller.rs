@@ -182,9 +182,6 @@ impl ManagerController for ShinkiEmuManagerController {
     fn set_patch_mode(&mut self, in_place: bool) -> Result<ManagerViewModel, String> {
         ShinkiEmuManagerController::set_patch_mode(self, in_place)
     }
-    fn download_patch(&mut self, id: &str) -> Result<ManagerViewModel, String> {
-        ShinkiEmuManagerController::download_patch(self, id)
-    }
     fn restore_patch(&mut self) -> Result<ManagerViewModel, String> {
         ShinkiEmuManagerController::restore_patch(self)
     }

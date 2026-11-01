@@ -3,7 +3,7 @@
 -- DLL RT_BITMAP1/2 belong to Win32 About; dialog139 names original save slots.
 return {
     id = "musica-ef-first-cn",
-    version = 1,
+    version = 2,
     title = "ef first 中文姓名资源",
     apply = function(ctx)
         return ctx.load("common/musica.luau").apply_names(ctx, {

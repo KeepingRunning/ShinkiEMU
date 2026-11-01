@@ -200,7 +200,7 @@ fn append_native_line(
     let text = crate::parse_musica_message_markup(text)
         .map_err(|_| invalid())?
         .visible_text;
-    let speaker = message::native_speaker_name(speaker);
+    let speaker = message::native_speaker_name(speaker).map_err(|_| invalid())?;
     let voice = if voice_token.is_empty() {
         None
     } else {

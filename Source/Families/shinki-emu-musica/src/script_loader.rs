@@ -5,7 +5,7 @@ use crate::{
 use roukaku_core::Hash256;
 use shinki_emu_sdk::runtime::SessionResult;
 
-const MAX_SCRIPT_BYTES: usize = 16 * 1024 * 1024;
+pub(crate) const MAX_SCRIPT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_READ_BYTES: usize = 64 * 1024 * 1024;
 const MAX_INCLUDE_DEPTH: usize = 32;
 

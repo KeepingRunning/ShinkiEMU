@@ -1,17 +1,24 @@
 -- Offline legacy ACR/cnbg conversion; standard PAZ/SC loading remains native.
--- Not catalogued: fifteen name use-sites and parent native acceptance remain gated.
+-- Name endpoints include SC speakers, generated history brackets and two
+-- original-EXE constants. Only the independent output copy is changed.
 return {
-    id="musica-yorino-cn", version=1, title="永不落幕的前奏诗旧补丁离线转换",
+    id="musica-yorino-cn", version=2, title="永不落幕的前奏诗原生脚本转换",
     apply=function(ctx)
         return ctx.load("common/yorino_entry.luau").apply(ctx, {
-            names=44, dialogue=28358, width=1280, height=720,
+            names=44, width=1280, height=720,
             coverage={
-                status="fifteen_name_use_sites_unlocated",
-                row_index_base=0, message_speaker_rows=27,
-                original_executable_raw_only_rows={27,43},
-                unlocated_name_rows={28,29,30,31,32,33,34,35,36,37,38,39,40,41,42},
-                dialogue_raw_source_occurrences=28358, native_script_files_validated=102,
-                gate="Locate and verify the fifteen name use-sites through native display endpoints; raw EXE matches alone do not prove an endpoint. Parent must validate independent output with native readers and literal overlay/Tab/save/image composition before publication.",
+                status="all_name_endpoints_located", row_index_base=0,
+                message_speaker_rows=27, executable_constant_rows={27,43},
+                generated_history_rows={28,29,30,31,32,33,34,35,36,37,38,39,40,41,42},
+                history_builder_va="0x4a1550-0x4a164d", live_name_draw_va="0x44cd97-0x44d0be",
+            },
+            executable={
+                path="yorino.exe", size=2278400,
+                sha256="0664a773545cccfa04f6f0e840fbf6302913a721bc2fc956cf206111b9c93553",
+                constants={{row=27,offset=0x112098},{row=43,offset=0x121f18}},
+                brackets={{offset=0x121f24,text="】"},{offset=0x121f28,text="【"}},
+                generated_names={{28,1},{29,2},{30,3},{31,6},{32,7},{33,9},{34,10},{35,10},
+                    {36,12},{37,13},{38,15},{39,16},{40,17},{41,21},{42,25}},
             },
             -- These are payload CRCs pinned offline, not invented cnbg header fields.
             background_crc32={1242497977,2682413420,3754259598,3326280293,2852133049,
@@ -34,7 +41,6 @@ return {
                 {path="voice.paz",role="voice",size=548259252,sha256="c1df879381f2f9caf901c16e5d6dd6349f4d4cb1829d27d4159d5d7acf6c6996"},
                 {path="mov.paz",role="mov",size=525755766,sha256="982ae247f034458f9a2813d44fab3e53eeb1fe3a8b9b0ee97dd9cf083d04a723"},
                 {path="name.acr",patch=true,size=1578,sha256="bacb1f138f03addbc48314b3aa028644a96084e82f6eb0db633fc33999e81fb3"},
-                {path="AsyncScript.acr",patch=true,size=2809326,sha256="229253bbbb57166e9fc671f9c29383db5d43ceb3e16b1ab2fba9a4cc2cbcb4d2"},
                 {path="cnbg.paz",patch=true,size=147459780,sha256="94b2e1041325abb493f496b6a09e448520506bdcb6625c0c1f74845079adfef0"},
             },
         })

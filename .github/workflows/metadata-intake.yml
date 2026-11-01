@@ -201,5 +201,5 @@ jobs:
             while IFS= read -r changed; do
               case "$changed" in Metadata/engines/cores/*.json) ;; *) echo "Unexpected release catalog change: $changed"; exit 1;; esac
             done < paths.txt
-            gh pr merge "$number" --squash --delete-branch
+            gh pr merge "$number" --merge --delete-branch
           fi

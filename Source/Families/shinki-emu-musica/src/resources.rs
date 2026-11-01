@@ -16,16 +16,16 @@ pub struct MusicaResourcePaths {
 
 pub(crate) fn game_identity(
     archive: &crate::MusicaMountedVfs,
-    translation: Option<roukaku_core::Hash256>,
-    mode: crate::TranslationMode,
     font: Option<roukaku_core::Hash256>,
     subtitles: Option<roukaku_core::Hash256>,
 ) -> Result<roukaku_core::Hash256, CoreError> {
     let bytes = serde_json::to_vec(&(
         archive.manifest(),
         archive.script_source_identity()?,
-        translation,
-        mode,
+        // Keep the v1 identity envelope for markerless games. Converted SC
+        // changes script_source_identity instead of a runtime overlay mode.
+        Option::<roukaku_core::Hash256>::None,
+        "replace",
         font,
         subtitles,
     ))

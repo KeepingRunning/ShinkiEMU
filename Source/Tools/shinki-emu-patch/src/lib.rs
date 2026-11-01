@@ -3,17 +3,24 @@ mod buffer;
 mod catalog;
 mod codecs;
 mod data;
+mod download;
 mod error;
 mod inplace;
+mod musica;
+mod package;
 mod paths;
 mod pickle;
+mod progress;
 mod receipt;
+mod release;
 mod storage;
 mod transaction;
 mod vm;
-pub use catalog::{RecipeListing, list_recipes};
+pub use catalog::list_recipes;
 pub use error::{PatchError, PatchErrorKind};
+pub use progress::{PatchActivity, PatchProgress, PatchVerification};
 pub use receipt::read_output_profile;
+pub use release::read_release_bindings;
 
 pub(crate) const STAGING_PREFIX: &str = ".shinki-patch-staging-";
 pub const GAME_STATE_DIR: &str = ".shinki";
@@ -50,8 +57,9 @@ pub enum PatchMode {
     InPlace,
 }
 
-pub(crate) const PROFILE_CAPABILITIES: u64 =
-    shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY | shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY;
+pub(crate) const PROFILE_CAPABILITIES: u64 = shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY
+    | shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY
+    | shinki_emu_abi::CAP_NATIVE_EMBEDDED_TEXT;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -81,13 +89,6 @@ fn required_capabilities<'de, D: serde::Deserializer<'de>>(
     Ok(required)
 }
 
-#[derive(Clone)]
-pub struct PatchProgress {
-    pub phase: String,
-    pub completed: u64,
-    pub total: Option<u64>,
-}
-
 pub struct PatchResult {
     pub output: PathBuf,
     pub profile: OutputProfile,
@@ -100,12 +101,62 @@ pub fn apply(
 ) -> Result<PatchResult, PatchError> {
     error::check_cancelled(&cancelled)?;
     let transaction = transaction::Transaction::new(&request)?;
+    apply_transaction(request, transaction, cancelled, progress, None)
+}
+
+/// Optional host constraints share the same executor. Catalog callers provide
+/// concrete releases; local scripts may omit them and validate their own inputs.
+pub fn apply_bound(
+    request: PatchRequest,
+    releases: &[shinki_emu_metadata::PatchRelease],
+    downloads: Option<&[shinki_emu_metadata::PatchDownload]>,
+    cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    progress: impl Fn(PatchProgress) + Send + Sync,
+) -> Result<PatchResult, PatchError> {
+    if !releases.is_empty() {
+        release::validate(releases)?;
+    }
+    error::check_cancelled(&cancelled)?;
+    let transaction = transaction::Transaction::with_source_check(&request, |directory| {
+        if !releases.is_empty() {
+            let source = paths::AuthorizedRoot::from_input_dir(directory.try_clone()?);
+            let identified = release::identify(&source, releases, &cancelled, &progress)?;
+            progress(PatchProgress {
+                phase: format!("Release identified: {}", identified.release_id),
+                completed: 1,
+                total: Some(1),
+                ..Default::default()
+            });
+        }
+        Ok(())
+    })?;
+    apply_transaction(request, transaction, cancelled, progress, downloads)
+}
+
+fn apply_transaction(
+    mut request: PatchRequest,
+    transaction: transaction::Transaction,
+    cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    progress: impl Fn(PatchProgress) + Send + Sync,
+    downloads: Option<&[shinki_emu_metadata::PatchDownload]>,
+) -> Result<PatchResult, PatchError> {
+    let mut prepared = package::prepare(&request.script)?;
+    request.script = std::mem::take(&mut prepared.path);
     progress(PatchProgress {
         phase: "applying recipe".into(),
         completed: 0,
         total: None,
+        ..Default::default()
     });
-    let execution = vm::execute(&request, &transaction, cancelled.clone(), &progress)?;
+    let execution = vm::execute(
+        &request,
+        &transaction,
+        cancelled.clone(),
+        &progress,
+        downloads,
+        prepared.package_root(),
+    )
+    .map_err(PatchError::recovered)?;
     let root = paths::AuthorizedRoot::from_dir(transaction.open_staging()?);
     receipt::write(&root, &execution, cancelled.clone(), &progress)?;
     drop(root);
@@ -117,6 +168,7 @@ pub fn apply(
         phase: "complete".into(),
         completed: 1,
         total: Some(1),
+        ..Default::default()
     });
     Ok(PatchResult {
         output,

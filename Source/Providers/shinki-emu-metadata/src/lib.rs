@@ -55,6 +55,13 @@ pub fn metadata_json_schemas() -> std::collections::BTreeMap<String, serde_json:
         ),
         (
             "patches.v1.schema.json".into(),
+            serde_json::from_str(include_str!(
+                "../../../../Metadata/schema/patches.v1.schema.json"
+            ))
+            .expect("legacy schema"),
+        ),
+        (
+            "patches.v2.schema.json".into(),
             serde_json::to_value(schemars::schema_for!(PatchCatalog)).expect("schema"),
         ),
     ])

@@ -396,6 +396,7 @@ fn commit_inner(
                 phase: "committing patch".into(),
                 completed: (index + 1) as u64,
                 total: Some(manifest.entries.len() as u64),
+                ..Default::default()
             });
             if fail_after == Some(index + 1) {
                 return Err(PatchError::new(
@@ -422,7 +423,7 @@ fn commit_inner(
         } else {
             drop(backup_parent);
         }
-        return Err(error);
+        return Err(error.recovered());
     }
     drop(backup_root);
     drop(backup);
@@ -599,6 +600,7 @@ pub fn restore_latest(
                 phase: "restoring patch backup".into(),
                 completed: (index + 1) as u64,
                 total: Some(manifest.entries.len() as u64),
+                ..Default::default()
             });
         }
         Ok(())

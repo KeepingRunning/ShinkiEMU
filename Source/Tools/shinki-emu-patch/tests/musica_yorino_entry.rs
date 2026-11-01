@@ -1,3 +1,5 @@
+#[path = "support/musica.rs"]
+mod native;
 use sha2::{Digest, Sha256};
 use shinki_emu_patch::{PatchErrorKind, PatchRequest, apply};
 use std::{
@@ -33,25 +35,20 @@ fn source_hash(bytes: &[u8]) -> u32 {
         & 0x7fff_ffff
 }
 
-fn acr(count: usize, names: bool) -> Vec<u8> {
+fn acr(count: usize) -> Vec<u8> {
     let mut bytes = vec![0; 16 + count * 20];
     put32(&mut bytes, 0, count as u32);
     for i in 0..count {
-        // Rows 0 and 1 collide with different original identities; all later
-        // dialogue rows deliberately duplicate row 0 with a differing target.
-        let original: &[u8] = if names {
-            b"\xd6\xd0"
-        } else if i == 1 {
-            &[2, 1]
-        } else {
-            &[1, 132]
+        // Distinct source identities collide in rows 1/2; first record wins.
+        let original: &[u8] = match i {
+            1 => &[1, 132],
+            2 => &[2, 1],
+            _ => b"\xd6\xd0",
         };
-        let target: &[u8] = if names {
-            b"\xd6\xd0\xce\xc4"
-        } else if i == 0 {
-            b"first"
-        } else {
-            b"\x93\xfa\x96\x7b\x8c\xea\\N{literal}\\a\\v"
+        let target: &[u8] = match i {
+            1 => b"first-name",
+            2 => b"second-name",
+            _ => b"\xd6\xd0\xce\xc4",
         };
         let from = bytes.len();
         bytes.extend_from_slice(original);
@@ -123,14 +120,7 @@ struct Fixture {
 }
 
 impl Fixture {
-    fn new(
-        root: &Path,
-        names: usize,
-        dialogue: usize,
-        images: usize,
-        bad_crc: bool,
-        missing_key: bool,
-    ) -> Self {
+    fn new(root: &Path, names: usize, images: usize, bad_crc: bool, missing_key: bool) -> Self {
         let source = root.join("source");
         let patch = root.join("patch");
         let scripts = root.join("scripts");
@@ -146,8 +136,20 @@ impl Fixture {
         }
         let mut inputs = Vec::new();
         for (path, role) in ROLES {
-            // Opaque public data proves this entry does not parse native PAZ/SC.
-            let bytes = format!("public opaque native resource for {role}").into_bytes();
+            let payload: &[u8] = if role == "scr" {
+                b".message 1  \xd6\xd0 \xd6\xd0\r\n.message 2  \x02\x01 literal\r\n.end\r\n"
+            } else {
+                b"public native resource"
+            };
+            let bytes = native::archive(
+                role,
+                if role == "scr" {
+                    "test.sc"
+                } else {
+                    "fixture.bin"
+                },
+                payload,
+            );
             fs::write(source.join(path), &bytes).unwrap();
             inputs.push(format!(
                 "{{path={path:?},role={role:?},size={},sha256=\"{}\"}}",
@@ -165,11 +167,7 @@ impl Fixture {
             ));
         }
         let (bitmaps, mut crcs) = cnbg(images);
-        for (path, bytes) in [
-            ("name.acr", acr(names, true)),
-            ("AsyncScript.acr", acr(dialogue, false)),
-            ("cnbg.paz", bitmaps),
-        ] {
+        for (path, bytes) in [("name.acr", acr(names)), ("cnbg.paz", bitmaps)] {
             fs::write(patch.join(path), &bytes).unwrap();
             inputs.push(format!(
                 "{{path={path:?},patch=true,size={},sha256=\"{}\"}}",
@@ -180,11 +178,13 @@ impl Fixture {
         if bad_crc {
             *crcs.last_mut().unwrap() ^= 1;
         }
-        let mut profile = String::from("schema='shinki.emu.musica.keys.v2'\npaz_version=2\n");
+        let mut profile = String::from(
+            "schema='shinki.emu.musica.keys.v2'\npaz_version=0\nindex_size_xor=0\nrc4_skip_crc=false\n",
+        );
         profile.push_str("[texture_overrides]\n'musica:/bg/public_0.png'='existing.png'\n'musica:/sys/unrelated.png'='existing.png'\n");
         for (_, role) in ROLES {
             if !(missing_key && role == "mov") {
-                profile.push_str(&format!("[archive_keys.{role}]\n"));
+                profile.push_str(&native::key_role(role));
             }
         }
         fs::write(source.join("key.toml"), profile).unwrap();
@@ -209,7 +209,7 @@ impl Fixture {
         )
         .unwrap();
         let edition = format!(
-            "{{names={names},dialogue={dialogue},width=2,height=2,inputs={{{}}},background_crc32={{{}}},coverage={{status='fifteen_name_use_sites_unlocated',row_index_base=0,unlocated_name_rows={{28,29,30,31,32,33,34,35,36,37,38,39,40,41,42}}}}}}",
+            "{{names={names},width=2,height=2,inputs={{{}}},background_crc32={{{}}},coverage={{status='synthetic'}}}}",
             inputs.join(","),
             crcs.iter()
                 .map(u32::to_string)
@@ -255,48 +255,69 @@ impl Fixture {
 }
 
 #[test]
-fn all_28402_rows_and_40_backgrounds_survive_with_native_aliases_and_specific_coverage_gate() {
+fn ordered_acr_rows_embed_into_native_sc_and_backgrounds_preserve_alpha() {
     let root = tempfile::tempdir().unwrap();
-    let fixture = Fixture::new(root.path(), 44, 28358, 40, false, false);
+    let fixture = Fixture::new(root.path(), 44, 40, false, false);
     let result = fixture.run().unwrap();
     let config = &result.profile.configuration;
     assert_eq!(config["scr_archive"], "cnscr.paz");
     assert_eq!(config["sys_archive"], "cnsys.paz");
-    assert_eq!(config["translation_mode"], "overlay");
+    assert!(!config.contains_key("translation_mode"));
+    assert!(!config.contains_key("translation_table"));
+    assert_eq!(config["script_directory"], "scripts");
+    assert_eq!(
+        result.profile.required_capabilities,
+        shinki_emu_abi::CAP_NATIVE_EMBEDDED_TEXT
+    );
     assert_eq!(config["script_encoding"], "gbk");
     assert_eq!(config["font_path"], "font.ttf");
-    let table: serde_json::Value =
-        serde_json::from_slice(&fs::read(result.output.join("yorino-translations.json")).unwrap())
-            .unwrap();
-    assert_eq!(table["version"], 2);
-    assert_eq!(table["hash_collision_policy"], "first_record");
-    assert_eq!(table["source_encoding"], "gbk");
-    assert_eq!(table["names"].as_array().unwrap().len(), 44);
-    assert_eq!(table["dialogue"].as_array().unwrap().len(), 28358);
-    assert_eq!(table["names"][0]["text"], "中文");
-    assert_eq!(table["names"][43]["text"], "中文");
-    assert_eq!(table["dialogue"][0]["text"], "first");
-    assert_eq!(table["dialogue"][1]["text"], "日本語\\N{literal}\\a\\v");
-    assert_eq!(table["dialogue"][28357]["text"], "日本語\\N{literal}\\a\\v");
-    assert_eq!(
-        table["dialogue"][0]["source_hash"],
-        table["dialogue"][1]["source_hash"]
-    );
-    assert_ne!(
-        table["dialogue"][0]["source_sha256"],
-        table["dialogue"][1]["source_sha256"]
-    );
+    assert!(!result.output.join("yorino-translations.json").exists());
+    let bytes = fs::read(result.output.join("scripts/test.sc")).unwrap();
+    let script = shinki_emu_musica::parse_sc_with_encoding(
+        &bytes,
+        &shinki_emu_musica::ScOpcodeCatalog::observed_musica(),
+        shinki_emu_musica::ScriptEncoding::Gbk,
+    )
+    .unwrap();
+    let mut vm = shinki_emu_musica::MusicaVm::new(
+        "musica:/scr/test.sc".into(),
+        roukaku_core::Hash256::from_sha256(&bytes),
+        script,
+        0,
+    )
+    .unwrap();
+    let Some(shinki_emu_musica::MusicaVmEvent::Message {
+        text,
+        speaker,
+        wait: shinki_emu_musica::MusicaWaitState::Input { token_id },
+        ..
+    }) = vm.step(1).unwrap()
+    else {
+        panic!("message expected")
+    };
+    assert_eq!(text, "中");
+    assert_eq!(speaker.as_deref(), Some("中文"));
+    vm.resolve_wait(&token_id).unwrap();
+    let Some(shinki_emu_musica::MusicaVmEvent::Message {
+        text,
+        speaker,
+        wait,
+        ..
+    }) = vm.step(2).unwrap()
+    else {
+        panic!("message expected")
+    };
+    assert_eq!(text, "literal");
+    assert_eq!(speaker.as_deref(), Some("first-name"));
+    assert!(matches!(
+        wait,
+        shinki_emu_musica::MusicaWaitState::Input { .. }
+    ));
     let coverage: serde_json::Value =
         serde_json::from_slice(&fs::read(result.output.join("yorino-coverage.json")).unwrap())
             .unwrap();
-    assert_eq!(coverage["converted_verified"], false);
-    assert_eq!(
-        coverage["native_endpoint_coverage"]["unlocated_name_rows"]
-            .as_array()
-            .unwrap()
-            .len(),
-        15
-    );
+    assert_eq!(coverage["embedded_display_operands"], 2);
+    assert_eq!(coverage["names"], 44);
     assert_eq!(coverage["record_audit"]["different_identity_collisions"], 1);
     let profile: toml::Value =
         toml::from_str(&fs::read_to_string(result.output.join("key.toml")).unwrap()).unwrap();
@@ -349,7 +370,7 @@ fn all_28402_rows_and_40_backgrounds_survive_with_native_aliases_and_specific_co
 #[test]
 fn final_background_crc_failure_rolls_back_all_copied_archives_and_generated_images() {
     let root = tempfile::tempdir().unwrap();
-    let fixture = Fixture::new(root.path(), 3, 5, 3, true, false);
+    let fixture = Fixture::new(root.path(), 3, 3, true, false);
     assert_eq!(
         fixture.run().err().unwrap().kind(),
         PatchErrorKind::Integrity
@@ -367,7 +388,7 @@ fn final_background_crc_failure_rolls_back_all_copied_archives_and_generated_ima
 #[test]
 fn missing_eighth_key_role_never_publishes_partial_output() {
     let root = tempfile::tempdir().unwrap();
-    let fixture = Fixture::new(root.path(), 3, 5, 2, false, true);
+    let fixture = Fixture::new(root.path(), 3, 2, false, true);
     assert_eq!(
         fixture.run().err().unwrap().kind(),
         PatchErrorKind::Integrity
@@ -378,8 +399,10 @@ fn missing_eighth_key_role_never_publishes_partial_output() {
 #[test]
 fn changed_pinned_source_fingerprint_is_rejected_without_touching_any_input() {
     let root = tempfile::tempdir().unwrap();
-    let mut fixture = Fixture::new(root.path(), 3, 5, 2, false, false);
-    let fingerprint = hex::encode(Sha256::digest(b"public opaque native resource for bg"));
+    let mut fixture = Fixture::new(root.path(), 3, 2, false, false);
+    let fingerprint = hex::encode(Sha256::digest(
+        fs::read(root.path().join("source/bg.paz")).unwrap(),
+    ));
     fixture.edition = fixture.edition.replacen(&fingerprint, &"0".repeat(64), 1);
     assert_eq!(
         fixture.run().err().unwrap().kind(),

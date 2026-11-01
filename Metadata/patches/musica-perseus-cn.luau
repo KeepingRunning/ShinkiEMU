@@ -158,7 +158,7 @@ edition.originals = {
 }
 
 return {
-    id = "musica-perseus-cn", version = 1, title = "夏空的英仙座旧补丁离线转换",
+    id = "musica-perseus-cn", version = 2, title = "夏空的英仙座原生资源转换",
     apply = function(ctx)
         return ctx.load("common/perseus.luau").apply(ctx, edition)
     end,

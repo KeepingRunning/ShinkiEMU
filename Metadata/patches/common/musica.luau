@@ -1,5 +1,5 @@
--- Only legacy DLL data extraction belongs here. PAZ, SC, encodings and fonts
--- remain native Musica consumers; unchanged PAZ files are never repacked.
+-- Extract legacy DLL data, then embed display text into native loose SC files.
+-- PAZ decoding and script parsing use the same native readers as Musica.
 local musica = {}
 local roles = { "bg", "bgm", "scr", "st", "sys", "se", "voice", "mov" }
 
@@ -112,19 +112,16 @@ function musica.apply_names(ctx, edition)
             copied[path] = true
         end
     end
-    local encoded = buffer.fromstring(ctx.json.encode(names))
-    local output = ctx.create("musica-names.json")
-    output:write(0, encoded)
-    output:close()
-    ctx.progress("Musica native localization data prepared", #roles, #roles)
+    local embedded = ctx.musica_embed("key.toml", names, {}, "scripts")
+    ctx.progress("Musica native localization embedded", embedded, embedded)
     return {
         plugin_id = "shinki.emu.musica",
+        required_capabilities = 256,
         configuration = {
             profile_file = "key.toml",
             script_encoding = "gbk",
             launch_mode = "title",
-            translation_table = "musica-names.json",
-            translation_mode = "replace",
+            script_directory = "scripts",
         },
     }
 end

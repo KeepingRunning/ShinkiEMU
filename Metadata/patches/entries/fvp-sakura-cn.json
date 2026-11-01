@@ -5,14 +5,9 @@
     "en": "Sakura Moyu legacy patch offline conversion"
   },
   "version": "0.2.0",
-  "vn_ids": [
-    "v22313"
-  ],
-  "release_ids": [],
   "emulators": [
     "rfvp"
   ],
-  "kind": "recipe",
   "source_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/patches/fvp-sakura-cn.luau",
   "license": "MIT OR Apache-2.0",
   "authorization_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/LICENSE",
@@ -21,8 +16,27 @@
     "en": "Converts local legacy inputs into native GBK HCB with a consistent game font and isolated save/read identity; no runtime translation table."
   },
   "issue_url": null,
-  "artifact": null,
   "recipe": {
     "script": "fvp-sakura-cn.luau"
-  }
+  },
+  "downloads": [],
+  "releases": [
+    {
+      "release_id": "r105139",
+      "vn_id": "v22313",
+      "title": {
+        "zh-CN": "樱花，萌放",
+        "en": "Yinghua, Mengfang"
+      },
+      "edition": "Internet download",
+      "game_version": null,
+      "fingerprints": [
+        {
+          "path": "Sakura.hcb",
+          "size": 5002852,
+          "sha256": "946877dd0ed8fbf318ba5c73d20afd46b9dcdc200aa7e8edc610c437cc1c789b"
+        }
+      ]
+    }
+  ]
 }

@@ -15,11 +15,17 @@ pub(crate) fn patch_catalog_json(recipes: &[u8]) -> Vec<u8> {
     let entries: Vec<_> = recipes.iter().map(|r| serde_json::json!({
         "id": r["id"], "title": {"zh-CN": r["title"], "en": r["title"]},
         "summary": {"zh-CN": "公开测试配方", "en": "Public fixture recipe"},
-        "version": "1.0.0", "vn_ids": r["vn_ids"], "release_ids": [], "emulators": r["emulators"],
-        "kind": "recipe", "recipe": {"script": r["script"]}, "license": "MIT",
-        "source_url": "https://example.org/public-fixture"
+        "version": "1.0.0", "emulators": r["emulators"],
+        "recipe": {"script": r["script"]}, "license": "MIT",
+        "source_url": "https://example.org/public-fixture",
+        "releases": r["vn_ids"].as_array().unwrap().iter().enumerate().map(|(index,vn_id)| serde_json::json!({
+            "release_id": format!("r{}",index+1), "vn_id": vn_id, "title":{"zh-CN":"公开版本","en":"Public edition"},
+            "edition":"download","game_version":null,
+            "fingerprints":[{"path":"match","size":13,"sha256":sha256_hex(b"public marker")}]
+        })).collect::<Vec<_>>()
     })).collect();
-    serde_json::to_vec(&serde_json::json!({"schema": "shinki.emu.patches.v1", "entries": entries})).unwrap()
+    serde_json::to_vec(&serde_json::json!({"schema": "shinki.emu.patches.v2", "entries": entries}))
+        .unwrap()
 }
 
 pub(crate) fn files(compatibility: Vec<u8>, presets: &str) -> Vec<(String, Vec<u8>)> {
@@ -35,10 +41,7 @@ pub(crate) fn files(compatibility: Vec<u8>, presets: &str) -> Vec<(String, Vec<u
             br#"{"schema":"shinki.emu.cores.v1","entries":[]}"#.to_vec(),
         ),
         (PATCHES_FILE.into(), patch_catalog_json(recipes)),
-        (
-            PATCH_CATALOG_FILE.into(),
-            recipes.to_vec(),
-        ),
+        ("patches/catalog.json".into(), recipes.to_vec()),
         ("patches/musica-eden-cn.luau".into(), b"return {}".to_vec()),
     ]
 }
@@ -82,24 +85,38 @@ fn indexed_v2_exposes_external_snapshots_while_legacy_catalog_stays_readable() {
         upstream: shinki_emu_metadata::UpstreamIdentity {
             repo: "https://github.com/example/engine".into(),
             ref_kind: shinki_emu_metadata::UpstreamRefKind::Branch,
-            ref_name: "release/next".into(), commit: "a".repeat(40),
+            ref_name: "release/next".into(),
+            commit: "a".repeat(40),
         },
         adapter: shinki_emu_metadata::AdapterIdentity {
             repo: "https://github.com/Project-Shinkirou/engine".into(),
-            branch: "shinki".into(), commit: "b".repeat(40),
+            branch: "shinki".into(),
+            commit: "b".repeat(40),
         },
         release_sequence: 1,
     };
     let version = identity.version();
     let tag = format!("core-engine-{version}");
     let entry = shinki_emu_metadata::CoreCatalogEntry {
-        plugin_id: "engine".into(), display_name: "Engine".into(), family_name: "Engine".into(),
-        version, abi: "shinki.emu.native.c.v3".into(), platform: "windows-x86_64".into(),
-        url: format!("{}{tag}/engine.zip", shinki_emu_metadata::CORE_RELEASE_URL_PREFIX),
-        sha256: "c".repeat(64), size: 1, license: "MIT".into(), release_tag: tag, identity: Some(identity),
+        plugin_id: "engine".into(),
+        display_name: "Engine".into(),
+        family_name: "Engine".into(),
+        version,
+        abi: "shinki.emu.native.c.v3".into(),
+        platform: "windows-x86_64".into(),
+        url: format!(
+            "{}{tag}/engine.zip",
+            shinki_emu_metadata::CORE_RELEASE_URL_PREFIX
+        ),
+        sha256: "c".repeat(64),
+        size: 1,
+        license: "MIT".into(),
+        release_tag: tag,
+        identity: Some(identity),
     };
     let modern = shinki_emu_metadata::CoreCatalog {
-        schema: shinki_emu_metadata::CORE_CATALOG_SCHEMA_VERSION.into(), entries: vec![entry.clone()],
+        schema: shinki_emu_metadata::CORE_CATALOG_SCHEMA_VERSION.into(),
+        entries: vec![entry.clone()],
     };
     tree.push((CORES_V2_FILE.into(), serde_json::to_vec(&modern).unwrap()));
     let report = serde_json::json!({
@@ -109,16 +126,38 @@ fn indexed_v2_exposes_external_snapshots_while_legacy_catalog_stays_readable() {
             "emulator_version":entry.version,"platform":"windows","architecture":"x86_64",
             "variant":"desktop","updated_at_unix_ms":20}]
     });
-    tree.push((COMPATIBILITY_V5_FILE.into(), serde_json::to_vec(&report).unwrap()));
+    tree.push((
+        COMPATIBILITY_V5_FILE.into(),
+        serde_json::to_vec(&report).unwrap(),
+    ));
     write_tree(bundled.path(), 20, &tree);
     let selected = select_catalog(data.path(), Some(bundled.path())).unwrap();
-    assert_eq!(selected.cores.latest("engine", "windows-x86_64", "shinki.emu.native.c.v3"), Some(&entry));
-    assert_eq!(selected.compatibility.entries[0].emulator_version.as_deref(), Some(entry.version.as_str()));
+    assert_eq!(
+        selected
+            .cores
+            .latest("engine", "windows-x86_64", "shinki.emu.native.c.v3"),
+        Some(&entry)
+    );
+    assert_eq!(
+        selected.compatibility.entries[0]
+            .emulator_version
+            .as_deref(),
+        Some(entry.version.as_str())
+    );
     let legacy = tree.iter().find(|(path, _)| path == CORES_FILE).unwrap();
-    assert_eq!(parse_core_catalog(&legacy.1).unwrap().schema, shinki_emu_metadata::LEGACY_CORE_CATALOG_SCHEMA_VERSION);
+    assert_eq!(
+        parse_core_catalog(&legacy.1).unwrap().schema,
+        shinki_emu_metadata::LEGACY_CORE_CATALOG_SCHEMA_VERSION
+    );
     tree.retain(|(path, _)| path != CORES_V2_FILE && path != COMPATIBILITY_V5_FILE);
     write_tree(bundled.path(), 21, &tree);
-    assert!(select_catalog(data.path(), Some(bundled.path())).unwrap().cores.entries.is_empty());
+    assert!(
+        select_catalog(data.path(), Some(bundled.path()))
+            .unwrap()
+            .cores
+            .entries
+            .is_empty()
+    );
 }
 
 #[test]
@@ -131,7 +170,7 @@ fn newer_bundled_snapshot_wins_and_equal_age_prefers_synchronized_cache() {
     write_tree(&data.path().join(METADATA_DIRECTORY), 10, &tree);
     let selected = select_catalog(data.path(), Some(bundled.path())).unwrap();
     assert_eq!(selected.source, MetadataSource::Bundled);
-    assert_eq!(selected.recipes[0].id, "musica-eden-cn");
+    assert_eq!(selected.patches.entries[0].id, "musica-eden-cn");
     write_tree(&data.path().join(METADATA_DIRECTORY), 20, &tree);
     assert_eq!(
         select_catalog(data.path(), Some(bundled.path()))
@@ -170,7 +209,7 @@ fn store_replaces_cache_and_reuses_unchanged_files() {
     let updated =
         store_synchronized(data.path(), Some(&stored), &index(2, &second), changed).unwrap();
     assert_eq!(updated.compatibility.entries.len(), 1);
-    assert_eq!(updated.recipes.len(), 1);
+    assert_eq!(updated.patches.entries.len(), 1);
     assert!(!data.path().join(STAGING_DIRECTORY).exists());
     assert!(!data.path().join(PREVIOUS_DIRECTORY).exists());
 }
@@ -222,7 +261,10 @@ fn a_non_recipe_cannot_enter_the_execution_catalog() {
     let (_, bytes) = tree.iter_mut().find(|(p, _)| p == PATCHES_FILE).unwrap();
     let mut patches: serde_json::Value = serde_json::from_slice(bytes).unwrap();
     patches["entries"][0]["kind"] = "external".into();
-    patches["entries"][0].as_object_mut().unwrap().remove("recipe");
+    patches["entries"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("recipe");
     *bytes = serde_json::to_vec(&patches).unwrap();
     // All hashes match: this rejects an invalid executable projection, not file corruption.
     write_tree(root.path(), 1, &tree);

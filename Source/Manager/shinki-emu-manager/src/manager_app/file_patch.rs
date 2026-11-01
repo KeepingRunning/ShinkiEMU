@@ -1,16 +1,16 @@
 use super::*;
+use shinki_emu_manager_ui_slint::i18n::pick;
+use shinki_emu_manager_ui_slint::tr;
 use shinki_emu_manager_ui_slint::{PatchStateViewModel, RecipeViewModel};
 use shinki_emu_patch::{
     OutputProfile, PatchError, PatchErrorKind, PatchMode, PatchProgress, PatchRequest, PatchResult,
 };
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    mpsc::{sync_channel, Receiver, TryRecvError},
     Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+    mpsc::{Receiver, TryRecvError, sync_channel},
 };
 use std::thread::JoinHandle;
-use shinki_emu_manager_ui_slint::tr;
-use shinki_emu_manager_ui_slint::i18n::pick;
 
 pub(super) fn require_profile_capabilities(
     profile: &OutputProfile,
@@ -23,11 +23,14 @@ pub(super) fn require_profile_capabilities(
     if descriptor.has_capability(shinki_emu_manager_core::FamilyCapability::NativeScriptIdentity) {
         supported |= shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY;
     }
-    if descriptor.has_capability(shinki_emu_manager_core::FamilyCapability::ConfiguredFontPriority) {
+    if descriptor.has_capability(shinki_emu_manager_core::FamilyCapability::ConfiguredFontPriority)
+    {
         supported |= shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY;
     }
-    if descriptor.plugin_id != profile.plugin_id
-        || profile.required_capabilities & !supported != 0
+    if descriptor.has_capability(shinki_emu_manager_core::FamilyCapability::NativeEmbeddedText) {
+        supported |= shinki_emu_abi::CAP_NATIVE_EMBEDDED_TEXT;
+    }
+    if descriptor.plugin_id != profile.plugin_id || profile.required_capabilities & !supported != 0
     {
         return Err(format!(
             "SHINKI_EMU_CORE_UPDATE_REQUIRED: {}",
@@ -38,7 +41,11 @@ pub(super) fn require_profile_capabilities(
 }
 
 enum PatchOperation {
-    Apply(PatchRequest),
+    Apply(
+        PatchRequest,
+        Vec<shinki_emu_metadata::PatchRelease>,
+        Option<Vec<shinki_emu_metadata::PatchDownload>>,
+    ),
     Restore(PathBuf),
 }
 
@@ -51,7 +58,7 @@ pub(super) struct PatchJob {
     pub id: u64,
     pub source_game_id: String,
     pub cancelled: Arc<AtomicBool>,
-    pub progress: Arc<Mutex<Option<PatchProgress>>>,
+    pub progress: Arc<Mutex<Vec<PatchProgress>>>,
     completion: Receiver<Result<PatchCompletion, PatchError>>,
     pub thread: Option<JoinHandle<()>>,
     pub restoring: bool,
@@ -66,9 +73,20 @@ impl PatchJob {
         wake: HostWake,
     ) -> Result<Self, String> {
         let restoring = matches!(&operation, PatchOperation::Restore(_));
-        let in_place = restoring || matches!(&operation, PatchOperation::Apply(PatchRequest { mode: PatchMode::InPlace, .. }));
+        let in_place = restoring
+            || matches!(
+                &operation,
+                PatchOperation::Apply(
+                    PatchRequest {
+                        mode: PatchMode::InPlace,
+                        ..
+                    },
+                    _,
+                    _
+                )
+            );
         let cancelled = Arc::new(AtomicBool::new(false));
-        let progress = Arc::new(Mutex::new(None));
+        let progress = Arc::new(Mutex::new(Vec::<PatchProgress>::new()));
         let (sender, completion) = sync_channel(1);
         let signal = cancelled.clone();
         let slot = progress.clone();
@@ -77,16 +95,56 @@ impl PatchJob {
             .name("shinki-file-patch".into())
             .spawn(move || {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    let progress = move |value| {
-                        let first = slot.lock().unwrap_or_else(|poison| poison.into_inner())
-                            .replace(value).is_none();
-                        if first { progress_wake(); }
+                    let progress = move |value: PatchProgress| {
+                        let mut events = slot.lock().unwrap_or_else(|poison| poison.into_inner());
+                        let first = events.is_empty();
+                        let previous =
+                            events
+                                .iter()
+                                .position(|old| match (&old.activity, &value.activity) {
+                                    (
+                                        shinki_emu_patch::PatchActivity::Phase,
+                                        shinki_emu_patch::PatchActivity::Phase,
+                                    ) => true,
+                                    (
+                                        shinki_emu_patch::PatchActivity::Download {
+                                            name: a, ..
+                                        },
+                                        shinki_emu_patch::PatchActivity::Download {
+                                            name: b, ..
+                                        },
+                                    ) => a == b,
+                                    (
+                                        shinki_emu_patch::PatchActivity::Check { label: a, .. },
+                                        shinki_emu_patch::PatchActivity::Check { label: b, .. },
+                                    ) => a == b,
+                                    _ => false,
+                                });
+                        if let Some(index) = previous {
+                            events[index] = value;
+                        } else if events.len() < 513 {
+                            events.push(value);
+                        }
+                        drop(events);
+                        if first {
+                            progress_wake();
+                        }
                     };
                     match operation {
-                        PatchOperation::Apply(request) => shinki_emu_patch::apply(request, signal, progress)
-                            .map(PatchCompletion::Applied),
-                        PatchOperation::Restore(game) => shinki_emu_patch::restore_latest(&game, signal, progress)
-                            .map(|()| PatchCompletion::Restored),
+                        PatchOperation::Apply(request, releases, downloads) => {
+                            shinki_emu_patch::apply_bound(
+                                request,
+                                &releases,
+                                downloads.as_deref(),
+                                signal,
+                                progress,
+                            )
+                            .map(PatchCompletion::Applied)
+                        }
+                        PatchOperation::Restore(game) => {
+                            shinki_emu_patch::restore_latest(&game, signal, progress)
+                                .map(|()| PatchCompletion::Restored)
+                        }
                     }
                 }))
                 .unwrap_or_else(|_| {
@@ -155,23 +213,28 @@ fn patch_busy_error() -> String {
 
 impl ShinkiEmuManagerController {
     pub(super) fn patch_busy(&self) -> bool {
-        self.patch_job.is_some() || self.patch_import.is_some() || self.patch_download.is_some()
+        self.patch_job.is_some() || self.patch_import.is_some()
     }
 
     /// `step`: 0 not started, 4 running or failed, 5 imported.
     pub(super) fn patch_state_view(&self) -> PatchStateViewModel {
         let mut view = self.patch_state.clone();
-        view.running = self.patch_job.is_some() || self.patch_download.is_some();
-        view.downloading = self.patch_download.is_some();
+        view.running = self.patch_job.is_some();
         // A restore owns exclusive Windows backup handles; do not inspect its
         // changing namespace while the worker is active.
-        view.has_backup = self.patch_job.is_none() && self.patch_game_id.as_deref()
-            .and_then(|id| self.game(id).ok())
-            .is_some_and(|game| shinki_emu_patch::has_backup(Path::new(&game.location)).unwrap_or(false));
+        view.has_backup = self.patch_job.is_none()
+            && self
+                .patch_game_id
+                .as_deref()
+                .and_then(|id| self.game(id).ok())
+                .is_some_and(|game| {
+                    shinki_emu_patch::has_backup(Path::new(&game.location)).unwrap_or(false)
+                });
         if view.running || !view.error.is_empty() {
             view.step = 4;
         }
         view.can_start = !self.patch_busy()
+            && !self.patch_release_mismatch
             && self.active.is_none()
             && !self.startup_busy()
             && self.cores_ready()
@@ -217,19 +280,29 @@ impl ShinkiEmuManagerController {
             .recommended_preset(game_id)?
             .and_then(|preset| preset.patch.as_deref());
         Ok(catalog
-            .recipes
+            .patches
+            .entries
             .iter()
-            .filter(|recipe| {
-                recipe.vn_ids.iter().any(|id| id == vn_id)
-                    && recipe
+            .filter(|patch| {
+                patch.applies_to_work(vn_id)
+                    && patch
                         .emulators
                         .iter()
                         .any(|id| emulators.contains(&id.as_str()))
             })
-            .map(|recipe| RecipeViewModel {
-                id: recipe.id.clone(),
-                title: recipe.title.clone(),
-                recommended: recommended == Some(recipe.id.as_str()),
+            .map(|patch| RecipeViewModel {
+                id: patch.id.clone(),
+                title: format!(
+                    "{} · {}",
+                    pick(&patch.title),
+                    patch
+                        .releases
+                        .iter()
+                        .map(|release| release.release_id.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" / ")
+                ),
+                recommended: recommended == Some(patch.id.as_str()),
             })
             .collect())
     }
@@ -237,8 +310,13 @@ impl ShinkiEmuManagerController {
     fn patch_emulators(&self, game_id: &str) -> Vec<&str> {
         match self.candidates.get(game_id) {
             Some(chosen) => vec![chosen.report.plugin_id.as_str()],
-            None => self.probe_choices.get(game_id).into_iter().flatten()
-                .map(|choice| choice.report.plugin_id.as_str()).collect(),
+            None => self
+                .probe_choices
+                .get(game_id)
+                .into_iter()
+                .flatten()
+                .map(|choice| choice.report.plugin_id.as_str())
+                .collect(),
         }
     }
 
@@ -250,46 +328,45 @@ impl ShinkiEmuManagerController {
         identities: &[shinki_emu_manager_core::ExternalIdentityRecord],
     ) -> Result<(Vec<RecipeViewModel>, String), String> {
         let Some(vn_id) = Self::vndb_id(identities) else {
-            return Ok((Vec::new(), tr!("先在 游戏设置→作品资料 关联 VNDB 作品").into()));
+            return Ok((
+                Vec::new(),
+                tr!("先在 游戏设置→作品资料 关联 VNDB 作品").into(),
+            ));
         };
         let recipes = self.patch_recipes(game_id, vn_id)?;
-        let mut hint = if recipes.is_empty() { tr!("补丁目录中没有适用于这部作品和当前模拟器的补丁，可以选择本地脚本。").to_owned() } else { String::new() };
+        let mut hint = if recipes.is_empty() {
+            tr!("补丁目录中没有适用于这部作品和当前模拟器的补丁，可以选择本地脚本。").to_owned()
+        } else {
+            String::new()
+        };
         if let Some(catalog) = &self.metadata_catalog {
             let emulators = self.patch_emulators(game_id);
-            let release = self.pinned_releases.get(game_id).map(|r| r.release_id.as_str());
-            for patch in catalog.patches.entries.iter().filter(|p| {
-                p.kind != shinki_emu_metadata::PatchKind::Recipe
-                    && p.vn_ids.iter().any(|id| id == vn_id)
-                    && emulators.iter().any(|id| p.emulators.iter().any(|e| e == id))
-                    && (p.release_ids.is_empty() || release.is_some_and(|r| p.release_ids.iter().any(|id| id == r)))
+            for patch in catalog.patches.entries.iter().filter(|patch| {
+                patch.applies_to_work(vn_id)
+                    && patch
+                        .emulators
+                        .iter()
+                        .any(|id| emulators.contains(&id.as_str()))
             }) {
                 use std::fmt::Write;
-                let _ = write!(hint, "\n{}\n{}\n{}", pick(&patch.title), pick(&patch.summary), tr!("许可：{license}", license = patch.license));
-                if patch.release_ids.is_empty() { hint.push('\n'); hint.push_str(tr!("发行版本未限定（未验证所有版本）")); }
-                if let Some(url) = &patch.source_url { let _ = write!(hint, "\n{}", tr!("来源：{url}", url = url)); }
-                if let Some(url) = &patch.authorization_url { let _ = write!(hint, "\n{}", tr!("授权：{url}", url = url)); }
-                if let Some(a) = &patch.artifact { let _ = write!(hint, "\n{}", tr!("下载：{url}\nSHA256：{sha256}\n大小：{size} 字节", url = a.url, sha256 = a.sha256, size = a.size)); }
+                for release in &patch.releases {
+                    let _ = write!(
+                        hint,
+                        "\n{} · {} · {}{}",
+                        release.release_id,
+                        pick(&release.title),
+                        release.edition,
+                        release
+                            .game_version
+                            .as_ref()
+                            .map(|version| format!(" · {version}"))
+                            .unwrap_or_default()
+                    );
+                }
             }
         }
         Ok((recipes, hint))
     }
-
-    pub(super) fn matching_artifacts(&self, game_id: &str,
-        identities: &[shinki_emu_manager_core::ExternalIdentityRecord])
-        -> Vec<shinki_emu_metadata::PatchCatalogEntry>
-    {
-        let Some(vn_id) = Self::vndb_id(identities) else { return Vec::new() };
-        let Some(catalog) = &self.metadata_catalog else { return Vec::new() };
-        let emulators = self.patch_emulators(game_id);
-        let release = self.pinned_releases.get(game_id).map(|r| r.release_id.as_str());
-        catalog.patches.entries.iter().filter(|patch| {
-            patch.kind != shinki_emu_metadata::PatchKind::Recipe && patch.artifact.is_some()
-                && patch.vn_ids.iter().any(|id| id == vn_id)
-                && emulators.iter().any(|id| patch.emulators.iter().any(|e| e == id))
-                && (patch.release_ids.is_empty() || release.is_some_and(|r| patch.release_ids.iter().any(|id| id == r)))
-        }).cloned().collect()
-    }
-
 
     pub(super) fn search_patch_games(&mut self, query: &str) -> Result<ManagerViewModel, String> {
         if query.chars().count() > 256 {
@@ -306,10 +383,14 @@ impl ShinkiEmuManagerController {
             return Err(patch_busy_error());
         }
         let game = self.game(game_id)?;
+        if self.patch_release_mismatch && self.patch_game_id.as_deref() == Some(game_id) {
+            return self.model();
+        }
         let unchanged = self.patch_game_id.as_deref() == Some(game_id)
             && self.patch_state.step == 0
             && self.patch_state.error.is_empty();
         if !unchanged {
+            self.patch_release_mismatch = false;
             self.patch_state = PatchStateViewModel {
                 patch_directory: game.location,
                 ..Default::default()
@@ -337,7 +418,10 @@ impl ShinkiEmuManagerController {
         if !recipes.iter().any(|recipe| recipe.id == id) {
             return Err("SHINKI_EMU_PATCH_RECIPE_UNKNOWN".into());
         }
-        self.set_patch_selection(|state| state.script = id.into())
+        self.set_patch_selection(id != self.patch_state.script, |state| {
+            state.script = id.into();
+            state.in_place = false;
+        })
     }
 
     /// Choose a trusted local Luau script.
@@ -346,39 +430,37 @@ impl ShinkiEmuManagerController {
             .to_str()
             .ok_or("SHINKI_EMU_PATCH_PATH: script path must be Unicode")?
             .to_owned();
-        self.set_patch_selection(|state| state.script = path)
+        self.set_patch_selection(path != self.patch_state.script, |state| {
+            state.script = path;
+            state.in_place = false;
+        })
     }
 
     pub(super) fn set_patch_mode(&mut self, in_place: bool) -> Result<ManagerViewModel, String> {
-        self.set_patch_selection(|state| state.in_place = in_place)
-    }
-
-    pub(super) fn download_patch(&mut self, id: &str) -> Result<ManagerViewModel, String> {
-        if self.patch_busy() { return Err(patch_busy_error()); }
-        if !self.network_allowed { return Err("SHINKI_EMU_PATCH_DOWNLOAD_NETWORK: offline".into()); }
-        let game = self.patch_game()?;
-        let identities = self.library.external_identities(&game.game_id)
-            .map_err(|error| error.to_string())?;
-        let patch = self.matching_artifacts(&game.game_id, &identities).into_iter()
-            .find(|item| item.id == id)
-            .ok_or("SHINKI_EMU_PATCH_INVALID_REQUEST: patch artifact not available for game")?;
-        let wake = self.host_wake.clone().ok_or("SHINKI_EMU_HOST_WAKE_REQUIRED")?;
-        self.patch_download = Some(patch_download::PatchDownloadJob::start(
-            PathBuf::from(&game.location), patch.artifact.expect("filtered artifact"), patch.kind, wake)?);
-        self.patch_state.phase = tr!("正在下载并验证补丁文件…").into();
-        self.patch_state.error.clear();
-        self.model()
+        self.set_patch_selection(false, |state| state.in_place = in_place)
     }
 
     pub(super) fn restore_patch(&mut self) -> Result<ManagerViewModel, String> {
-        if self.patch_busy() { return Err(patch_busy_error()); }
+        if self.patch_busy() {
+            return Err(patch_busy_error());
+        }
         self.ensure_owner_idle()?;
         let game = self.patch_game()?;
-        let wake = self.host_wake.clone().ok_or("SHINKI_EMU_HOST_WAKE_REQUIRED")?;
-        let id = self.patch_sequence.checked_add(1).ok_or("SHINKI_EMU_PATCH_BOUNDS")?;
+        let wake = self
+            .host_wake
+            .clone()
+            .ok_or("SHINKI_EMU_HOST_WAKE_REQUIRED")?;
+        let id = self
+            .patch_sequence
+            .checked_add(1)
+            .ok_or("SHINKI_EMU_PATCH_BOUNDS")?;
         let game_path = PathBuf::from(&game.location);
-        self.patch_job = Some(PatchJob::start(id, game.game_id,
-            PatchOperation::Restore(game_path.clone()), wake)?);
+        self.patch_job = Some(PatchJob::start(
+            id,
+            game.game_id,
+            PatchOperation::Restore(game_path.clone()),
+            wake,
+        )?);
         self.patch_sequence = id;
         self.patch_state.in_place = true;
         self.patch_state.output = game_path.to_string_lossy().into_owned();
@@ -398,14 +480,18 @@ impl ShinkiEmuManagerController {
             .ok_or("SHINKI_EMU_PATCH_PATH: directory path must be Unicode")?
             .to_owned();
         match kind {
-            "patch" => self.set_patch_selection(|state| state.patch_directory = path),
-            "output" => self.set_patch_selection(|state| state.output_directory = path),
+            "patch" => self
+                .set_patch_selection(path != self.patch_state.patch_directory, |state| {
+                    state.patch_directory = path
+                }),
+            "output" => self.set_patch_selection(false, |state| state.output_directory = path),
             _ => Err("SHINKI_EMU_PATCH_INVALID_REQUEST: unknown directory kind".into()),
         }
     }
 
     fn set_patch_selection(
         &mut self,
+        reset_release_failure: bool,
         change: impl FnOnce(&mut PatchStateViewModel),
     ) -> Result<ManagerViewModel, String> {
         if self.patch_busy() {
@@ -415,7 +501,12 @@ impl ShinkiEmuManagerController {
         change(&mut self.patch_state);
         self.patch_state.step = 0;
         self.patch_state.phase.clear();
-        self.patch_state.error.clear();
+        if reset_release_failure {
+            self.patch_release_mismatch = false;
+        }
+        if !self.patch_release_mismatch {
+            self.patch_state.error.clear();
+        }
         self.model()
     }
 
@@ -425,10 +516,11 @@ impl ShinkiEmuManagerController {
             .as_ref()
             .ok_or("SHINKI_EMU_PATCH_RECIPE_UNKNOWN")?;
         catalog
-            .recipes
+            .patches
+            .entries
             .iter()
-            .find(|recipe| recipe.id == id)
-            .map(|recipe| catalog.patch_directory().join(&recipe.script))
+            .find(|patch| patch.id == id)
+            .map(|patch| catalog.patch_directory().join(&patch.recipe.script))
             .ok_or_else(|| "SHINKI_EMU_PATCH_RECIPE_UNKNOWN".into())
     }
 
@@ -471,17 +563,51 @@ impl ShinkiEmuManagerController {
             return Err(patch_busy_error());
         }
         self.ensure_owner_idle()?;
+        if self.patch_release_mismatch {
+            return Err(self.patch_state.error.clone());
+        }
         if self.startup_busy() {
             return Err("SHINKI_EMU_FAMILY_INITIALIZING".into());
         }
         if !self.cores_ready() {
             return Err("SHINKI_EMU_CORES_NOT_READY".into());
         }
-        if script.as_os_str().is_empty() || (!self.patch_state.in_place && output.as_os_str().is_empty()) {
-            return Err(format!("SHINKI_EMU_PATCH_INVALID_REQUEST: {}", tr!("请选择脚本和新的输出目录")));
+        if script.as_os_str().is_empty()
+            || (!self.patch_state.in_place && output.as_os_str().is_empty())
+        {
+            return Err(format!(
+                "SHINKI_EMU_PATCH_INVALID_REQUEST: {}",
+                tr!("请选择脚本和新的输出目录")
+            ));
         }
         let game = self.patch_game()?;
         let source = PathBuf::from(&game.location);
+        let (releases, mut downloads) = self
+            .metadata_catalog
+            .as_ref()
+            .and_then(|catalog| {
+                catalog
+                    .patches
+                    .entries
+                    .iter()
+                    .find(|entry| {
+                        entry.id == self.patch_state.script
+                            && catalog.patch_directory().join(&entry.recipe.script) == script
+                    })
+                    .map(|entry| (entry.releases.clone(), Some(entry.downloads.clone())))
+            })
+            .map(Ok)
+            .unwrap_or_else(|| {
+                if script.with_extension("patch.json").exists() {
+                    shinki_emu_patch::read_release_bindings(script).map(|releases| (releases, None))
+                } else {
+                    Ok((Vec::new(), None))
+                }
+            })
+            .map_err(|error| format!("SHINKI_EMU_PATCH_RELEASE_REQUIRED: {error}"))?;
+        if !self.network_allowed {
+            downloads = Some(Vec::new());
+        }
         let request = PatchRequest {
             script: script.to_owned(),
             patch: if patch.as_os_str().is_empty() {
@@ -490,8 +616,12 @@ impl ShinkiEmuManagerController {
                 patch.to_owned()
             },
             source,
-            mode: if self.patch_state.in_place { PatchMode::InPlace } else {
-                PatchMode::NewDirectory { output: output.to_owned() }
+            mode: if self.patch_state.in_place {
+                PatchMode::InPlace
+            } else {
+                PatchMode::NewDirectory {
+                    output: output.to_owned(),
+                }
             },
         };
         let id = self
@@ -502,12 +632,21 @@ impl ShinkiEmuManagerController {
             .host_wake
             .clone()
             .ok_or("SHINKI_EMU_HOST_WAKE_REQUIRED")?;
-        let job = PatchJob::start(id, game.game_id, PatchOperation::Apply(request), wake)?;
+        let job = PatchJob::start(
+            id,
+            game.game_id,
+            PatchOperation::Apply(request, releases, downloads),
+            wake,
+        )?;
         self.patch_sequence = id;
         self.patch_job = Some(job);
         self.patch_state = PatchStateViewModel {
             phase: tr!("准备文件补丁任务…").into(),
-            output: if self.patch_state.in_place { game.location } else { output.to_string_lossy().into_owned() },
+            output: if self.patch_state.in_place {
+                game.location
+            } else {
+                output.to_string_lossy().into_owned()
+            },
             script: std::mem::take(&mut self.patch_state.script),
             patch_directory: std::mem::take(&mut self.patch_state.patch_directory),
             output_directory: std::mem::take(&mut self.patch_state.output_directory),
@@ -522,44 +661,21 @@ impl ShinkiEmuManagerController {
             job.cancel();
             self.patch_state.phase = tr!("正在取消，等待文件句柄和工作线程回收…").into();
         }
-        if let Some(job) = &self.patch_download {
-            job.cancel();
-            self.patch_state.phase = tr!("正在取消补丁下载…").into();
-        }
         self.model()
     }
 
     pub(super) fn poll_file_patch(&mut self) -> Result<bool, String> {
-        if let Some(download) = &self.patch_download {
-            let result = match download.result() {
-                Ok(Some(result)) => result,
-                Ok(None) => return Ok(false),
-                Err(error) => Err(error),
-            };
-            let mut download = self.patch_download.take().expect("completed download exists");
-            match download.join().and(result) {
-                Ok(directory) => {
-                    self.patch_state.patch_directory = directory.to_string_lossy().into_owned();
-                    self.patch_state.phase = tr!("补丁已下载并验证，已设置补丁输入目录").into();
-                    self.patch_state.error.clear();
-                }
-                Err(error) => {
-                    self.patch_state.phase = tr!("补丁下载失败").into();
-                    self.patch_state.error = error;
-                }
-            }
-            return Ok(true);
-        }
         let Some(job) = self.patch_job.as_ref() else {
             return Ok(false);
         };
         let mut changed = false;
-        if let Some(progress) = job
-            .progress
-            .lock()
-            .unwrap_or_else(|poison| poison.into_inner())
-            .take()
-        {
+        let events = std::mem::take(
+            &mut *job
+                .progress
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner()),
+        );
+        for progress in events {
             self.patch_state.phase = if job.cancelled.load(Ordering::Acquire) {
                 tr!("正在取消…").into()
             } else {
@@ -568,6 +684,60 @@ impl ShinkiEmuManagerController {
             self.patch_state.completed = progress.completed;
             self.patch_state.total = progress.total;
             changed = true;
+            use shinki_emu_manager_ui_slint::{
+                PatchCheckViewModel, PatchDownloadViewModel, PatchVerify,
+            };
+            match progress.activity {
+                shinki_emu_patch::PatchActivity::Phase => {}
+                shinki_emu_patch::PatchActivity::Download {
+                    name,
+                    sha256,
+                    verification,
+                } => {
+                    let row = PatchDownloadViewModel {
+                        name,
+                        sha256,
+                        completed: progress.completed,
+                        total: progress.total,
+                        verify: match verification {
+                            shinki_emu_patch::PatchVerification::Pending => PatchVerify::Pending,
+                            shinki_emu_patch::PatchVerification::Ok => PatchVerify::Ok,
+                            shinki_emu_patch::PatchVerification::Failed => PatchVerify::Failed,
+                        },
+                    };
+                    if let Some(previous) = self
+                        .patch_state
+                        .downloads
+                        .iter_mut()
+                        .find(|previous| previous.name == row.name)
+                    {
+                        *previous = row;
+                    } else if self.patch_state.downloads.len() < 256 {
+                        self.patch_state.downloads.push(row);
+                    }
+                }
+                shinki_emu_patch::PatchActivity::Check {
+                    label,
+                    passed,
+                    detail,
+                } => {
+                    let row = PatchCheckViewModel {
+                        label,
+                        passed,
+                        detail,
+                    };
+                    if let Some(previous) = self
+                        .patch_state
+                        .checks
+                        .iter_mut()
+                        .find(|previous| previous.label == row.label)
+                    {
+                        *previous = row;
+                    } else if self.patch_state.checks.len() < 256 {
+                        self.patch_state.checks.push(row);
+                    }
+                }
+            }
         }
         let result = match job.completion.try_recv() {
             Ok(result) => result,
@@ -594,16 +764,16 @@ impl ShinkiEmuManagerController {
                     self.patch_import_failed(error);
                     return Ok(true);
                 }
-                self.patch_state.phase = if job.in_place {
-                    tr!("原位覆盖完成，正在重新探测游戏…")
-                } else { tr!("文件转换完成，正在导入独立目录…") }.into();
+                self.patch_state.phase = tr!("文件转换完成，正在导入独立目录…").into();
                 self.patch_import = Some(PendingImport {
                     output: result.output.clone(),
                     source_game_id: std::mem::take(&mut job.source_game_id),
                     profile: result.profile,
                     in_place: job.in_place,
                 });
-                if let Err(error) = self.begin_scan(probe_worker::ScanKind::Import, vec![result.output]) {
+                if let Err(error) =
+                    self.begin_scan(probe_worker::ScanKind::Import, vec![result.output])
+                {
                     self.patch_import.take();
                     self.patch_import_failed(error);
                 }
@@ -617,17 +787,33 @@ impl ShinkiEmuManagerController {
                 self.patch_state.error.clear();
                 self.patch_state.step = 5;
                 let game = self.game(&job.source_game_id)?;
-                if let Err(error) = self.begin_scan(probe_worker::ScanKind::Import, vec![PathBuf::from(game.location)]) {
+                if let Err(error) = self.begin_scan(
+                    probe_worker::ScanKind::Import,
+                    vec![PathBuf::from(game.location)],
+                ) {
                     self.patch_import_failed(error);
                 }
             }
             Err(error) => {
+                self.patch_release_mismatch = error.kind() == PatchErrorKind::ReleaseMismatch;
+                self.patch_state.rolled_back = joined.is_ok() && error.rolled_back();
                 if error.kind() == PatchErrorKind::Cancelled && joined.is_ok() {
                     self.patch_state.phase = tr!("已取消，游戏文件保持不变").into();
                     self.patch_state.error.clear();
                 } else {
-                    self.patch_state.phase = if job.restoring { tr!("还原失败") } else { tr!("文件补丁处理失败") }.into();
-                    self.patch_state.error = joined.err().unwrap_or_else(|| error.to_string());
+                    self.patch_state.phase = if job.restoring {
+                        tr!("还原失败")
+                    } else {
+                        tr!("文件补丁处理失败")
+                    }
+                    .into();
+                    self.patch_state.error = joined.err().unwrap_or_else(|| {
+                        if error.kind() == PatchErrorKind::ReleaseMismatch {
+                            format!("{}: {error}", tr!("游戏文件与补丁适用的发行版本不匹配"))
+                        } else {
+                            error.to_string()
+                        }
+                    });
                 }
             }
         }
@@ -640,9 +826,7 @@ impl ShinkiEmuManagerController {
     }
 
     pub(super) fn patch_import_succeeded(&mut self) {
-        self.patch_state.phase = if self.patch_state.in_place {
-            tr!("原位覆盖完成，游戏已重新探测")
-        } else { tr!("文件转换完成，已加入独立库条目") }.into();
+        self.patch_state.phase = tr!("文件转换完成，已加入独立库条目").into();
         self.patch_state.error.clear();
         self.patch_state.step = 5;
     }
@@ -703,7 +887,11 @@ impl ShinkiEmuManagerController {
     /// A patch output is another installed copy of the source's work: it
     /// takes the source's VNDB identity, cached metadata and cover, but not
     /// its pinned release, settings or play records.
-    pub(super) fn inherit_source_work(&mut self, source_game_id: &str, game_id: &str) -> Result<(), String> {
+    pub(super) fn inherit_source_work(
+        &mut self,
+        source_game_id: &str,
+        game_id: &str,
+    ) -> Result<(), String> {
         let inherited = self
             .library
             .inherit_external_identity(
@@ -724,10 +912,11 @@ impl ShinkiEmuManagerController {
 fn copy_cover(data_dir: &Path, source_game_id: &str, game_id: &str) -> Result<(), String> {
     const EXTENSIONS: [&str; 5] = ["png", "jpg", "webp", "gif", "bmp"];
     let directory = data_dir.join("covers");
-    let Some(extension) = EXTENSIONS
-        .into_iter()
-        .find(|extension| directory.join(format!("{source_game_id}.{extension}")).is_file())
-    else {
+    let Some(extension) = EXTENSIONS.into_iter().find(|extension| {
+        directory
+            .join(format!("{source_game_id}.{extension}"))
+            .is_file()
+    }) else {
         return Ok(());
     };
     for previous in EXTENSIONS {

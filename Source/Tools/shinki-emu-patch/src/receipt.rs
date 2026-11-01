@@ -88,6 +88,7 @@ pub(crate) fn write(
                         phase: "verifying output".into(),
                         completed: outputs.len() as u64,
                         total: None,
+                        ..Default::default()
                     });
                 }
                 _ => {

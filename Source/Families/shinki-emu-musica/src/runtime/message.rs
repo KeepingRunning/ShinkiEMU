@@ -14,7 +14,7 @@ pub(super) fn execute_message(
         (
             message_id,
             (!tokens[1].is_empty()).then(|| tokens[1].clone()),
-            native_speaker_name(&tokens[2]),
+            native_speaker_name(&tokens[2])?,
             tokens[3..].join(" "),
         )
     } else {
@@ -311,8 +311,13 @@ pub(super) fn validate_state(state: &MusicaRuntimeState) -> Result<(), MusicaRun
 /// display style and is stripped; ideographic spaces (SJIS 0x8140) become
 /// plain spaces and every remaining space is dropped before the name reaches
 /// the name window.
-pub(super) fn native_speaker_name(token: &str) -> Option<String> {
+pub(super) fn native_speaker_name(token: &str) -> Result<Option<String>, MusicaRuntimeError> {
+    if token.contains("\\u{") {
+        let literal =
+            crate::embed::decode_sc_literal(token).map_err(|_| MusicaRuntimeError::Operand)?;
+        return Ok((!literal.is_empty()).then_some(literal));
+    }
     let stripped = token.strip_prefix(['@', '#']).unwrap_or(token);
     let name = stripped.replace(['\u{3000}', ' ', '\t'], "");
-    (!name.is_empty()).then_some(name)
+    Ok((!name.is_empty()).then_some(name))
 }

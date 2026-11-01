@@ -54,7 +54,7 @@ pub enum MusicaMessageMarkupError {
     #[error("SHINKI_EMU_MUSICA_MESSAGE_CONTROL_UNSUPPORTED: message control is not verified")]
     Unsupported,
     #[error(
-        "SHINKI_EMU_MUSICA_MESSAGE_CONTROL_NONCANONICAL: stored message text still contains a control sequence"
+        "SHINKI_EMU_MUSICA_MESSAGE_CONTROL_NONCANONICAL: stored visible text contains a NUL terminator"
     )]
     NonCanonical,
     #[error("SHINKI_EMU_MUSICA_MESSAGE_CONTROL_BOUNDS: message controls exceed their bounds")]
@@ -100,6 +100,26 @@ pub fn parse_musica_message_markup(
                 visible_text.push('\n');
                 continue;
             }
+            'u' => {
+                let payload = source
+                    .get(cursor..)
+                    .and_then(|remaining| remaining.strip_prefix('{'))
+                    .ok_or(MusicaMessageMarkupError::Truncated)?;
+                let close = payload
+                    .find('}')
+                    .ok_or(MusicaMessageMarkupError::Truncated)?;
+                if close == 0 || close > 6 {
+                    return Err(MusicaMessageMarkupError::Unsupported);
+                }
+                let character = u32::from_str_radix(&payload[..close], 16)
+                    .ok()
+                    .and_then(char::from_u32)
+                    .filter(|character| *character != '\0')
+                    .ok_or(MusicaMessageMarkupError::Unsupported)?;
+                visible_text.push(character);
+                cursor += close + 2;
+                continue;
+            }
             'v' => MusicaMessageControl::WaitForVoice {
                 visible_byte_offset,
             },
@@ -135,17 +155,10 @@ pub fn parse_musica_message_markup(
     })
 }
 
-/// Validate text persisted in the runtime backlog or snapshot.
-///
-/// Message controls are parsed exactly once at command execution and are not
-/// part of the stored visible text.  A snapshot carrying a control sequence in
-/// this field is therefore stale or malformed; accepting it would make the
-/// presentation layer render script markup as ordinary text.  Keep this check
-/// strict rather than silently normalizing the value so restore failures remain
-/// observable and no control semantics are guessed.
+/// Stored text is already visible text, including literal backslashes emitted
+/// by native scalar escapes. Restore never reparses it as script controls.
 pub fn validate_canonical_musica_message_text(text: &str) -> Result<(), MusicaMessageMarkupError> {
-    let parsed = parse_musica_message_markup(text)?;
-    if parsed.visible_text != text {
+    if text.contains('\0') {
         return Err(MusicaMessageMarkupError::NonCanonical);
     }
     Ok(())
@@ -220,12 +233,15 @@ mod tests {
     }
 
     #[test]
-    fn persisted_text_rejects_script_controls_instead_of_stripping_them() {
+    fn persisted_literal_text_is_not_reinterpreted_as_script_controls() {
+        validate_canonical_musica_message_text("body\\v\\a").unwrap();
         assert_eq!(
-            validate_canonical_musica_message_text("body\\v\\a").unwrap_err(),
+            validate_canonical_musica_message_text("bad\0text").unwrap_err(),
             MusicaMessageMarkupError::NonCanonical
         );
-        validate_canonical_musica_message_text("visible body").unwrap();
+        let parsed = parse_musica_message_markup("\\u{5c}\\u{61}\\a").unwrap();
+        assert_eq!(parsed.visible_text, "\\a");
+        assert!(parsed.auto_advance());
     }
 
     #[test]

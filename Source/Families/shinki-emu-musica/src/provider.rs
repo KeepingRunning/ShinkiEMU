@@ -166,14 +166,6 @@ pub(crate) fn musica_fields() -> Vec<MusicaField> {
         )
         .flags(DIRECTORY | GAME_RELATIVE | ADVANCED),
         MusicaField::text(
-            "translation_table",
-            "翻译表",
-            "语言",
-            "",
-            "原生翻译表 v2 文件，用于显示译文，路径相对游戏目录；留空则显示原文。",
-        )
-        .flags(FILE | GAME_RELATIVE),
-        MusicaField::text(
             "subtitle_map",
             "影片字幕映射",
             "语言",
@@ -189,14 +181,6 @@ pub(crate) fn musica_fields() -> Vec<MusicaField> {
             "替换正文字体的字体文件，路径相对游戏目录；留空使用默认字体。",
         )
         .flags(FILE | GAME_RELATIVE),
-        MusicaField::choice(
-            "translation_mode",
-            "译文显示方式",
-            "语言",
-            &[("replace", "替换原文"), ("overlay", "叠加显示")],
-            "replace",
-            "加载翻译表后，译文直接替换原文，或与原文叠加显示。",
-        ),
         MusicaField::choice(
             "launch_mode",
             "启动方式",
@@ -469,28 +453,6 @@ impl MusicaProvider {
         let (archive, texture_overrides) =
             mount_musica_with_resources(root, Path::new(&profile), &resources)
                 .map_err(core_error)?;
-        let table_path = get("translation_table")?;
-        let translation_table = if table_path.is_empty() {
-            None
-        } else {
-            Some(Arc::new(
-                crate::MusicaTranslationTable::load(root, &table_path).map_err(core_error)?,
-            ))
-        };
-        let translation_mode = match config
-            .iter()
-            .find(|entry| entry.id == "translation_mode")
-            .map(|entry| &entry.value)
-        {
-            Some(ConfigValue::Enum(value)) if value == "replace" => crate::TranslationMode::Replace,
-            Some(ConfigValue::Enum(value)) if value == "overlay" => crate::TranslationMode::Overlay,
-            _ => {
-                return Err(error(
-                    "SHINKI_EMU_MUSICA_CONFIG",
-                    "invalid translation mode",
-                ));
-            }
-        };
         let configured_font =
             crate::resources::load_font(root, &get("font_path")?).map_err(core_error)?;
         let subtitle_catalog = crate::subtitles::SubtitleCatalog::load(root, &get("subtitle_map")?)
@@ -528,8 +490,6 @@ impl MusicaProvider {
         .map_err(|_| error("SHINKI_EMU_MUSICA_CONFIG", "auto delay is out of bounds"))?;
         let game = crate::resources::game_identity(
             &archive,
-            translation_table.as_ref().map(|table| table.identity()),
-            translation_mode,
             configured_font.as_ref().map(|font| font.hash),
             subtitle_catalog.as_ref().map(|catalog| catalog.identity()),
         )
@@ -641,7 +601,6 @@ impl MusicaProvider {
             primary_encoding,
             native,
         );
-        session.install_localization(translation_table, translation_mode);
         session.sync_read_flags()?;
         tracing::info!(event = "shinki.emu.musica.session.open");
         Ok((response, session))

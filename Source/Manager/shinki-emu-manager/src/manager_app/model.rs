@@ -1,13 +1,12 @@
 use super::*;
+use shinki_emu_manager_ui_slint::tr;
 use shinki_emu_manager_ui_slint::{
     AppViewModel, BangumiViewModel, ChoiceViewModel, CoresViewModel, EngineActionViewModel,
     ExcludedViewModel, FiltersViewModel, GameCardViewModel, GameSettingsViewModel,
     LibraryViewModel, MatchViewModel, NoticeViewModel, NoticesViewModel, OnboardingViewModel,
-    PatchGameViewModel, PatchViewModel, PlaySessionViewModel, SelectedGameViewModel,
-    ReleaseViewModel, SelectionViewModel, SessionViewModel, SettingsViewModel, describe_error,
+    PatchGameViewModel, PatchViewModel, PlaySessionViewModel, ReleaseViewModel,
+    SelectedGameViewModel, SelectionViewModel, SessionViewModel, SettingsViewModel, describe_error,
 };
-use shinki_emu_manager_ui_slint::tr;
-use shinki_emu_manager_ui_slint::i18n::pick;
 
 impl ShinkiEmuManagerController {
     pub(super) fn model(&mut self) -> Result<ManagerViewModel, String> {
@@ -76,12 +75,6 @@ impl ShinkiEmuManagerController {
                 };
                 if patch_selected {
                     (patch.recipes, patch.hint) = self.patch_choices(&game.game_id, linked)?;
-                    patch.artifacts = self.matching_artifacts(&game.game_id, linked)
-                        .into_iter().map(|item| shinki_emu_manager_ui_slint::RecipeViewModel {
-                            id: item.id,
-                            title: pick(&item.title).to_owned(),
-                            recommended: false,
-                        }).collect();
                     patch.game = row.clone();
                 }
                 if patch_listed {
@@ -423,7 +416,11 @@ impl ShinkiEmuManagerController {
                 .map(|status| status.text().to_owned())
                 .or_else(|| {
                     metadata.map(|record| {
-                        tr!("已关联 {provider}：{title}", provider = record.provider.as_str(), title = record.title)
+                        tr!(
+                            "已关联 {provider}：{title}",
+                            provider = record.provider.as_str(),
+                            title = record.title
+                        )
                     })
                 })
                 .unwrap_or_default(),

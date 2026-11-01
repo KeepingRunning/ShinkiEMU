@@ -213,10 +213,10 @@ fn install_patch<C: ManagerController>(
     patch.on_pick_script(move || {
         let w = w.clone();
         platform::pick_file(
-            tr!("选择可信的本地 Luau 补丁脚本"),
+            tr!("选择本地补丁（.luau 或 .zip）"),
             &[platform::FileFilter {
-                label: tr!("Luau 脚本"),
-                extensions: &["luau"],
+                label: tr!("Luau 补丁"),
+                extensions: &["luau", "zip"],
             }],
             Box::new(move |picked| w.run(|c| c.set_patch_script(&picked?))),
         );
@@ -225,8 +225,6 @@ fn install_patch<C: ManagerController>(
     patch.on_select_recipe(move |id| w.run(|c| c.select_patch_recipe(id.as_str())));
     let w = wiring.clone();
     patch.on_set_mode(move |in_place| w.run(|c| c.set_patch_mode(in_place)));
-    let w = wiring.clone();
-    patch.on_download(move |id| w.run(|c| c.download_patch(id.as_str())));
     let w = wiring.clone();
     patch.on_restore(move || w.run(|c| c.restore_patch()));
     let w = wiring.clone();

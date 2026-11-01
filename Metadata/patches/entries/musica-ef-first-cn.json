@@ -4,25 +4,44 @@
     "zh-CN": "ef first 中文姓名资源",
     "en": "ef first Chinese name resources"
   },
-  "version": "0.1.0",
-  "vn_ids": [
-    "v88"
-  ],
-  "release_ids": [],
+  "version": "0.2.0",
   "emulators": [
     "shinki.emu.musica"
   ],
-  "kind": "recipe",
   "source_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/patches/musica-ef-first-cn.luau",
   "license": "MIT OR Apache-2.0",
   "authorization_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/LICENSE",
   "summary": {
-    "zh-CN": "ef first 中文姓名资源；使用本地资源执行配方。",
-    "en": "ef first Chinese name resources. Recipe uses locally supplied resources."
+    "zh-CN": "离线提取本地旧补丁姓名，将译文嵌入原生 SC；生成独立目录，需要支持内嵌文本的新版 Musica。",
+    "en": "Extracts local legacy names and embeds them in native SC scripts in a new independent directory. Requires Musica native embedded-text support."
   },
   "issue_url": null,
-  "artifact": null,
   "recipe": {
     "script": "musica-ef-first-cn.luau"
-  }
+  },
+  "downloads": [],
+  "releases": [
+    {
+      "release_id": "r100907",
+      "vn_id": "v88",
+      "title": {
+        "zh-CN": "ef - the first tale.",
+        "en": "ef - the first tale."
+      },
+      "edition": "Internet download",
+      "game_version": null,
+      "fingerprints": [
+        {
+          "path": "ef_first_AA.exe",
+          "size": 2048104,
+          "sha256": "9824732313d13136cb2300f33038a655ba480ae01cefc2749028d1b1748b4f9e"
+        },
+        {
+          "path": "scr.paz",
+          "size": 405268,
+          "sha256": "462210b28fc1fd4c7e5aabfcefde3e67d9bb4bcbdb714ae2181eef5e7f9e99d7"
+        }
+      ]
+    }
+  ]
 }

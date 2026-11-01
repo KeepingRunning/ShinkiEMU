@@ -28,9 +28,9 @@ Android Manager 通过 `musica_query` 静态注册核心，并启用 `ffmpeg-vcp
 
 正文替换是可选服务；禁用时直接显示原文。启用时只暂停当前消息推进，效果和音频继续。请求具有 session/generation identity，加载和关闭取消旧请求。失败、15 秒 timeout、错误 response 或无法排版的替换保留原文，不自动重试。正文和错误 payload 不写日志。
 
-原生本地化通过 `translation_table`（游戏目录内 v2 JSON）和 `translation_mode=replace|overlay` 配置，默认无表、替换模式。表必须包含 `version:2`、`source_encoding:"gbk"|"cp932"`、`hash_collision_policy:"first_record"`，以及保留原顺序的 `names`、`dialogue` 数组；每条为 `{source_hash,source_sha256,text}`，目标为 UTF-8。名字查找先于正文，同一 31-bit hash 只使用第一条；SHA-256 只作审计，不消歧或丢弃重复记录。hash 来自解码前的实际 authored display 字节（含尚未处理的消息控制），采用 131 rolling、记录侧跳过 NUL、运行时 C 字符串在首个 NUL 结束；不会重哈希 UTF-8，也不改变 VM 变量、选择目标或文件名。原生结果先交给既有 text hook，重试保留同一请求 ID。
+本地化补丁由 Manager 离线写入原生 SC，核心不再读取 `translation_table` 或 `translation_mode`，也没有补丁 overlay/Tab 切换分支。转换复用原生 PAZ/SC 解码器，只改消息姓名、正文和选项的显示操作数，分支目标、语音资源和原脚本控制保持不变。旧字典的有序 first-record/131 rolling hash 仅在转换时使用，不会随游戏安装运行时翻译表。
 
-`overlay` 保留原正文，名字仍按名字表替换；正文命中更新独立文字层，未命中保留已缓存字幕。Tab 松开切换该层可见性，按下和重复按键不切换。核心槽保存该层文本和可见性，身份包含表原始字节、显示模式、实际 loose SC 字节和配置字体。`font_path` 为空时沿用既有打包字体；配置时读取游戏目录内实际字体的首个 face、内部 family 和 Unicode coverage，交给同一个 Cosmic provider。缺失、损坏字体或缺字明确失败，不把系统同名字体当成替代文件。
+原生 SC 的显示操作数支持 `\u{hex}` Unicode scalar 字面转义：译文中的空格、冒号、反斜杠和 `\a`、`\v` 等字符不会变成分词、选择目标或 VM 控制。新格式要求真实 descriptor 声明 `CAP_NATIVE_EMBEDDED_TEXT`（256），Manager 在导入和启动前检查。译文直接进入 VM 消息、历史和原生存档；恢复不把已经显示的文本重新解析为脚本。`font_path` 为空时沿用打包字体；配置时读取实际字体的首个 face、内部 family 和 Unicode coverage，交给同一个 Cosmic provider，缺失、损坏或缺字明确失败。
 
 `scr_archive`、`sys_archive` 可给出游戏目录内物理 PAZ 别名，密钥 role 与 `musica:/scr/`、`musica:/sys/` URI 不变。`script_directory` 选择同目录内标准 loose SC，脚本与 include 均先 loose、再当前输出根的 PAZ；既有逐脚本编码探测保留未替换的 Title。PNG 替换继续使用 key.toml 的 `texture_overrides`。这些路径不需要 Lua parser 或运行时解包器。
 
@@ -40,7 +40,7 @@ Android Manager 通过 `musica_query` 静态注册核心，并启用 `ffmpeg-vcp
 
 字幕时间来自 `movie.position_us`，storage 来自实际解码视频，raster/偏移来自视频 viewport；颜色使用原生 swscale 实际转换的 matrix/range 和 BGRA8 的 SDR 呈现策略，不按分辨率补猜。显式 HDR、未支持转换仍报 `SHINKI_EMU_MUSICA_SUBTITLE_COLOR`。内容变化才上传 Alpha8 mask，位置变化不重传；mask revision 与轨道 serial 避免 ID 冲突，视频双槽 ID 保证单帧不同时释放/重传同一资源。暂停不推进时钟；读档、seek、换片、跳过和结束释放旧轨道。原生 handles 始终在 session 线程创建、使用和销毁。
 
-Yorino 的可选日文 overlay 目标按原始显示路径保留 `\a`、`\N` 和 ruby 花括号等字面字符，不把目标再次交给 VM 控制解析；原始脚本控制与选择/文件目标保持不变。十五个未完全映射的名字使用点不靠猜测改解码或删表，完整有序名字记录照常保留。
+Yorino 的 15 个带括号姓名是 EXE 历史窗口在 `0x4a1550–0x4a164d` 由实际 SC speaker 生成的 `【speaker】`，并非丢失的 SC 字面量。转换校验每个生成记录与其基础姓名一致，再嵌入基础 SC 姓名。另两个问号姓名常量（文件偏移 `0x112098`、`0x121f18`）以及生成括号（`0x121f24`、`0x121f28`）按等长 GBK 数据修补到独立输出的原始 `yorino.exe` 副本，不改 PE 布局，不执行旧 EXE/DLL，不碰原游戏或存档。
 
 
 

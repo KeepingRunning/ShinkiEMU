@@ -7,13 +7,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use shinki_emu_metadata::{
-    parse_compatibility_database, parse_core_catalog, parse_metadata_index, parse_preset_database,
-    CompatibilityDatabase, CoreCatalog, MetadataIndex, PresetDatabase, MAX_METADATA_FILE_BYTES,
-    METADATA_INDEX_FILE,
-};
-use shinki_emu_patch::RecipeListing;
 use sha2::{Digest, Sha256};
+use shinki_emu_metadata::{
+    CompatibilityDatabase, CoreCatalog, MAX_METADATA_FILE_BYTES, METADATA_INDEX_FILE,
+    MetadataIndex, PresetDatabase, parse_compatibility_database, parse_core_catalog,
+    parse_metadata_index, parse_preset_database,
+};
 
 pub(crate) const METADATA_DIRECTORY: &str = "metadata";
 const STAGING_DIRECTORY: &str = "metadata.staging";
@@ -23,8 +22,7 @@ const COMPATIBILITY_V5_FILE: &str = "compatibility-v5.json";
 const PRESETS_FILE: &str = "presets.json";
 const CORES_FILE: &str = "cores.json";
 const CORES_V2_FILE: &str = "cores-v2.json";
-const PATCH_CATALOG_FILE: &str = "patches/catalog.json";
-const PATCHES_FILE: &str = "patches.json";
+const PATCHES_FILE: &str = "patches-v2.json";
 const PATCH_DIRECTORY: &str = "patches";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,7 +39,6 @@ pub(crate) struct MetadataCatalog {
     pub(crate) compatibility: CompatibilityDatabase,
     pub(crate) presets: PresetDatabase,
     pub(crate) cores: CoreCatalog,
-    pub(crate) recipes: Vec<RecipeListing>,
     pub(crate) patches: shinki_emu_metadata::PatchCatalog,
 }
 
@@ -59,7 +56,12 @@ impl MetadataCatalog {
             }
             if matches!(
                 file.path.as_str(),
-                COMPATIBILITY_FILE | COMPATIBILITY_V5_FILE | PRESETS_FILE | CORES_FILE | CORES_V2_FILE | PATCHES_FILE
+                COMPATIBILITY_FILE
+                    | COMPATIBILITY_V5_FILE
+                    | PRESETS_FILE
+                    | CORES_FILE
+                    | CORES_V2_FILE
+                    | PATCHES_FILE
             ) {
                 contents.insert(file.path.as_str(), bytes);
             }
@@ -69,39 +71,30 @@ impl MetadataCatalog {
                 .get(name)
                 .ok_or_else(|| format!("SHINKI_EMU_METADATA_CACHE_INVALID: {name}"))
         };
-        let compatibility_file = if contents.contains_key(COMPATIBILITY_V5_FILE) { COMPATIBILITY_V5_FILE } else { COMPATIBILITY_FILE };
+        let compatibility_file = if contents.contains_key(COMPATIBILITY_V5_FILE) {
+            COMPATIBILITY_V5_FILE
+        } else {
+            COMPATIBILITY_FILE
+        };
         let compatibility = parse_compatibility_database(required(compatibility_file)?)
             .map_err(|error| error.to_string())?;
         let presets =
             parse_preset_database(required(PRESETS_FILE)?).map_err(|error| error.to_string())?;
-        let core_file = if contents.contains_key(CORES_V2_FILE) { CORES_V2_FILE } else { CORES_FILE };
+        let core_file = if contents.contains_key(CORES_V2_FILE) {
+            CORES_V2_FILE
+        } else {
+            CORES_FILE
+        };
         let cores = parse_core_catalog(required(core_file)?).map_err(|error| error.to_string())?;
         let patches = shinki_emu_metadata::parse_patch_catalog(required(PATCHES_FILE)?)
             .map_err(|error| error.to_string())?;
-        let recipes = if index
-            .files
-            .iter()
-            .any(|file| file.path == PATCH_CATALOG_FILE)
-        {
-            shinki_emu_patch::list_recipes(&root.join(PATCH_DIRECTORY))
-                .map_err(|error| format!("SHINKI_EMU_METADATA_CACHE_INVALID: {error}"))?
-        } else {
-            Vec::new()
-        };
-        for recipe in &recipes {
-            let patch = patches.entries.iter().find(|p| p.id == recipe.id)
-                .ok_or("SHINKI_EMU_METADATA_CACHE_RECIPE_UNDECLARED")?;
-            let script = patch.recipe.as_ref().ok_or("SHINKI_EMU_METADATA_CACHE_NON_RECIPE_EXECUTION")?;
-            if patch.kind != shinki_emu_metadata::PatchKind::Recipe
-                || recipe.script.to_str() != Some(script.script.as_str())
-                || recipe.vn_ids != patch.vn_ids || recipe.emulators != patch.emulators
-                || index.file(&format!("patches/{}", script.script)).is_none()
+        for patch in &patches.entries {
+            if index
+                .file(&format!("patches/{}", patch.recipe.script))
+                .is_none()
             {
-                return Err("SHINKI_EMU_METADATA_CACHE_RECIPE_MISMATCH".into());
+                return Err("SHINKI_EMU_METADATA_CACHE_RECIPE_MISSING".into());
             }
-        }
-        if patches.entries.iter().filter(|p| p.kind == shinki_emu_metadata::PatchKind::Recipe).count() != recipes.len() {
-            return Err("SHINKI_EMU_METADATA_CACHE_RECIPE_MISSING".into());
         }
         Ok(Self {
             root: root.to_owned(),
@@ -110,7 +103,6 @@ impl MetadataCatalog {
             compatibility,
             presets,
             cores,
-            recipes,
             patches,
         })
     }
@@ -221,7 +213,9 @@ pub(crate) fn store_synchronized(
                 Some(bytes) => bytes,
                 None => match current.filter(|_| reusable.get(&file.path) == Some(&file.sha256)) {
                     Some(catalog) => read_bounded(&indexed_path(&catalog.root, &file.path))?,
-                    None => return Err(format!("SHINKI_EMU_METADATA_HASH_MISMATCH: {}", file.path)),
+                    None => {
+                        return Err(format!("SHINKI_EMU_METADATA_HASH_MISMATCH: {}", file.path));
+                    }
                 },
             };
             let destination = indexed_path(&staging, &file.path);

@@ -95,6 +95,7 @@ impl UserData for Output {
 }
 
 struct Files {
+    package: Option<AuthorizedRoot>,
     source: AuthorizedRoot,
     patch: AuthorizedRoot,
     output: AuthorizedRoot,
@@ -108,9 +109,15 @@ impl Files {
         match root {
             "source" => Ok(&self.source),
             "patch" => Ok(&self.patch),
+            "package" => self.package.as_ref().ok_or_else(|| {
+                PatchError::new(
+                    PatchErrorKind::InvalidRequest,
+                    "package resources require a ZIP patch",
+                )
+            }),
             _ => Err(PatchError::new(
                 PatchErrorKind::InvalidRequest,
-                "input root must be source or patch",
+                "input root must be source, patch or package",
             )),
         }
     }
@@ -175,6 +182,16 @@ struct Scripts {
 impl Scripts {
     fn load(&self, lua: &Lua, path: &str) -> mlua::Result<Value> {
         crate::paths::relative(path, false).map_err(mlua::Error::external)?;
+        if !std::path::Path::new(path)
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("luau"))
+        {
+            return Err(mlua::Error::external(PatchError::new(
+                PatchErrorKind::Path,
+                "modules must be Luau source files",
+            )));
+        }
         check_cancelled(&self.cancelled).map_err(mlua::Error::external)?;
         if let Some(key) = self.cache.lock().get(path) {
             return lua.registry_value(key);
@@ -226,6 +243,8 @@ pub(crate) fn execute(
     transaction: &Transaction,
     cancelled: Arc<AtomicBool>,
     progress: &(impl Fn(PatchProgress) + Send + Sync),
+    downloads: Option<&[shinki_emu_metadata::PatchDownload]>,
+    package_root: Option<&std::path::Path>,
 ) -> Result<Execution, PatchError> {
     check_cancelled(&cancelled)?;
     let script = std::fs::canonicalize(&request.script).map_err(|cause| {
@@ -267,6 +286,7 @@ pub(crate) fn execute(
         source: AuthorizedRoot::from_input_dir(transaction.open_source()?),
         patch: AuthorizedRoot::from_input_dir(transaction.open_patch()?),
         output: AuthorizedRoot::from_dir(transaction.open_staging()?),
+        package: package_root.map(AuthorizedRoot::open).transpose()?,
         cancelled: cancelled.clone(),
         inputs: Mutex::default(),
         outputs: Mutex::default(),
@@ -297,6 +317,7 @@ pub(crate) fn execute(
                             phase,
                             completed,
                             total,
+                            ..Default::default()
                         });
                         Ok(())
                     },
@@ -305,6 +326,121 @@ pub(crate) fn execute(
             crate::codecs::install(&lua, &ctx, cancelled.clone())?;
             crate::data::install(&lua, &ctx, cancelled.clone())?;
             crate::pickle::install(&lua, &ctx, cancelled.clone())?;
+            let native_files = files.clone();
+            let staging = transaction.open_staging().map_err(mlua::Error::external)?;
+            let staging_path =
+                crate::transaction::final_dir_path(&staging).map_err(mlua::Error::external)?;
+            ctx.set(
+                "musica_embed",
+                scope.create_function(
+                    move |lua,
+                          (profile, translations, resources, destination): (
+                        String,
+                        Value,
+                        Value,
+                        String,
+                    )| {
+                        native_files
+                            .close_outputs()
+                            .map_err(mlua::Error::external)?;
+                        let mut writer = buffer::BoundedWriter::new();
+                        serde_json::to_writer(&mut writer, &translations).map_err(|error| {
+                            mlua::Error::external(PatchError::with_source(
+                                PatchErrorKind::Bounds,
+                                "invalid or oversized native translations",
+                                error,
+                            ))
+                        })?;
+                        let translations = writer.finish();
+                        let resources = lua.from_value(resources)?;
+                        crate::musica::embed(
+                            &staging_path,
+                            &native_files.output,
+                            &profile,
+                            &translations,
+                            &resources,
+                            &destination,
+                            &native_files.cancelled,
+                            progress,
+                        )
+                        .map_err(mlua::Error::external)
+                    },
+                )?,
+            )?;
+            let downloaded_files = files.clone();
+            let game = transaction.source_dir().map_err(mlua::Error::external)?;
+            ctx.set(
+                "download",
+                scope.create_function(move |_, (url, sha256, size): (String, String, Value)| {
+                    let size = buffer::integer(size)?;
+                    crate::download::validate_request(&url, &sha256, size)
+                        .map_err(mlua::Error::external)?;
+                    if downloads.is_some_and(|declared| {
+                        !declared.iter().any(|item| {
+                            item.url == url && item.sha256 == sha256 && item.size == size
+                        })
+                    }) {
+                        return Err(mlua::Error::external(PatchError::new(
+                            PatchErrorKind::InvalidRequest,
+                            format!("undeclared download: {url}"),
+                        )));
+                    }
+                    let downloaded = crate::download::download(
+                        &game,
+                        &url,
+                        &sha256,
+                        size,
+                        &downloaded_files.cancelled,
+                        progress,
+                    )
+                    .map_err(mlua::Error::external)?;
+                    downloaded_files
+                        .record(
+                            "download",
+                            &format!("{}.bin", downloaded.sha256),
+                            downloaded.sha256.clone(),
+                        )
+                        .map_err(mlua::Error::external)?;
+                    Ok(Source {
+                        file: Arc::new(Mutex::new(
+                            TaskFile::new(
+                                downloaded.file,
+                                false,
+                                downloaded_files.cancelled.clone(),
+                            )
+                            .map_err(mlua::Error::external)?,
+                        )),
+                        sha256: downloaded.sha256,
+                    })
+                })?,
+            )?;
+            ctx.set(
+                "check",
+                scope.create_function(
+                    move |_, (label, passed, detail): (String, bool, Option<String>)| {
+                        let detail = detail.unwrap_or_default();
+                        if label.len() > 256 || detail.len() > 2048 {
+                            return Err(mlua::Error::external(PatchError::new(
+                                PatchErrorKind::Bounds,
+                                "check detail exceeds its bound",
+                            )));
+                        }
+                        progress(PatchProgress::check(
+                            label.clone(),
+                            Some(passed),
+                            detail.clone(),
+                        ));
+                        if passed {
+                            Ok(())
+                        } else {
+                            Err(mlua::Error::external(PatchError::new(
+                                PatchErrorKind::UnsupportedInput,
+                                if detail.is_empty() { label } else { detail },
+                            )))
+                        }
+                    },
+                )?,
+            )?;
             let recipe = match scripts.load(&lua, entry)? {
                 Value::Table(table) => table,
                 _ => {

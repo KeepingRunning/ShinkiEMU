@@ -192,7 +192,6 @@ impl MusicaSession {
         )?;
         scene.set_text_shadow(self.scene.text_shadow());
         scene.set_configured_font(self.scene.configured_font())?;
-        scene.set_translation_overlay(None, self.translation_visible);
         let message = match &event {
             MusicaVmEvent::Message { text, speaker, .. } => Some((text.clone(), speaker.clone())),
             _ => {
@@ -243,7 +242,6 @@ impl MusicaSession {
             self.attach_stage_animations(&stage)?;
         }
         self.message = message;
-        self.translation_overlay = None;
         let event = self.semantic_event(Some(event))?;
         self.apply_event(event)?;
         self.wait_ns = 0;

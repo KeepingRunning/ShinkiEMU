@@ -26,6 +26,7 @@ resvg = "0.48.1"
 spdx = { version = "=0.13.6", features = ["std", "text"] }
 shinki-emu-build = { path = "../Source/Tools/shinki-emu-build" }
 shinki-emu-metadata = { path = "../Source/Providers/shinki-emu-metadata" }
+mlua.workspace = true
 tar = "0.4.46"
 tempfile = "3.27.0"
 toml = "1.1.8"

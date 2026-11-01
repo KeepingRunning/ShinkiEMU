@@ -191,31 +191,6 @@ impl MusicaVm {
     pub fn state(&self) -> &MusicaRuntimeState {
         &self.state
     }
-    pub(crate) fn message_display_hashes(&self) -> Option<(u32, Option<u32>)> {
-        self.display_command(self.state.message.as_ref()?.source)?
-            .message_display_hashes()
-    }
-
-    pub(crate) fn choice_display_hashes(&self) -> Vec<u32> {
-        self.state
-            .choice
-            .as_ref()
-            .and_then(|choice| self.display_command(choice.source))
-            .map(ScCommand::choice_display_hashes)
-            .unwrap_or_default()
-    }
-
-    fn display_command(&self, span: crate::SourceSpan) -> Option<&ScCommand> {
-        let index = self
-            .script
-            .lines
-            .binary_search_by_key(&span.offset, |line| line.span.offset)
-            .ok()?;
-        match &self.script.lines[index].kind {
-            ScLineKind::Command { command } if command.span == span => Some(command),
-            _ => None,
-        }
-    }
 
     #[cfg(test)]
     pub(crate) fn checked_test_state(

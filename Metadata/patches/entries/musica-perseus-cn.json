@@ -1,28 +1,47 @@
 {
   "id": "musica-perseus-cn",
   "title": {
-    "zh-CN": "夏空的英仙座旧补丁离线转换",
-    "en": "Natsuzora no Perseus legacy patch offline conversion"
+    "zh-CN": "夏空的英仙座原生资源转换",
+    "en": "Natsuzora no Perseus native resource conversion"
   },
-  "version": "0.1.0",
-  "vn_ids": [
-    "v10597"
-  ],
-  "release_ids": [],
+  "version": "0.2.0",
   "emulators": [
     "shinki.emu.musica"
   ],
-  "kind": "recipe",
   "source_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/patches/musica-perseus-cn.luau",
   "license": "MIT OR Apache-2.0",
   "authorization_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/LICENSE",
   "summary": {
-    "zh-CN": "夏空的英仙座旧补丁离线转换；使用本地资源执行配方。",
-    "en": "Natsuzora no Perseus legacy patch offline conversion. Recipe uses locally supplied resources."
+    "zh-CN": "离线还原本地封装内的原生 SC、PNG、字体和 ASS，生成独立游戏目录，不加载旧补丁进程或 DLL。",
+    "en": "Restores native SC, PNG, fonts and ASS from local legacy packaging into an independent game directory, without legacy patch processes or DLLs."
   },
   "issue_url": null,
-  "artifact": null,
   "recipe": {
     "script": "musica-perseus-cn.luau"
-  }
+  },
+  "downloads": [],
+  "releases": [
+    {
+      "release_id": "r36790",
+      "vn_id": "v10597",
+      "title": {
+        "zh-CN": "夏空的英仙座",
+        "en": "Xiakong de Yingxianzuo"
+      },
+      "edition": "Internet download",
+      "game_version": null,
+      "fingerprints": [
+        {
+          "path": "夏空的英仙座.exe",
+          "size": 1507595,
+          "sha256": "fa60dbad0c089e5770faa0e376765033d229bb91be6dac85fe64906d28103932"
+        },
+        {
+          "path": "sys.paz",
+          "size": 32418204,
+          "sha256": "b3e0c5c3aa98c69bd4aadead0d0896b1a3c3cd4c0ab2f1c65221b5c91c6b7a27"
+        }
+      ]
+    }
+  ]
 }

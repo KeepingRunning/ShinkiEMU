@@ -17,6 +17,9 @@ pub const CAP_NATIVE_SCRIPT_IDENTITY: u64 = 64;
 /// A configured font is the primary face for script, restored and UI text,
 /// ahead of authored or restored family choices, including ruby.
 pub const CAP_CONFIGURED_FONT_PRIORITY: u64 = 128;
+/// Native SC display operands support literal Unicode scalar escapes. Offline
+/// recipes embed translations in scripts instead of runtime translation tables.
+pub const CAP_NATIVE_EMBEDDED_TEXT: u64 = 256;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 64;
 pub const MAX_RENDER_EXTENT: u32 = 16384;
 pub const RENDER_PRESERVE_ASPECT: u32 = 1;

@@ -12,6 +12,7 @@ doctest = false
 roukaku-byte-source = { workspace = true }
 shinki-emu-metadata = { path = "../../Providers/shinki-emu-metadata" }
 shinki-emu-abi = { path = "../../FamilyApi/shinki-emu-abi" }
+shinki-emu-musica = { path = "../../Families/shinki-emu-musica" }
 cap-std = "=4.0.3"
 cap-fs-ext = "=4.0.3"
 dunce.workspace = true
@@ -34,6 +35,9 @@ toml_parser = "=1.1.5"
 serde-pickle = "=1.2.0"
 repugnant-pickle = { version = "=0.0.1", default-features = false }
 tempfile.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+zip = { version = "9.1.0", default-features = false, features = ["deflate"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { workspace = true, features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_System_Memory"] }
@@ -41,3 +45,9 @@ windows = { workspace = true, features = ["Win32_Foundation", "Win32_Security", 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
 
+
+[dev-dependencies]
+roukaku-core.workspace = true
+rcgen.workspace = true
+tokio-rustls.workspace = true
+tokio = { workspace = true, features = ["net", "io-util"] }

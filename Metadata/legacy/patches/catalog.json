@@ -1,0 +1,57 @@
+[
+  {
+    "id": "fvp-sakura-cn",
+    "title": "樱花萌放旧补丁离线转换",
+    "script": "legacy/fvp-sakura-cn.luau",
+    "vn_ids": [
+      "v22313"
+    ],
+    "emulators": [
+      "rfvp"
+    ]
+  },
+  {
+    "id": "musica-eden-cn",
+    "title": "eden 中文姓名资源",
+    "script": "legacy/musica-eden-cn.luau",
+    "vn_ids": [
+      "v1286"
+    ],
+    "emulators": [
+      "shinki.emu.musica"
+    ]
+  },
+  {
+    "id": "musica-ef-first-cn",
+    "title": "ef first 中文姓名资源",
+    "script": "legacy/musica-ef-first-cn.luau",
+    "vn_ids": [
+      "v88"
+    ],
+    "emulators": [
+      "shinki.emu.musica"
+    ]
+  },
+  {
+    "id": "musica-perseus-cn",
+    "title": "夏空的英仙座旧补丁离线转换",
+    "script": "legacy/musica-perseus-cn.luau",
+    "vn_ids": [
+      "v10597"
+    ],
+    "emulators": [
+      "shinki.emu.musica"
+    ]
+  },
+  {
+    "id": "renpy-himanatsu",
+    "title": "HimaNatsu RPA 索引归一化",
+    "script": "legacy/renpy-himanatsu.luau",
+    "vn_ids": [
+      "v10557"
+    ],
+    "emulators": [
+      "renpy"
+    ]
+  }
+]

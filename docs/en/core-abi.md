@@ -28,7 +28,7 @@ Ordinary ABI calls are serialized on the host's owner thread. The core's native 
 
 ## Converted-game compatibility
 
-The existing `Descriptor.capabilities` mask has two optional semantic bits; ABI
+The existing `Descriptor.capabilities` mask has three optional semantic bits; ABI
 version 3, its C layout and fingerprint are unchanged:
 
 - `CAP_NATIVE_SCRIPT_IDENTITY` (64): validate an explicit converted-script hash,
@@ -36,6 +36,8 @@ version 3, its C layout and fingerprint are unchanged:
   markerless games.
 - `CAP_CONFIGURED_FONT_PRIORITY` (128): a configured font takes priority over
   authored/restored primary face choices, including ruby and UI text.
+- `CAP_NATIVE_EMBEDDED_TEXT` (256): native SC display operands decode literal
+  Unicode scalar escapes, allowing offline-embedded translations without runtime tables.
 
 A Luau recipe can return `required_capabilities = 192` beside `plugin_id` and
 `configuration` in its output profile. The receipt retains this requirement.
@@ -46,6 +48,9 @@ Missing capabilities fail closed with a core-update diagnostic; unknown requirem
 reject the profile rather than being ignored. Version strings and filenames
 are not feature evidence. Legacy profiles omit the
 field and require zero bits; zero is also omitted from new serialized receipts.
+
+Musica embedding profiles require 256; RFVP native GBK/font profiles require 192.
+Both use this same descriptor/receipt check, with no version-string fallback.
 
 ## Text replacement levels
 

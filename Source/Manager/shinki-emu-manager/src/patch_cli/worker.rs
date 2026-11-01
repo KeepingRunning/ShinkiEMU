@@ -1,9 +1,9 @@
+use crossbeam_channel::{Receiver, bounded, never, select};
 use shinki_emu_patch::{PatchError, PatchErrorKind, PatchProgress, PatchRequest, PatchResult};
-use crossbeam_channel::{bounded, never, select, Receiver};
 use std::{
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
     },
     thread::{self, JoinHandle},
 };
@@ -32,6 +32,11 @@ struct Worker {
 
 impl Worker {
     fn start(request: PatchRequest, cancelled: Arc<AtomicBool>) -> Result<Self, PatchError> {
+        let releases = if request.script.with_extension("patch.json").exists() {
+            shinki_emu_patch::read_release_bindings(&request.script)?
+        } else {
+            Vec::new()
+        };
         let latest = Arc::new(Mutex::new(None));
         let (completion_tx, completion) = bounded(1);
         let (wake_tx, wake) = bounded(1);
@@ -40,14 +45,19 @@ impl Worker {
         let thread = thread::Builder::new()
             .name(THREAD_NAME.into())
             .spawn(move || {
-                let result = shinki_emu_patch::apply(request, signal, move |value| {
+                let report = move |value| {
                     *progress
                         .lock()
                         .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(value);
                     // Only the latest value is retained; a full wake channel means
                     // the caller already knows to inspect that slot.
                     let _ = wake_tx.try_send(());
-                });
+                };
+                let result = if releases.is_empty() {
+                    shinki_emu_patch::apply(request, signal, report)
+                } else {
+                    shinki_emu_patch::apply_bound(request, &releases, None, signal, report)
+                };
                 let _ = completion_tx.send(result);
             })
             .map_err(|cause| {

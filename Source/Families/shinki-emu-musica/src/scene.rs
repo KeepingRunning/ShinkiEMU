@@ -59,9 +59,6 @@ pub(crate) struct Scene {
     renderer: WgpuOffscreenRenderer,
     sequence: u64,
     text: MusicaTextRenderer,
-    overlay_text: Option<String>,
-    overlay_visible: bool,
-    overlay_renderer: Option<MusicaTextRenderer>,
     configured_font: Option<Arc<roukaku_text::PackagedFont>>,
     textures: TextureCache,
     texture_residency: SceneTextureResidency,
@@ -189,9 +186,6 @@ impl Scene {
             archive,
             renderer,
             text,
-            overlay_text: None,
-            overlay_visible: true,
-            overlay_renderer: None,
             configured_font: None,
             #[cfg(feature = "ffmpeg-vcpkg")]
             movies: Default::default(),
@@ -248,10 +242,6 @@ impl Scene {
         }
         self.configured_font = font;
         Ok(())
-    }
-    pub(crate) fn set_translation_overlay(&mut self, text: Option<String>, visible: bool) {
-        self.overlay_text = text;
-        self.overlay_visible = visible;
     }
     pub(crate) fn texture_overrides(&self) -> MusicaTextureOverrides {
         self.texture_overrides.clone()
@@ -535,41 +525,6 @@ impl Scene {
                     .map_err(|code| error(&code, "message could not be rendered"))?
             };
         self.append_text_commands(&mut commands, text_commands);
-        if self.overlay_text.is_some() || self.overlay_renderer.is_some() {
-            if self.overlay_renderer.is_none() {
-                let mut renderer =
-                    MusicaTextRenderer::with_font(self.text.encoding, self.configured_font.clone())
-                        .map_err(|_| {
-                            error(
-                                "SHINKI_EMU_MUSICA_FONT",
-                                "overlay font renderer cannot be created",
-                            )
-                        })?;
-                renderer
-                    .set_raster_scale(self.canvas.scale())
-                    .map_err(|_| {
-                        error(
-                            "SHINKI_EMU_MUSICA_TEXT_SCALE",
-                            "invalid overlay raster scale",
-                        )
-                    })?;
-                self.overlay_renderer = Some(renderer);
-            }
-            let overlay = self
-                .overlay_renderer
-                .as_mut()
-                .unwrap()
-                .overlay_commands(
-                    self.overlay_text.as_deref().filter(|_| {
-                        self.overlay_visible
-                            && choices.is_none()
-                            && state.system_ui.page == crate::MusicaSystemPage::None
-                    }),
-                    self.width,
-                )
-                .map_err(|code| error(&code, "translation overlay cannot be rendered"))?;
-            self.append_text_commands(&mut commands, overlay);
-        }
         self.submit(commands)
     }
     #[cfg(not(feature = "ffmpeg-vcpkg"))]

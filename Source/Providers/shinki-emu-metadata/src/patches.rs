@@ -1,58 +1,91 @@
-use crate::{CORE_RELEASE_URL_PREFIX, MetadataError, fields::*};
+use crate::{MetadataError, fields::*};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const PATCH_CATALOG_SCHEMA_VERSION: &str = "shinki.emu.patches.v1";
-pub const MAX_PATCH_ARTIFACT_BYTES: u64 = 1024 * 1024 * 1024;
+pub const PATCH_CATALOG_SCHEMA_VERSION: &str = "shinki.emu.patches.v2";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum PatchKind {
-    Recipe,
-    External,
-    Hosted,
-}
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PatchArtifact {
-    pub url: String,
-    #[schemars(regex(pattern = r"^[0-9a-f]{64}$"))]
-    pub sha256: String,
-    #[schemars(range(min = 1, max = 1073741824))]
-    pub size: u64,
-    pub file_name: String,
-}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PatchRecipe {
     pub script: String,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PatchDownload {
+    pub url: String,
+    pub sha256: String,
+    pub size: u64,
+}
+impl PatchDownload {
+    pub fn validate(&self) -> Result<(), MetadataError> {
+        if self.url.len() > 2048
+            || !https(&self.url)
+            || self.sha256.len() != 64
+            || !self
+                .sha256
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            || self.size == 0
+            || self.size > 1024 * 1024 * 1024
+        {
+            return Err(MetadataError::SchemaMismatch("patch.download"));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PatchFileFingerprint {
+    pub path: String,
+    pub size: u64,
+    #[schemars(regex(pattern = r"^[0-9a-f]{64}$"))]
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PatchRelease {
+    #[schemars(regex(pattern = r"^r[0-9]{1,63}$"))]
+    pub release_id: String,
+    #[schemars(regex(pattern = r"^v[0-9]{1,63}$"))]
+    pub vn_id: String,
+    pub title: BTreeMap<String, String>,
+    /// Actual medium/channel label, not a patch category.
+    pub edition: String,
+    /// The game's own version, when recorded; never the recipe/runtime version.
+    pub game_version: Option<String>,
+    pub fingerprints: Vec<PatchFileFingerprint>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PatchCatalogEntry {
     pub id: String,
     pub title: BTreeMap<String, String>,
     pub version: String,
-    pub vn_ids: Vec<String>,
-    pub release_ids: Vec<String>,
     pub emulators: Vec<String>,
-    pub kind: PatchKind,
     pub source_url: Option<String>,
     pub license: String,
     pub authorization_url: Option<String>,
     pub summary: BTreeMap<String, String>,
     pub issue_url: Option<String>,
-    pub artifact: Option<PatchArtifact>,
-    pub recipe: Option<PatchRecipe>,
+    pub recipe: PatchRecipe,
+    pub releases: Vec<PatchRelease>,
+    #[serde(default)]
+    pub downloads: Vec<PatchDownload>,
 }
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PatchCatalog {
-    #[schemars(regex(pattern = r"^shinki\.emu\.patches\.v1$"))]
+    #[schemars(regex(pattern = r"^shinki\.emu\.patches\.v2$"))]
     pub schema: String,
     pub entries: Vec<PatchCatalogEntry>,
 }
+
 /// A repository-relative path: no links, drive names, ADS or traversal components.
 pub fn is_safe_metadata_relative_path(path: &str) -> bool {
     !path.is_empty()
@@ -69,6 +102,7 @@ pub fn is_safe_metadata_relative_path(path: &str) -> bool {
                     .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-' | b'+'))
         })
 }
+
 fn https(value: &str) -> bool {
     url::Url::parse(value).is_ok_and(|u| {
         u.scheme() == "https"
@@ -78,7 +112,6 @@ fn https(value: &str) -> bool {
             && u.port().is_none()
     })
 }
-/// zh-CN and en are required; ja is optional (the portal falls back to en).
 fn localized(values: &BTreeMap<String, String>, max: usize) -> bool {
     ["zh-CN", "en"].iter().all(|l| values.contains_key(*l))
         && values
@@ -87,79 +120,92 @@ fn localized(values: &BTreeMap<String, String>, max: usize) -> bool {
 }
 fn unique(values: &[String], valid: impl Fn(&str) -> bool) -> bool {
     let mut seen = BTreeSet::new();
-    values.len() <= 4096 && values.iter().all(|v| valid(v) && seen.insert(v))
+    !values.is_empty() && values.len() <= 4096 && values.iter().all(|v| valid(v) && seen.insert(v))
+}
+
+impl PatchRelease {
+    pub fn validate(&self) -> Result<(), MetadataError> {
+        let invalid = || MetadataError::SchemaMismatch("patch.release");
+        if !is_vndb_release_id(&self.release_id)
+            || !is_vndb_vn_id(&self.vn_id)
+            || !localized(&self.title, 256)
+            || !is_bounded_text(&self.edition, 1, 128)
+            || self
+                .game_version
+                .as_ref()
+                .is_some_and(|version| !is_bounded_text(version, 1, 64))
+            || self.fingerprints.is_empty()
+            || self.fingerprints.len() > 64
+        {
+            return Err(invalid());
+        }
+        let mut paths = BTreeSet::new();
+        for file in &self.fingerprints {
+            // Source game paths may contain Unicode, unlike repository paths.
+            // The patch executor additionally applies its cross-platform path policy.
+            if file.path.is_empty()
+                || file.path.len() > 1024
+                || file.path.contains(['\\', ':', '\0'])
+                || file
+                    .path
+                    .split('/')
+                    .any(|p| p.is_empty() || p == "." || p == ".." || p.ends_with(['.', ' ']))
+                || !is_sha256_hex(&file.sha256)
+                || !paths.insert(file.path.to_lowercase())
+            {
+                return Err(invalid());
+            }
+        }
+        Ok(())
+    }
 }
 impl PatchCatalogEntry {
     pub fn validate(&self) -> Result<(), MetadataError> {
         let invalid = || MetadataError::SchemaMismatch("patch.entry");
         if !is_plugin_id(&self.id)
-            || self.id == "."
-            || self.id == ".."
+            || matches!(self.id.as_str(), "." | "..")
             || !localized(&self.title, 256)
             || !localized(&self.summary, 2048)
             || self.version.len() > 64
             || semver::Version::parse(&self.version).is_err()
             || !is_bounded_text(&self.license, 1, 256)
-            || self.vn_ids.is_empty()
-            || self.emulators.is_empty()
-            || !unique(&self.vn_ids, is_vndb_vn_id)
-            || !unique(&self.release_ids, is_vndb_release_id)
             || !unique(&self.emulators, is_known_core_id)
+            || !is_safe_metadata_relative_path(&self.recipe.script)
+            || !self.recipe.script.ends_with(".luau")
+            || self.releases.is_empty()
+            || self.releases.len() > 256
         {
             return Err(invalid());
         }
-        for value in [&self.source_url, &self.authorization_url, &self.issue_url]
+        for url in [&self.source_url, &self.authorization_url, &self.issue_url]
             .into_iter()
             .flatten()
         {
-            if value.len() > 2048 || !https(value) {
+            if url.len() > 2048 || !https(url) {
                 return Err(invalid());
             }
         }
-        if let Some(a) = &self.artifact
-            && (!https(&a.url)
-                || !is_sha256_hex(&a.sha256)
-                || a.size == 0
-                || a.size > MAX_PATCH_ARTIFACT_BYTES
-                || !is_safe_metadata_relative_path(&a.file_name)
-                || a.file_name.contains('/'))
-        {
+        let mut releases = BTreeSet::new();
+        for release in &self.releases {
+            release.validate()?;
+            if !releases.insert(&release.release_id) {
+                return Err(invalid());
+            }
+        }
+        if self.downloads.len() > 256 {
             return Err(invalid());
         }
-        match self.kind {
-            PatchKind::Recipe => {
-                if self.artifact.is_some()
-                    || !self.recipe.as_ref().is_some_and(|r| {
-                        is_safe_metadata_relative_path(&r.script) && r.script.ends_with(".luau")
-                    })
-                {
-                    return Err(invalid());
-                }
-            }
-            PatchKind::External => {
-                if self.recipe.is_some() || (self.artifact.is_none() && self.source_url.is_none()) {
-                    return Err(invalid());
-                }
-            }
-            PatchKind::Hosted => {
-                if self.recipe.is_some() || self.authorization_url.is_none() {
-                    return Err(invalid());
-                }
-                let Some(a) = &self.artifact else {
-                    return Err(invalid());
-                };
-                let Some(tail) = a.url.strip_prefix(CORE_RELEASE_URL_PREFIX) else {
-                    return Err(invalid());
-                };
-                let Some((tag, name)) = tail.split_once('/') else {
-                    return Err(invalid());
-                };
-                if !crate::cores::is_release_tag(tag) || name != a.file_name {
-                    return Err(invalid());
-                }
+        let mut downloads = BTreeSet::new();
+        for download in &self.downloads {
+            download.validate()?;
+            if !downloads.insert(&download.url) {
+                return Err(invalid());
             }
         }
         Ok(())
+    }
+    pub fn applies_to_work(&self, vn_id: &str) -> bool {
+        self.releases.iter().any(|release| release.vn_id == vn_id)
     }
 }
 impl PatchCatalog {
@@ -168,95 +214,88 @@ impl PatchCatalog {
             return Err(MetadataError::SchemaMismatch("patches"));
         }
         let mut ids = BTreeSet::new();
-        for e in &self.entries {
-            e.validate()?;
-            if !ids.insert(&e.id) {
-                return Err(MetadataError::Duplicate(e.id.clone()));
+        let mut releases = BTreeMap::new();
+        for entry in &self.entries {
+            entry.validate()?;
+            if !ids.insert(&entry.id) {
+                return Err(MetadataError::Duplicate(entry.id.clone()));
+            }
+            for release in &entry.releases {
+                if let Some(previous) = releases.insert(&release.release_id, release)
+                    && previous != release
+                {
+                    return Err(MetadataError::SchemaMismatch("patch.release_conflict"));
+                }
             }
         }
         Ok(())
     }
 }
 pub fn parse_patch_catalog(bytes: &[u8]) -> Result<PatchCatalog, MetadataError> {
-    let c: PatchCatalog = serde_json::from_value(
+    let catalog: PatchCatalog = serde_json::from_value(
         crate::parse_unique_json(bytes)
-            .map_err(|_| MetadataError::SchemaMismatch("patches.json"))?,
+            .map_err(|_| MetadataError::SchemaMismatch("patches-v2.json"))?,
     )
-    .map_err(|_| MetadataError::SchemaMismatch("patches.json"))?;
-    c.validate()?;
-    Ok(c)
+    .map_err(|_| MetadataError::SchemaMismatch("patches-v2.json"))?;
+    catalog.validate()?;
+    Ok(catalog)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn hosted() -> PatchCatalogEntry {
-        PatchCatalogEntry {
-            id: "public-test".into(),
-            title: BTreeMap::from([
-                ("zh-CN".into(), "公开测试".into()),
-                ("en".into(), "Public test".into()),
-            ]),
-            version: "1.0.0".into(),
-            vn_ids: vec!["v1".into()],
-            release_ids: vec![],
-            emulators: vec!["ReMinori".into()],
-            kind: PatchKind::Hosted,
-            source_url: None,
-            license: "MIT".into(),
-            authorization_url: Some("https://example.org/license".into()),
-            summary: BTreeMap::from([
-                ("zh-CN".into(), "测试附件".into()),
-                ("en".into(), "Test attachment".into()),
-            ]),
-            issue_url: None,
-            recipe: None,
-            artifact: Some(PatchArtifact {
-                url: format!("{CORE_RELEASE_URL_PREFIX}patch-public-test-v1.0.0/test.bin"),
-                sha256: "a".repeat(64),
-                size: 12,
-                file_name: "test.bin".into(),
-            }),
-        }
+    fn entry() -> PatchCatalogEntry {
+        serde_json::from_value(serde_json::json!({
+            "id":"public-test","title":{"zh-CN":"公开测试","en":"Public test"},"version":"1.0.0",
+            "emulators":["ReMinori"],"source_url":null,"license":"MIT","authorization_url":null,
+            "summary":{"zh-CN":"测试配方","en":"Test recipe"},"issue_url":null,"recipe":{"script":"public.luau"},
+            "releases":[{"release_id":"r1","vn_id":"v1","title":{"zh-CN":"盒装版","en":"Boxed edition"},"edition":"boxed","game_version":null,
+                "fingerprints":[{"path":"game.dat","size":8,"sha256":"a".repeat(64)}]}]
+        })).unwrap()
     }
     #[test]
-    fn hosted_requires_authorization_hash_and_trusted_asset() {
-        hosted().validate().unwrap();
+    fn release_identity_and_fingerprints_are_required() {
+        entry().validate().unwrap();
         for mutate in [
-            (|e: &mut PatchCatalogEntry| e.authorization_url = None) as fn(&mut PatchCatalogEntry),
-            |e| e.artifact.as_mut().unwrap().sha256 = "wrong".into(),
-            |e| e.artifact.as_mut().unwrap().url = "https://evil.example/test.bin".into(),
-            |e| e.artifact.as_mut().unwrap().size = MAX_PATCH_ARTIFACT_BYTES + 1,
-            |e| e.artifact.as_mut().unwrap().file_name = "../test.bin".into(),
+            (|entry: &mut PatchCatalogEntry| entry.releases.clear()) as fn(&mut PatchCatalogEntry),
+            |entry| entry.releases[0].fingerprints.clear(),
+            |entry| entry.releases[0].release_id = "v1".into(),
+            |entry| entry.releases[0].fingerprints[0].path = "../private".into(),
+            |entry| entry.releases[0].fingerprints[0].sha256 = "bad".into(),
         ] {
-            let mut e = hosted();
-            mutate(&mut e);
-            assert!(e.validate().is_err());
+            let mut value = entry();
+            mutate(&mut value);
+            assert!(value.validate().is_err());
         }
     }
     #[test]
     fn localized_text_requires_zh_cn_and_en_and_allows_only_ja_extra() {
-        let mut e = hosted();
-        e.title.insert("ja".into(), "公開テスト".into());
-        e.summary.insert("ja".into(), "テスト添付".into());
-        e.validate().unwrap();
+        let mut value = entry();
+        value.title.insert("ja".into(), "公開テスト".into());
+        value.validate().unwrap();
         for mutate in [
-            (|e: &mut PatchCatalogEntry| {
-                e.title.remove("en");
+            (|entry: &mut PatchCatalogEntry| {
+                entry.title.remove("en");
             }) as fn(&mut PatchCatalogEntry),
-            |e| {
-                e.summary.remove("zh-CN");
+            |entry| {
+                entry.summary.remove("zh-CN");
             },
-            |e| {
-                e.title.insert("ko".into(), "공개 테스트".into());
+            |entry| {
+                entry.title.insert("ko".into(), "공개 테스트".into());
             },
-            |e| {
-                e.title.insert("ja".into(), String::new());
+            |entry| {
+                entry.title.insert("ja".into(), String::new());
             },
         ] {
-            let mut e = hosted();
-            mutate(&mut e);
-            assert!(e.validate().is_err());
+            let mut value = entry();
+            mutate(&mut value);
+            assert!(value.validate().is_err());
         }
+    }
+    #[test]
+    fn legacy_categories_are_not_accepted_by_v2() {
+        let mut value = serde_json::to_value(entry()).unwrap();
+        value["kind"] = "recipe".into();
+        assert!(serde_json::from_value::<PatchCatalogEntry>(value).is_err());
     }
 }

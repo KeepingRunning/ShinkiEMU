@@ -4,6 +4,7 @@ use std::{error::Error, fmt};
 pub enum PatchErrorKind {
     InvalidRequest,
     UnsupportedInput,
+    ReleaseMismatch,
     OutputExists,
     Path,
     Bounds,
@@ -22,6 +23,7 @@ impl PatchErrorKind {
         match self {
             Self::InvalidRequest => "SHINKI_EMU_PATCH_INVALID_REQUEST",
             Self::UnsupportedInput => "SHINKI_EMU_PATCH_UNSUPPORTED_INPUT",
+            Self::ReleaseMismatch => "SHINKI_EMU_PATCH_RELEASE_MISMATCH",
             Self::OutputExists => "SHINKI_EMU_PATCH_OUTPUT_EXISTS",
             Self::Path => "SHINKI_EMU_PATCH_PATH",
             Self::Bounds => "SHINKI_EMU_PATCH_BOUNDS",
@@ -41,6 +43,7 @@ pub struct PatchError {
     kind: PatchErrorKind,
     message: String,
     cause: Option<Box<dyn Error + Send + Sync>>,
+    rolled_back: bool,
 }
 
 impl PatchError {
@@ -49,6 +52,7 @@ impl PatchError {
             kind,
             message: message.into(),
             cause: None,
+            rolled_back: false,
         }
     }
 
@@ -61,6 +65,7 @@ impl PatchError {
             kind,
             message: message.into(),
             cause: Some(Box::new(cause)),
+            rolled_back: false,
         }
     }
 
@@ -69,6 +74,13 @@ impl PatchError {
     }
     pub fn code(&self) -> &'static str {
         self.kind.code()
+    }
+    pub fn rolled_back(&self) -> bool {
+        self.rolled_back
+    }
+    pub(crate) fn recovered(mut self) -> Self {
+        self.rolled_back = true;
+        self
     }
 }
 

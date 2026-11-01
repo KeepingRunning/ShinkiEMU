@@ -68,12 +68,13 @@ function M.apply(ctx, edition)
     end
     table.insert(audit, {path="key.toml", size=key_source:size(), sha256=key_source:sha256()})
     local names = legacy.read(ctx, inputs["name.acr"].source)
-    local dialogue = legacy.read(ctx, inputs["AsyncScript.acr"].source)
-    if #names ~= edition.names or #dialogue ~= edition.dialogue then
+    if #names ~= edition.names then
         fail(ctx, "Yorino ACR ordered record counts disagree with the supported edition")
     end
-    local translations, record_audit = legacy.translation_table(ctx, names, dialogue,
-        {source="gbk", names="gbk", dialogue="cp932"})
+    if edition.executable then legacy.embed_executable(ctx, names, edition.executable) end
+    local translations, record_audit = legacy.translation_table(ctx, names, {},
+        {source="gbk", names="gbk", dialogue="gbk"})
+    translations.dialogue = ctx.json.decode("[]")
     local backgrounds = legacy.cnbg_index(ctx, inputs["cnbg.paz"].source)
     if #backgrounds ~= #edition.background_crc32 then
         fail(ctx, "Yorino cnbg resource count disagrees with the supported edition")
@@ -129,24 +130,21 @@ function M.apply(ctx, edition)
         copy.files(ctx, "source", {path})
     end
     write(ctx, "key.toml", buffer.fromstring(ctx.toml.encode(key)))
-    write(ctx, "yorino-translations.json", buffer.fromstring(ctx.json.encode(translations)))
-    -- Raw ACR identity is complete. Native endpoint coverage is a separate gate:
-    -- 27 names occur as Message speakers, two only in original EXE raw data,
-    -- and the fifteen zero-based rows below still have no located use-site.
+    local embedded = ctx.musica_embed("key.toml", translations,
+        {scr_archive="cnscr.paz", sys_archive="cnsys.paz"}, "scripts")
     write(ctx, "yorino-coverage.json", buffer.fromstring(ctx.json.encode({
-        version=1, status="native_endpoint_coverage_incomplete", converted_verified=false,
-        acr_source_identity="all_ordered_rows_raw_index_hash_verified",
-        names=#names, dialogue=#dialogue, record_audit=record_audit,
+        version=2, embedded_display_operands=embedded,
+        names=#names, record_audit=record_audit,
         native_endpoint_coverage=edition.coverage,
-        dialogue_target_semantics="literal_cp932_overlay_no_vm_markup",
+        script_body_policy="preserve_chinese_source",
         alpha_policy="preserve_rgba_including_zero_alpha_native_base_background_opaque_composition",
         inputs=audit, backgrounds=normalized,
     })))
     local configuration = {profile_file="key.toml", script_encoding="gbk", launch_mode="title",
         scr_archive="cnscr.paz", sys_archive="cnsys.paz",
-        translation_table="yorino-translations.json", translation_mode="overlay"}
+        script_directory="scripts"}
     if #fonts > 0 then configuration.font_path = fonts[1] end
-    return {plugin_id="shinki.emu.musica", configuration=configuration}
+    return {plugin_id="shinki.emu.musica", required_capabilities=256, configuration=configuration}
 end
 
 return M

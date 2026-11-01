@@ -1,0 +1,47 @@
+{
+  "id": "musica-yorino-cn",
+  "title": {
+    "zh-CN": "永不落幕的前奏诗原生脚本转换",
+    "en": "Soreyori no Prologue native script conversion"
+  },
+  "version": "0.2.0",
+  "emulators": [
+    "shinki.emu.musica"
+  ],
+  "source_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/patches/musica-yorino-cn.luau",
+  "license": "MIT OR Apache-2.0",
+  "authorization_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/LICENSE",
+  "summary": {
+    "zh-CN": "保留原生 SC 中文正文，嵌入姓名译文、转换背景并修补 EXE 姓名常量和历史姓名括号；支持独立目录或备份后的原位覆盖。",
+    "en": "Preserves native SC Chinese dialogue, embeds localized names, converts backgrounds and patches executable name constants and history brackets, using independent output or backed-up in-place overwrite."
+  },
+  "issue_url": null,
+  "recipe": {
+    "script": "musica-yorino-cn.luau"
+  },
+  "downloads": [],
+  "releases": [
+    {
+      "release_id": "r41505",
+      "vn_id": "v15637",
+      "title": {
+        "zh-CN": "永不落幕的前奏诗",
+        "en": "Yongbuluomu de Qianzoushi"
+      },
+      "edition": "Internet download",
+      "game_version": null,
+      "fingerprints": [
+        {
+          "path": "yorino.exe",
+          "size": 2278400,
+          "sha256": "0664a773545cccfa04f6f0e840fbf6302913a721bc2fc956cf206111b9c93553"
+        },
+        {
+          "path": "cnscr.paz",
+          "size": 2628004,
+          "sha256": "2aa05f88a42bc31604283156e5952c0e3ece5a3a0bd5fff47dfb442bee4a42bf"
+        }
+      ]
+    }
+  ]
+}
