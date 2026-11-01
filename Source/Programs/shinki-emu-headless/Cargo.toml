@@ -1,0 +1,29 @@
+[package]
+name = "shinki-emu-headless"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+default = ["manager-ui"]
+manager-ui = ["dep:shinki-emu-manager-ui-slint", "dep:slint"]
+static-cmvs = ["dep:shinki-emu-cmvs"]
+static-siglus = ["dep:shinki-emu-siglus_rs"]
+
+[dependencies]
+shinki-emu-manager-ui-slint = { path = "../../Manager/shinki-emu-manager-ui-slint", optional = true }
+slint = { workspace = true, optional = true, features = ["std", "compat-1-2", "renderer-software"] }
+shinki-emu-cmvs = { path = "../../Families/shinki-emu-cmvs", optional = true }
+shinki-emu-siglus_rs = { git = "https://github.com/Project-Shinkirou/siglus_rs", rev = "d0923af499912b82a3021b7998f44b2c88d52f84", default-features = false, optional = true }
+shinki-emu-manager-core = { path = "../../Manager/shinki-emu-manager-core" }
+shinki-emu-abi = { path = "../../FamilyApi/shinki-emu-abi" }
+roukaku-headless-protocol = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "8392cf161800f7684af7704eb95f7a5526d2015d" }
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+image.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+zip = { version = "=9.1.0", default-features = false, features = ["deflate"] }
