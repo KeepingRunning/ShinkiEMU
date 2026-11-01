@@ -35,7 +35,6 @@ pub struct SlintManagerAdapter {
     game_fields: Rc<VecModel<ConfigField>>,
     game_bindings: ListModel<GamepadBindingViewModel, GamepadBinding>,
     recipes: ListModel<RecipeViewModel, Recipe>,
-    artifacts: ListModel<RecipeViewModel, Recipe>,
     cores: ListModel<CoreViewModel, CoreInfo>,
     default_fields: Rc<VecModel<ConfigField>>,
     default_render_options: ListModel<ChoiceViewModel, Choice>,
@@ -81,7 +80,6 @@ impl SlintManagerAdapter {
             game_fields: Rc::new(VecModel::default()),
             game_bindings: ListModel::new(binding),
             recipes: ListModel::new(recipe),
-            artifacts: ListModel::new(recipe),
             cores: ListModel::new(core_info),
             default_fields: Rc::new(VecModel::default()),
             default_render_options: ListModel::new(choice),
@@ -143,7 +141,6 @@ impl SlintManagerAdapter {
         let patch = window.global::<Patch>();
         patch.set_games(ModelRc::from(self.patch_games.clone()));
         patch.set_recipes(self.recipes.model());
-        patch.set_artifacts(self.artifacts.model());
 
         let cores = window.global::<Cores>();
         cores.set_items(self.cores.model());
@@ -452,7 +449,6 @@ impl SlintManagerAdapter {
             self.patch_games.refresh(&self.window);
         }
         self.recipes.update(&view.recipes);
-        self.artifacts.update(&view.artifacts);
         patch.set_hint(view.hint.as_str().into());
         patch.set_state(patch_state(&view.state));
     }
@@ -890,7 +886,6 @@ fn patch_state(value: &PatchStateViewModel) -> PatchState {
         output_directory: value.output_directory.as_str().into(),
         in_place: value.in_place,
         has_backup: value.has_backup,
-        downloading: value.downloading,
     }
 }
 

@@ -243,6 +243,72 @@ component PatchGameRow {
     }
 }
 
+// Catalog recipe row. The title names the release the recipe is bound to, so it wraps instead of eliding.
+component RecipeTile {
+    in property <string> text;
+    in property <bool> selected;
+    in property <bool> recommended;
+    callback clicked();
+
+    min-height: max(Theme.touch-target, body.min-height);
+    preferred-height: max(Theme.touch-target, body.preferred-height);
+    accessible-role: list-item;
+    accessible-label: root.recommended ? @tr("{0}，{1}", root.text, @tr("推荐")) : root.text;
+    accessible-item-selectable: true;
+    accessible-item-selected: root.selected;
+    accessible-action-default => { root.clicked(); }
+    forward-focus: focus;
+
+    focus := FocusScope {
+        x: 0px;
+        width: 0px;
+        key-pressed(event) => {
+            if event.text == " " || event.text == "\n" {
+                root.clicked();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    Rectangle {
+        border-radius: 12px;
+        background: root.selected ? MaterialPalette.secondary-container
+            : touch.has-hover ? MaterialPalette.on-surface.with-alpha(MaterialPalette.state-layer-opacity-hover)
+            : transparent;
+        border-width: focus.has-focus ? 2px : 0px;
+        border-color: MaterialPalette.primary;
+    }
+
+    body := HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: Theme.space-sm;
+        MaterialText {
+            horizontal-stretch: 1;
+            text: root.text;
+            style: MaterialTypography.body-large;
+            color: root.selected ? MaterialPalette.on-secondary-container : MaterialPalette.on-surface;
+            vertical-alignment: center;
+            wrap: word-wrap;
+            overflow: clip;
+        }
+        if root.recommended : VerticalLayout {
+            alignment: center;
+            Pill { text: @tr("推荐"); }
+        }
+    }
+
+    touch := TouchArea {
+        clicked => {
+            focus.focus();
+            root.clicked();
+        }
+    }
+}
+
 component StepRow {
     in property <int> step;
     in property <bool> locked;
@@ -320,7 +386,7 @@ export component PatchPage {
     property <bool> failed: Patch.state.error != "";
     property <bool> has-game: Patch.game.id != "";
     property <bool> has-script: Patch.state.script != "";
-    property <bool> has-output: Patch.state.in-place || Patch.state.output-directory != "";
+    property <bool> has-output: Patch.state.output-directory != "";
     // The controller owns running (forced to 4) and completion (5 after a started run).
     property <int> step: root.locked ? 4
         : !root.has-game ? 1
@@ -554,7 +620,7 @@ export component PatchPage {
             if root.step == 2 : Panel {
                 SectionTitle {
                     text: @tr("选择补丁");
-                    description: @tr("下面列出补丁目录中适用于这部作品和当前模拟器的补丁；也可以使用本地的 Luau 转换脚本。");
+                    description: @tr("补丁目录中适用于这部作品的补丁配方列在下面，标题注明适用的发行版本。应用前会核对游戏的发行版本，不一致时拒绝执行。也可以使用本地的 Luau 转换脚本。");
                 }
                 if Patch.hint != "" || Patch.recipes.length == 0 : MaterialText {
                     text: Patch.hint != "" ? Patch.hint : @tr("补丁目录中没有适用于这部作品的补丁。");
@@ -565,14 +631,11 @@ export component PatchPage {
                 }
                 if Patch.recipes.length > 0 : VerticalLayout {
                     spacing: 2px;
-                    for recipe in Patch.recipes : SelectableTile {
+                    for recipe in Patch.recipes : RecipeTile {
                         text: recipe.title;
                         selected: recipe.id == Patch.state.script;
+                        recommended: recipe.recommended;
                         clicked => { Patch.select-recipe(recipe.id); }
-                        if recipe.recommended : VerticalLayout {
-                            alignment: center;
-                            Pill { text: @tr("推荐"); }
-                        }
                     }
                 }
                 if root.local-script : SelectableTile {
@@ -592,23 +655,6 @@ export component PatchPage {
                     color: MaterialPalette.on-surface-variant;
                     wrap: word-wrap;
                 }
-                if Patch.artifacts.length > 0 : VerticalLayout {
-                    spacing: Theme.space-sm;
-                    for artifact in Patch.artifacts : HorizontalLayout {
-                        alignment: start;
-                        spacing: Theme.space-sm;
-                        MaterialText {
-                            horizontal-stretch: 1;
-                            text: artifact.title;
-                            style: MaterialTypography.body-medium;
-                            color: MaterialPalette.on-surface;
-                        }
-                        TextButton {
-                            text: @tr("下载补丁");
-                            clicked => { Patch.download(artifact.id); }
-                        }
-                    }
-                }
                 HorizontalLayout {
                     alignment: start;
                     TextButton {
@@ -622,20 +668,7 @@ export component PatchPage {
             if root.step == 3 : Panel {
                 SectionTitle {
                     text: @tr("目录");
-                    description: @tr("补丁输入目录默认是游戏目录；可选择新目录或原位覆盖。原位覆盖会把修改前的文件保存在游戏目录的 .shinki/backup。");
-                }
-                HorizontalLayout {
-                    spacing: Theme.space-sm;
-                    SelectableTile {
-                        text: @tr("新目录");
-                        selected: !Patch.state.in-place;
-                        clicked => { Patch.set-mode(false); }
-                    }
-                    SelectableTile {
-                        text: @tr("原位覆盖");
-                        selected: Patch.state.in-place;
-                        clicked => { Patch.set-mode(true); }
-                    }
+                    description: @tr("补丁输入目录默认是游戏目录。补丁结果写入新的独立目录，游戏目录保持不变。");
                 }
                 DirectoryPicker {
                     label: @tr("补丁输入目录");
@@ -643,7 +676,7 @@ export component PatchPage {
                     empty-text: @tr("使用游戏目录");
                     pick => { Patch.pick-directory("patch"); }
                 }
-                if !Patch.state.in-place : DirectoryPicker {
+                DirectoryPicker {
                     label: @tr("输出目录");
                     value: Patch.state.output-directory;
                     empty-text: @tr("尚未选择");
@@ -655,17 +688,29 @@ export component PatchPage {
             if root.step == 4 : Panel {
                 SectionTitle {
                     text: root.locked ? @tr("正在转换") : root.failed ? @tr("转换失败") : @tr("开始转换");
-                    description: root.locked || root.failed ? "" : Patch.state.in-place ? @tr("原文件备份到 .shinki/backup；取消前不会修改游戏文件。") : @tr("确认下面的设置后开始。转换期间可以随时取消，取消时不会生成输出目录。");
+                    description: root.locked || root.failed ? "" : @tr("确认下面的设置后开始。开始前会核对游戏的发行版本；转换期间可以随时取消，取消时不会生成输出目录。");
                 }
 
                 if !root.locked : VerticalLayout {
                     spacing: 4px;
-                    MaterialText {
-                        text: @tr("补丁：{}", root.has-script ? (root.local-script ? Patch.state.script : @tr("已从补丁目录选择")) : @tr("未选择"));
+                    if root.local-script || !root.has-script : MaterialText {
+                        text: @tr("补丁：{}", root.has-script ? Patch.state.script : @tr("未选择"));
                         style: MaterialTypography.body-medium;
                         color: MaterialPalette.on-surface;
                         wrap: word-wrap;
                         overflow: clip;
+                    }
+                    // The selected catalog recipe; its title carries the release it applies to.
+                    if !root.local-script && root.has-script : VerticalLayout {
+                        for recipe in Patch.recipes : VerticalLayout {
+                            if recipe.id == Patch.state.script : MaterialText {
+                                text: @tr("补丁：{}", recipe.title);
+                                style: MaterialTypography.body-medium;
+                                color: MaterialPalette.on-surface;
+                                wrap: word-wrap;
+                                overflow: clip;
+                            }
+                        }
                     }
                     MaterialText {
                         text: @tr("补丁输入目录：{}", Patch.state.patch-directory != "" ? Patch.state.patch-directory : @tr("游戏目录"));
@@ -674,7 +719,7 @@ export component PatchPage {
                         wrap: word-wrap;
                         overflow: clip;
                     }
-                    if !Patch.state.in-place : MaterialText {
+                    MaterialText {
                         text: @tr("输出目录：{}", root.has-output ? Patch.state.output-directory : @tr("未选择"));
                         style: MaterialTypography.body-medium;
                         color: MaterialPalette.on-surface;

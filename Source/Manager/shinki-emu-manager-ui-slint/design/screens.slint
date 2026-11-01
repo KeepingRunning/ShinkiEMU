@@ -157,7 +157,7 @@ global Mock {
         Selection.tint = #c06080;
         Selection.emulator-choices = [{ id: "shinki.emu.musica", label: "Shinki Musica" }, { id: "other", label: "其他实现" }];
         Selection.compat = { status: "completable", notes: "全程可通关，个别视频音画不同步。", updated: "2026-10-01", release-id: "r12345", emulator-label: "Shinki Musica 0.2.0", report-url: "https://github.com/Project-Shinkirou/ShinkiEMU/issues/new", hint: "" };
-        Selection.releases = [{ id: "r12345", label: "r12345 · 初回限定版" }, { id: "r12346", label: "r12346 · 通常版" }];
+        Selection.releases = [{ id: "r12345", title: "初回限定版" }, { id: "r12346", title: "通常版" }];
         Selection.pinned-release = "r12345";
         Selection.other-versions = [{ id: "g11", label: "SakuraNoToki_DL" }];
         Selection.history = [{ started: "2026-10-17 21:30", duration: "1 小时 20 分钟", ended-by: "正常退出" }, { started: "2026-10-15 20:00", duration: "1 小时 40 分钟", ended-by: "" }];
@@ -190,6 +190,18 @@ global Mock {
         App.page = "patch";
         Library.cover-loading = true;
         Patch.games = self.patch-games;
+    }
+
+    // Synthetic catalog recipes bound to releases; titles and hint follow the controller's format.
+    public function patch-bound(dark: bool) {
+        self.patch(dark);
+        Patch.game = { id: "g4", title: "夏空的英仙座", subtitle: "Musica · Shinki Musica", linked: true };
+        Patch.cover = @image-url("cover.svg");
+        Patch.recipes = [
+            { id: "musica-perseus-cn", title: "夏空的英仙座原生资源转换 · r36790", recommended: true },
+        ];
+        Patch.hint = "夏空的英仙座原生资源转换\n适用发行版本：r36790 夏空のペルセウス\n许可：CC BY-NC 4.0";
+        Patch.state = { script: "musica-perseus-cn", patch-directory: "D:\\Games\\Synthetic\\Perseus", output-directory: "D:\\Games\\Patched", can-start: true };
     }
 
     public function settings(dark: bool, category: string) {
@@ -336,12 +348,39 @@ export component PatchSelectGame inherits ManagerWindow {
 
 export component PatchRecipes inherits ManagerWindow {
     init => {
-        Mock.patch(true);
-        Patch.game = { id: "g4", title: "夏空的英仙座", subtitle: "Musica · Shinki Musica", linked: true };
-        Patch.cover = @image-url("cover.svg");
+        Mock.patch-bound(true);
         Patch.step = 2;
-        Patch.recipes = [{ id: "musica-perseus-cn", title: "夏空的英仙座旧补丁离线转换", recommended: true }, { id: "musica-perseus-alt", title: "夏空的英仙座 繁體中文補丁", recommended: false }];
-        Patch.state = { script: "musica-perseus-cn", patch-directory: "D:\\Games\\夏空のペルセウス", can-start: true };
+    }
+}
+
+// The game files were identified as another release; the controller refuses to run.
+export component PatchRecipeMismatch inherits ManagerWindow {
+    init => {
+        Mock.patch-bound(false);
+        Patch.step = 2;
+        Patch.state.error = "游戏文件与补丁适用的发行版本不匹配\n补丁适用 r36790；游戏目录中的 data/script.pak 大小与该版本不符。";
+    }
+}
+
+export component PatchDirectory inherits ManagerWindow {
+    init => {
+        Mock.patch-bound(false);
+        Patch.step = 3;
+    }
+}
+
+export component PatchConfirm inherits ManagerWindow {
+    init => {
+        Mock.patch-bound(false);
+        Patch.step = 4;
+    }
+}
+
+export component PatchConfirmMismatch inherits ManagerWindow {
+    init => {
+        Mock.patch-bound(true);
+        Patch.step = 4;
+        Patch.state.error = "游戏文件与补丁适用的发行版本不匹配\n补丁适用 r36790；游戏目录缺少 data/patch01.pak。";
     }
 }
 

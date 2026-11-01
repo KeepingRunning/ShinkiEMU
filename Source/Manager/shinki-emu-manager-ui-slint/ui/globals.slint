@@ -222,7 +222,6 @@ export struct PatchState {
     output-directory: string,
     in-place: bool,
     has-backup: bool,
-    downloading: bool,
 }
 
 export struct PatchGame {
@@ -241,7 +240,6 @@ export global Patch {
     in-out property <PatchGame> game;
     in-out property <image> cover;
     in-out property <[Recipe]> recipes;
-    in-out property <[Recipe]> artifacts;
     in-out property <string> hint;
     // Page navigation 1–4; `state` reports running/failed and completion (5).
     in-out property <int> step: 1;
@@ -252,8 +250,6 @@ export global Patch {
     callback pick-script();
     // "patch" | "output"
     callback pick-directory(string);
-    callback set-mode(bool);
-    callback download(string);
     callback restore();
     callback start();
     callback cancel();

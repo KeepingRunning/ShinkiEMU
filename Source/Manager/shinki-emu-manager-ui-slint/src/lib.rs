@@ -321,7 +321,6 @@ pub struct PatchStateViewModel {
     pub output_directory: String,
     pub in_place: bool,
     pub has_backup: bool,
-    pub downloading: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -340,7 +339,6 @@ pub struct PatchViewModel {
     /// Empty `id` when no game is selected.
     pub game: PatchGameViewModel,
     pub recipes: Vec<RecipeViewModel>,
-    pub artifacts: Vec<RecipeViewModel>,
     pub hint: String,
     pub state: PatchStateViewModel,
 }
