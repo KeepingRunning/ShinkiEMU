@@ -112,8 +112,10 @@ fn canonical_rows(frame: &FrameLease, mut consume: impl FnMut(&[u8])) -> Result<
         };
         let start = row * info.stride as usize;
         for (pixel, output) in bytes[start..start + row_bytes]
-            .chunks_exact(4)
-            .zip(normalized[..row_bytes].chunks_exact_mut(4))
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(normalized[..row_bytes].as_chunks_mut::<4>().0.iter_mut())
         {
             let rgb = if bgra {
                 [pixel[2], pixel[1], pixel[0]]
@@ -257,7 +259,12 @@ fn compare(
     }
     let mut changed = 0usize;
     let mut max_delta = 0;
-    for (a, b) in actual.chunks_exact(4).zip(expected.chunks_exact(4)) {
+    for (a, b) in actual
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .zip(expected.as_chunks::<4>().0.iter())
+    {
         let delta = a
             .iter()
             .zip(b)

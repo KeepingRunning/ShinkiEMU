@@ -34,6 +34,8 @@ Core runs launch a child process with temporary HOME/AppData/XDG/cache/TEMP loca
 
 The owner thread and default Rust native-worker stack budget are 8 MiB. A larger explicit `RUST_MIN_STACK` is preserved for cores with large debug-build boot temporaries. A core that explicitly chooses its own stack remains responsible for that choice.
 
+Native size, position, mode, visibility and minimize requests operate on a coherent virtual display state, never an OS window. State queries return that virtual state. Interactive modal requests fail explicitly; the host never invents a dialog answer.
+
 `--configuration config.json` reads the existing Manager `ConfigEntry` array, for example `[{"id":"profile_path","value":{"String":"key.toml"}}]`; use the selected core's actual declared field IDs.
 
 The host waits up to `--startup-timeout-ms` (default 30000, after native open) for a completed CPU frame. Rendering and game scripts remain enabled. No Slint window, display surface or event loop is created for core runs. Cores own their own graphics/audio devices; a GPU or audio device required by a core remains required. The runner does not silently disable audio, movies or script work.

@@ -13,12 +13,12 @@ pub(crate) fn prepare_output(source: &Path, output: &Path, baseline: Option<&Pat
             "output must be outside the read-only source game".into(),
         ));
     }
-    if let Some(baseline) = baseline {
-        if fs::canonicalize(baseline)? == output {
-            return Err(Error::Run(
-                "output and baseline directories must differ".into(),
-            ));
-        }
+    if let Some(baseline) = baseline
+        && fs::canonicalize(baseline)? == output
+    {
+        return Err(Error::Run(
+            "output and baseline directories must differ".into(),
+        ));
     }
     fs::create_dir_all(output)?;
     Ok(())
@@ -95,7 +95,10 @@ pub(crate) fn library(source: &Path, extracted: &Path) -> Result<PathBuf> {
             let path = entry
                 .enclosed_name()
                 .ok_or_else(|| Error::Run("unsafe core ZIP path".into()))?;
-            if entry.name().contains([':', '\\'])
+            if entry
+                .name()
+                .map_err(|error| Error::Run(error.to_string()))?
+                .contains([':', '\\'])
                 || entry.is_symlink()
                 || !paths.insert(path.to_string_lossy().to_lowercase())
             {
@@ -147,43 +150,125 @@ fn find_library(root: &Path, output: &mut Vec<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn window_service() -> abi::WindowService {
-    abi::WindowService {
-        context: std::ptr::null_mut(),
-        request: Some(window_request),
-        invalidate: Some(invalidate_window),
+/// A virtual display, not an OS window. Native geometry/mode requests update
+/// this state; modal requests remain interactive and are rejected explicitly.
+pub(crate) struct HeadlessWindow {
+    session: u64,
+    epoch: std::sync::atomic::AtomicU64,
+    state: std::sync::Mutex<VirtualDisplay>,
+}
+struct VirtualDisplay {
+    width: u32,
+    height: u32,
+    x: i32,
+    y: i32,
+    mode: u32,
+    visible: u32,
+    minimized: u32,
+}
+impl HeadlessWindow {
+    pub(crate) fn new(session: u64) -> Box<Self> {
+        Box::new(Self {
+            session,
+            epoch: std::sync::atomic::AtomicU64::new(1),
+            state: std::sync::Mutex::new(VirtualDisplay {
+                width: 1280,
+                height: 720,
+                x: 0,
+                y: 0,
+                mode: abi::FULLSCREEN_WINDOWED,
+                visible: 1,
+                minimized: 0,
+            }),
+        })
+    }
+    pub(crate) fn service(&self) -> abi::WindowService {
+        abi::WindowService {
+            context: std::ptr::from_ref(self).cast_mut().cast(),
+            request: Some(window_request),
+            invalidate: Some(invalidate_window),
+        }
     }
 }
-unsafe extern "C" fn invalidate_window(_: *mut std::ffi::c_void, _: u64, _: u64) {}
+unsafe extern "C" fn invalidate_window(context: *mut std::ffi::c_void, session: u64, epoch: u64) {
+    if let Some(window) = unsafe { context.cast::<HeadlessWindow>().as_ref() }
+        && window.session == session
+    {
+        window
+            .epoch
+            .fetch_max(epoch, std::sync::atomic::Ordering::AcqRel);
+    }
+}
 unsafe extern "C" fn window_request(
-    _: *mut std::ffi::c_void,
+    context: *mut std::ffi::c_void,
     request: *const abi::WindowRequest,
     output: *mut abi::WindowResult,
     error: *mut abi::Error,
 ) -> abi::Status {
-    if request.is_null() || output.is_null() {
+    let (Some(window), Some(request), Some(output)) = (unsafe {
+        (
+            context.cast::<HeadlessWindow>().as_ref(),
+            request.as_ref(),
+            output.as_mut(),
+        )
+    }) else {
         return abi::INVALID_ARGUMENT;
+    };
+    if request.session_epoch != window.session
+        || request.context_epoch < window.epoch.load(std::sync::atomic::Ordering::Acquire)
+    {
+        return abi::CANCELLED;
     }
-    let request = unsafe { &*request };
-    // Metadata requests have no display-side effect. Interactive requests require a UI
-    // and fail explicitly rather than inventing a dialog response.
+    let Ok(mut state) = window.state.lock() else {
+        return abi::PANICKED;
+    };
     match request.kind {
-        abi::WINDOW_TITLE | abi::WINDOW_ICON | abi::WINDOW_POINTER => {
-            unsafe { (*output).valid_fields = 0 };
-            abi::OK
+        abi::WINDOW_TITLE | abi::WINDOW_ICON | abi::WINDOW_POINTER | abi::WINDOW_QUERY_STATE => {}
+        abi::WINDOW_SIZE if request.width > 0 && request.height > 0 => {
+            state.width = request.width;
+            state.height = request.height;
         }
+        abi::WINDOW_POSITION => {
+            state.x = request.x;
+            state.y = request.y;
+        }
+        abi::WINDOW_FULLSCREEN if request.flags <= abi::FULLSCREEN_EXCLUSIVE => {
+            state.mode = request.flags;
+            if request.width > 0 && request.height > 0 {
+                state.width = request.width;
+                state.height = request.height;
+            }
+        }
+        abi::WINDOW_VISIBILITY if request.flags <= 1 => state.visible = request.flags,
+        abi::WINDOW_MINIMIZED if request.flags <= 1 => state.minimized = request.flags,
         _ => {
             if !error.is_null() {
                 unsafe {
                     (*error).set(
                         "SHINKI_EMU_HEADLESS_WINDOW_REQUEST",
-                        "interactive window request is unavailable in headless mode",
+                        &format!(
+                            "unsupported or interactive virtual display request {}",
+                            request.kind
+                        ),
                     )
                 };
             }
-            abi::UNSUPPORTED
+            return abi::UNSUPPORTED;
         }
     }
+    output.valid_fields = abi::WINDOW_RESULT_SIZE
+        | abi::WINDOW_RESULT_POSITION
+        | abi::WINDOW_RESULT_MODE
+        | abi::WINDOW_RESULT_VISIBILITY
+        | abi::WINDOW_RESULT_MINIMIZED;
+    output.width = state.width;
+    output.height = state.height;
+    output.x = state.x;
+    output.y = state.y;
+    output.fullscreen = state.mode;
+    output.visible = state.visible;
+    output.minimized = state.minimized;
+    abi::OK
 }
 
 #[cfg(test)]
@@ -215,5 +300,34 @@ mod tests {
         archive(&unsafe_zip, &["../escaped"]);
         assert!(library(&unsafe_zip, &root.path().join("unsafe")).is_err());
         assert!(!root.path().join("escaped").exists());
+    }
+
+    #[test]
+    fn virtual_display_remembers_geometry_and_never_answers_modals() {
+        let window = HeadlessWindow::new(7);
+        let service = window.service();
+        let mut request: abi::WindowRequest = unsafe { std::mem::zeroed() };
+        let mut output: abi::WindowResult = unsafe { std::mem::zeroed() };
+        let mut error = abi::Error::default();
+        request.session_epoch = 7;
+        request.context_epoch = 1;
+        request.kind = abi::WINDOW_SIZE;
+        request.width = 960;
+        request.height = 540;
+        let call = |request: &abi::WindowRequest,
+                    output: &mut abi::WindowResult,
+                    error: &mut abi::Error| unsafe {
+            service.request.unwrap()(service.context, request, output, error)
+        };
+        assert_eq!(call(&request, &mut output, &mut error), abi::OK);
+        request.kind = abi::WINDOW_QUERY_STATE;
+        assert_eq!(call(&request, &mut output, &mut error), abi::OK);
+        assert_eq!((output.width, output.height), (960, 540));
+        unsafe { service.invalidate.unwrap()(service.context, 7, 2) };
+        assert_eq!(call(&request, &mut output, &mut error), abi::CANCELLED);
+        request.context_epoch = 2;
+        request.kind = abi::WINDOW_MODAL;
+        assert_eq!(call(&request, &mut output, &mut error), abi::UNSUPPORTED);
+        assert_eq!(output.selected_button, 0);
     }
 }

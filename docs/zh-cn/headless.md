@@ -26,6 +26,8 @@ shinki-emu-headless compare --actual artifacts/compare/frame-000180.png --baseli
 
 owner 线程与 Rust 原生工作线程的默认栈预算为 8 MiB；核心调试构建若需要更大的启动临时空间，可显式设置更大的 `RUST_MIN_STACK`，运行器会保留它。核心自行指定的线程栈大小仍由核心负责。
 
+核心的尺寸、位置、模式、可见性与最小化请求作用于一致的虚拟显示状态，不创建系统窗口；状态查询返回该虚拟状态。需要用户回答的原生模态请求明确失败，宿主不会编造对话框答案。
+
 `--configuration` 使用 Manager 原有 JSON 数组，例如 `[{"id":"profile_path","value":{"String":"key.toml"}}]`，字段 ID 以核心声明为准。`--startup-timeout-ms` 默认为 30000，从原生 open 返回后开始等待首个完整 CPU 帧。不会关闭渲染、脚本或视频来通过验收；核心自身需要的 GPU 和音频设备仍需可用。
 
 ## 时间、回放与基线

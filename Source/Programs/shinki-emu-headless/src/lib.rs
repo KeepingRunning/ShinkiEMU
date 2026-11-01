@@ -301,7 +301,8 @@ fn run(arguments: Arguments, query: Option<abi::Query>) -> Result<RunReport> {
     let epoch = allocate_session_epoch()?;
     let cancellation = NativeCancellation::new(epoch);
     let mut host = no_host_services(&cancellation);
-    host.window = files::window_service();
+    let window = files::HeadlessWindow::new(epoch);
+    host.window = window.service();
     let mut session = plugin.open(NativeOpenRequest {
         game_path,
         session_epoch: epoch,
@@ -485,13 +486,13 @@ fn execute(
     report.acquired_frames = timeline.acquired;
     report.consumed_input_messages = index;
     report.final_pixel_hash = capture::pixel_hash(timeline.frame()?)?;
-    if let Some(expected) = &args.baseline_hash {
-        if *expected != report.final_pixel_hash {
-            return Err(Error::Assertion(format!(
-                "final hash {} != {expected}",
-                report.final_pixel_hash
-            )));
-        }
+    if let Some(expected) = &args.baseline_hash
+        && *expected != report.final_pixel_hash
+    {
+        return Err(Error::Assertion(format!(
+            "final hash {} != {expected}",
+            report.final_pixel_hash
+        )));
     }
     Ok(report)
 }

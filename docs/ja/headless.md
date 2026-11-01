@@ -26,6 +26,8 @@ shinki-emu-headless compare --actual artifacts/compare/frame-000180.png --baseli
 
 owner と Rust ネイティブワーカーの既定スタック予算は 8 MiB です。デバッグビルドの起動時に大きな一時領域が必要なコアには、より大きい `RUST_MIN_STACK` を明示できます。コアが自分でスタックサイズを指定した場合は、その指定に従います。
 
+サイズ、位置、モード、表示、最小化の要求は OS ウィンドウではなく一貫した仮想ディスプレイ状態を更新します。状態照会もこの仮想状態を返します。対話型モーダル要求は明示的に失敗し、ホストが回答を作り出すことはありません。
+
 `--configuration` は既存の Manager `ConfigEntry` 配列です。例: `[{"id":"profile_path","value":{"String":"key.toml"}}]`。フィールド ID はコアの宣言に従います。`--startup-timeout-ms` の既定値は 30000 で、ネイティブ open の完了後から最初の完成 CPU フレームを待ちます。描画、スクリプト、動画を無効化して成功扱いにはしません。コアが必要とする GPU や音声デバイスは引き続き必要です。
 
 ## 時間、リプレイ、比較
