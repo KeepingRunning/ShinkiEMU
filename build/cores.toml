@@ -61,7 +61,7 @@ publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/siglus_rs"
 branch = "fix/fortune-world-release"
-rev = "e0f92bc3bad16de75bdde98ec1b0ccac86b1f3b8"
+rev = "2627b68095c5b79d2b36edd6bff64d002a43a0de"
 upstream = "https://github.com/xmoezzz/siglus_rs"
 release_sequence = 1
 upstream_identity = { repo = "https://github.com/xmoezzz/siglus_rs", ref_kind = "tag", ref_name = "1.0.0", commit = "5f358ef1360b0439e92aed2b749e8f25d8721954" }
