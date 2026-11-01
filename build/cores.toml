@@ -209,10 +209,10 @@ static_features = ["static"]
 publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/kirikiroid2-web"
-branch = "shinki-android-manager-embed"
-rev = "579f91d87fd2ac979dad3b770010509827d0a08f"
+branch = "shinki-common63"
+rev = "57470e061f391864f4ee11c7f0f04a9095a45e95"
 upstream = "https://github.com/fenghengzhi/kirikiroid2-web"
-release_sequence = 1
+release_sequence = 2
 upstream_identity = { repo = "https://github.com/fenghengzhi/kirikiroid2-web", ref_kind = "branch", ref_name = "web", commit = "2028cbccaa91498bd36f270d349ae711d0e8fed3" }
 [[cores.blocked]]
 target = "aarch64-linux-android"
