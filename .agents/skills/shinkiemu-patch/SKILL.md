@@ -66,7 +66,9 @@ return {
 }
 ```
 
-`apply(ctx)` 返回输出 profile：`{ plugin_id = "<核心 id>", configuration = { <key> = "<string>" }, required_capabilities = <整数，可省略> }`。只允许这三个字段。`required_capabilities` 只能用 `CAP_NATIVE_SCRIPT_IDENTITY`、`CAP_CONFIGURED_FONT_PRIORITY`、`CAP_NATIVE_EMBEDDED_TEXT` 的组合；Manager 会检查目标核心是否声明了这些能力。
+`apply(ctx)` 返回输出 profile：`{ plugin_id = "<核心 id>", configuration = { <key> = "<string>" }, required_capabilities = <整数，可省略> }`。只允许这三个字段。`required_capabilities` 只能用这几个能力位的组合：`CAP_NATIVE_SCRIPT_IDENTITY`（64）、`CAP_CONFIGURED_FONT_PRIORITY`（128）、`CAP_NATIVE_EMBEDDED_TEXT`（256）、`CAP_NATIVE_NAME_RESOURCES`（512）。Manager 会检查目标核心是否声明了这些能力，旧核心不满足就拒绝。现有配方的取值：Musica 嵌入 256，Yorino 768（256|512），RFVP 原生 GBK/字体 192。
+
+**补丁只改资源，不改可执行代码。** 输出里的 EXE 必须和源目录同一路径的文件逐字节相同，不能新建替换用的 EXE；否则报 "resource patches must preserve executable bytes"。原位模式会保留没有写到的原 EXE。以前靠改 EXE 常量实现的功能，改成核心原生能力加资源文件：例如 Yorino 的姓名常量写进 `scripts/shinki-names.sc`（`.pragma shinki_name_unknown`、`.pragma shinki_history_name_unknown`），历史姓名括号由核心生成，所以要求能力 768。
 
 ### 沙箱
 
@@ -88,6 +90,7 @@ VM 只开 table、string、utf8、math、bit32、buffer、coroutine 这几个标
 | `ctx.check(label, passed, detail)` | 报告一项检查结果（Manager 进度里可见）；`passed` 为 false 时以 `UNSUPPORTED_INPUT` 中止。label 不超过 256 字节，detail 不超过 2048 字节 |
 | `ctx.fail(code, message)` | 中止并回滚。`code` 取 `INVALID_REQUEST`、`UNSUPPORTED_INPUT`、`OUTPUT_EXISTS`、`PATH`、`BOUNDS`、`MEMORY`、`CODEC`、`INTEGRITY`、`CANCELLED`、`SCRIPT`、`IO`、`PUBLISH` |
 | `ctx.musica_embed(profile, translations, resource_paths, destination)` | 用 Musica 原生 PAZ/SC 读取器把翻译写成原生 SC 操作数，不安装运行时翻译表 |
+| `ctx.musica_profile(buffer)` | 用原生读取器解析私有 Musica `key.toml`（keys.v2，也接受旧的 `astra.emu.musica.keys.v2` 标识，只在内存里规范化，不改写用户的源文件） |
 | 编解码与数据模块 | `codecs`、`data`、`pickle` 安装的格式工具 |
 
 Luau 原生 `error(message)` 也会中止并回滚，归为 `SCRIPT`；Manager 保留错误文本并报告已回滚。要给出具体失败类别时用 `ctx.fail`。
@@ -116,7 +119,7 @@ Luau 原生 `error(message)` 也会中止并回滚，归为 `SCRIPT`；Manager �
 
 1. 确认目标发行的 VNDB rID/vID，从一份干净安装里取指纹文件的大小和 SHA256。同一补丁支持多个发行时，各写一项 `releases`，指纹必须能区分它们。
 2. 能复用 `common/` 模块就复用（Musica 用 `common/musica.luau`，FVP 用 `common/fvp.luau`，Ren'Py 用 `common/renpy_rpa.luau`）。脚本里再核对一遍关键输入的大小和 hash，不一致就用 `ctx.check` 或 `ctx.fail("UNSUPPORTED_INPUT", ...)` 中止。
-3. 优先离线转换成核心原生能读的格式（例如 FVP 的原生 GBK HCB、Musica 的原生 SC 操作数），不要依赖运行时翻译表或注入钩子。存档和既读记录要和原版隔离时，在 profile 的 `configuration` 里声明。
+3. 优先离线转换成核心原生能读的格式（例如 FVP 的原生 GBK HCB、Musica 的原生 SC 操作数），不要依赖运行时翻译表或注入钩子，也不要改 EXE。核心缺少需要的原生能力时，先给核心加能力位，再在 profile 的 `required_capabilities` 里声明。存档和既读记录要和原版隔离时，在 profile 的 `configuration` 里声明。
 4. 本地试跑：把脚本和 `<stem>.patch.json` 放在一起，用 `patch apply` 输出到新目录，再用 headless runner 打开输出目录确认出帧（见 `shinkiemu-maintenance` §13）。原游戏只读，试跑用副本。
 5. 提交 `Metadata/patches/entries/<id>.json` 和脚本，跑 `cargo xtask metadata validate`。
 
@@ -133,6 +136,7 @@ Luau 原生 `error(message)` 也会中止并回滚，归为 `SCRIPT`；Manager �
 - [ ] 条目有非空 `releases`，每项 rID/vID 真实、指纹能唯一识别该发行。
 - [ ] 脚本返回 `id`/`version`/`title`/`apply`；`apply` 返回合法 profile。
 - [ ] 关键输入在脚本内再次核对；不匹配用 `ctx.check` 或 `ctx.fail` 中止。
+- [ ] 输出里的 EXE 与源文件逐字节相同；`required_capabilities` 覆盖配方依赖的核心原生能力。
 - [ ] 所有下载都在条目中声明，HTTPS、sha256、size 齐全，单个不超过 1 GiB。
 - [ ] 新目录输出能用 headless runner 打开并出帧；原位模式能还原。
 - [ ] `cargo xtask metadata validate` 通过；没有提交商业数据。
