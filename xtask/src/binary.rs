@@ -458,7 +458,10 @@ pub(crate) fn runtime_source(path: &Path, directory: &Path, target: &str) -> Res
         let root = fs::canonicalize(directory)?;
         let source = fs::canonicalize(path)?;
         if !source.starts_with(&root) || !source.is_file() {
-            bail!("runtime link escapes its build directory: {}", path.display());
+            bail!(
+                "runtime link escapes its build directory: {}",
+                path.display()
+            );
         }
         crate::package::plain(&source)?;
         return Ok(source);
