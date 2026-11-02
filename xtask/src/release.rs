@@ -427,6 +427,7 @@ fn require_same_release(
     if record["schema"] != "shinki.emu.release.v1"
         || record["component"] != component
         || record["version"] != version
+        || (component == "manager" && record["product_version"] != version)
         || record["source_commit"] != id.commit.as_str()
         || record["core_source"] != id.core_source
         || record.get("identity").unwrap_or(&Value::Null) != &serde_json::to_value(&id.identity)?
@@ -479,6 +480,9 @@ pub fn prepare(inv: &Inventory, target: &str, component: &str, version: &str) ->
         return Ok(());
     }
     let receipt = crate::build::load_receipt(inv, target, component)?;
+    if component == "manager" {
+        receipt.require_product_version(version)?;
+    }
     let expected_source = id.core_source["rev"].as_str().unwrap_or(&id.commit);
     if receipt.source_dirty || receipt.source_commit != expected_source {
         bail!(
@@ -556,6 +560,7 @@ pub fn prepare(inv: &Inventory, target: &str, component: &str, version: &str) ->
         let record = json!({"schema":"shinki.emu.release.v1","component":component,"version":version,"target":target,"platform":platform,
             "source_commit":id.commit,"core_source":id.core_source,
             "identity":id.identity,
+            "product_version":receipt.product_version,
             "archive":{"name":filename,"sha256":package::sha256(&archive)?,"size":fs::metadata(&archive)?.len()},
             "sources":{"name":sources,"sha256":package::sha256(&work.join(&sources))?},"publish_blocked":publish_blocked});
         fs::write(
@@ -759,6 +764,9 @@ pub fn publish(inv: &Inventory, component: &str, version: &str) -> Result<()> {
         notes
     };
     if component == "manager" {
+        notes.push_str(
+            "\nKnown previous-release issue: the official Manager beta.7 Windows binary self-reports beta.6. Published beta.7 tags and assets remain unchanged. This release binds its internal version to the compile-time product version and requires matching build, package and release identities.\n\nbeta.7 已知问题：官方 Windows 二进制内部自报 beta.6。已公开 beta.7 tag 和资产保持不变。本版通过编译期产品版本统一内部版本，并要求构建、安装包和发行记录一致。\n\nbeta.7 の既知の問題：公式 Windows バイナリは内部版を beta.6 と報告します。公開済み beta.7 タグと添付ファイルは変更しません。本版はコンパイル時の製品版を内部版に使い、ビルド・パッケージ・リリースの識別を一致させます。\n",
+        );
         let android = inv
             .cores
             .iter()
@@ -899,14 +907,6 @@ mod tests {
         let inv = Inventory::load(root).unwrap();
         let id = identity(&inv, "rfvp", "").unwrap();
         assert!(resolve_version(&inv, "rfvp", "0.1.0-beta.5").is_err());
-        assert_eq!(
-            resolve_version(&inv, "manager", "0.1.0-beta.6").unwrap(),
-            "0.1.0-beta.6"
-        );
-        assert_eq!(
-            resolve_version(&inv, "shinki.emu.musica", "0.1.0-beta.5").unwrap(),
-            "0.1.0-beta.5"
-        );
         let record = json!({
             "schema":"shinki.emu.release.v1","component":"rfvp","version":id.version,
             "source_commit":id.commit,"core_source":id.core_source,"identity":id.identity,
@@ -932,5 +932,22 @@ mod tests {
         let updated = identity(&changed, "rfvp", "").unwrap();
         assert_ne!(updated.version, id.version);
         assert_ne!(updated.tag, id.tag);
+    }
+
+    #[test]
+    fn manager_release_rejects_labels_without_the_matching_compiled_version() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let inv = Inventory::load(root).unwrap();
+        let id = identity(&inv, "manager", "0.1.0-beta.8").unwrap();
+        let mut record = json!({
+            "schema":"shinki.emu.release.v1", "component":"manager", "version":id.version,
+            "source_commit":id.commit, "core_source":null, "identity":null,
+        });
+        let path = Path::new("release.json");
+        assert!(require_same_release(&record, &id, "manager", &id.version, path).is_err());
+        record["product_version"] = "0.1.0-beta.6".into();
+        assert!(require_same_release(&record, &id, "manager", &id.version, path).is_err());
+        record["product_version"] = "0.1.0-beta.8".into();
+        require_same_release(&record, &id, "manager", &id.version, path).unwrap();
     }
 }
