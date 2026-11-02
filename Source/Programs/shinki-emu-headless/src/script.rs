@@ -233,8 +233,8 @@ pub(crate) fn events(event: &PhysicalInput, frame: &FrameLease) -> Result<Vec<Fa
         }],
         PhysicalInput::ImeCommit { text } => vec![FamilyEvent::TextInput { text: text.clone() }],
         PhysicalInput::PointerMove { x, y } => vec![FamilyEvent::PointerMove {
-            x: f32::from(*x) * frame.info.logical_width.saturating_sub(1) as f32 / 65535.0,
-            y: f32::from(*y) * frame.info.logical_height.saturating_sub(1) as f32 / 65535.0,
+            x: f32::from(*x) * frame.info.width.saturating_sub(1) as f32 / 65535.0,
+            y: f32::from(*y) * frame.info.height.saturating_sub(1) as f32 / 65535.0,
             displayed: Some(frame.identity),
         }],
         PhysicalInput::PointerButton {
@@ -304,5 +304,44 @@ mod tests {
         ];
         assert!(parse(&serde_json::to_vec(&invalid).unwrap()).is_err());
         assert_eq!(end_tick(&messages).unwrap(), 2);
+    }
+
+    #[test]
+    fn pointer_replay_targets_raster_pixels_when_logical_size_differs() {
+        let frame = FrameLease::from_vec(
+            vec![0; 4 * 2 * 4],
+            FrameInfo {
+                width: 4,
+                height: 2,
+                logical_width: 8,
+                logical_height: 6,
+                stride: 16,
+                format: FrameFormat::Rgba8Srgb {
+                    alpha: FrameAlpha::Opaque,
+                },
+                rows: FrameRowOrder::TopToBottom,
+            },
+            FrameIdentity {
+                session_epoch: 1,
+                output_epoch: 1,
+                generation: 1,
+            },
+        )
+        .unwrap();
+        for (coordinate, expected) in [(0, [0.0, 0.0]), (u16::MAX, [3.0, 1.0])] {
+            let mapped = events(
+                &PhysicalInput::PointerMove {
+                    x: coordinate,
+                    y: coordinate,
+                },
+                &frame,
+            )
+            .unwrap();
+            assert!(matches!(
+                mapped.as_slice(),
+                [FamilyEvent::PointerMove { x, y, displayed }]
+                    if [*x, *y] == expected && *displayed == Some(frame.identity)
+            ));
+        }
     }
 }

@@ -40,6 +40,8 @@ C ABI v3 ではコアがゲーム時刻を管理し、決定論的な単一ス�
 
 リプレイ JSON は `InputMessage` の配列です。`schema`、同じ `session`、単調増加の `sequence`、非減少の `tick`、`event` を指定します。対応イベントは `resume`、`focus`、`keyboard`、`ime_commit`、`pointer_move`、`pointer_button`、`wheel`、`advance_ticks`、`await`、`checkpoint` です。クリックは移動・押下・解放を別々に記録します。ポインター座標は 0..65535 の正規化値です。キー名には `Enter`、`KeyA`、`ControlLeft` などを使います。
 
+正規化したポインターを表示フレームのラスターピクセルへ変換し、論理座標への変換はコアが行います。論理サイズとラスターサイズが異なる場合も、ランナーで二重に拡大縮小しません。
+
 `checkpoint` の `id` は画像名とベースライン名です。重複と予約接頭辞 `frame-` は使えません。`await` は `frame` の存在、または `frame.sha256` と `value_hash` の一致に対応し、`timeout_ticks` 内に成立しないと失敗します。ネイティブ時刻を巻き戻せないため `continue_at_match` は false にします。待機中も指定したサンプルの画像を保存します。読み込みと検証に十分な実行時間を指定してください。
 
 出力は `<id>.png` と `<id>.json` です。JSON には寸法、サンプル番号、画素 SHA-256、PNG ファイル SHA-256、比較結果を記録します。コア成功時は `run.json`、失敗時は `failure.json` を追加します。画像不一致でも実際の PNG と比較結果は残ります。
