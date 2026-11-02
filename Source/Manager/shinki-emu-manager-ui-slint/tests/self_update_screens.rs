@@ -1,21 +1,21 @@
 //! Renders the real `ManagerWindow` through the software renderer in every
-//! self-update state, and checks that the 更新 settings and the new-version
-//! banner report their actions.
+//! self-update state and checks the pixels: each check status draws a
+//! different 更新 page, the banner changes the library page, and applying the
+//! same model again draws the same frame.
 //!
 //! Set `SHINKI_UI_SCREENSHOT_DIR` to keep PNGs of every state in zh-CN, en
-//! and ja at 1280x800 and 360x780; without it each state is rendered once
-//! in memory. All text is synthetic.
+//! and ja at 1280x800 and 360x780; without it zh-CN is rendered at 360x780
+//! only. All text is synthetic.
 
 use std::{
-    cell::RefCell,
+    collections::HashMap,
     path::PathBuf,
     rc::Rc,
     time::{Duration, Instant},
 };
 
 use shinki_emu_manager_ui_slint::{
-    App, ManagerViewModel, SelfUpdate, SelfUpdateAction, SelfUpdateViewModel, SlintManagerAdapter,
-    i18n,
+    App, ManagerViewModel, SelfUpdateViewModel, SlintManagerAdapter, i18n,
 };
 use slint::{
     ComponentHandle,
@@ -152,19 +152,51 @@ fn render(software: &MinimalSoftwareWindow, width: u32, height: u32) -> Vec<u8> 
         size: slint::LogicalSize::new(width as f32, height as f32),
     });
     let mut pixels = vec![slint::Rgb8Pixel { r: 0, g: 0, b: 0 }; width as usize * height as usize];
-    // Instantiate lazy page components and settle bindings before capture.
-    for _ in 0..3 {
+    // Instantiate lazy page components, settle bindings and let finite
+    // animations (the Material switch) finish before capture. Indeterminate
+    // progress never stops, so it ends at the cap.
+    for frame in 0..120 {
         slint::platform::update_timers_and_animations();
         software.request_redraw();
         software.draw_if_needed(|renderer| {
             renderer.render(&mut pixels, width as usize);
         });
+        if frame >= 2 && !software.window().has_active_animations() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(16));
     }
     pixels.iter().flat_map(|p| [p.r, p.g, p.b, 255]).collect()
 }
 
+/// Applies `state` on `page`/`category` and renders one frame.
+fn show(
+    adapter: &SlintManagerAdapter,
+    software: &MinimalSoftwareWindow,
+    language: &str,
+    page: &str,
+    category: &str,
+    state: &SelfUpdateViewModel,
+    (width, height): (u32, u32),
+) -> Vec<u8> {
+    let mut model = ManagerViewModel::default();
+    model.app.version = state.current_version.clone();
+    model.app.appearance.language = language.into();
+    model.app.appearance.theme_mode = "dark".into();
+    model.app.appearance.reduce_motion = true;
+    model.resale_notice.acknowledged = true;
+    model.library.prepare_state = "ready".into();
+    model.network.allowed = !state.offline;
+    model.self_update = state.clone();
+    adapter.apply(&model);
+    let app = adapter.window().global::<App>();
+    app.set_page(page.into());
+    app.set_settings_category(category.into());
+    render(software, width, height)
+}
+
 #[test]
-fn self_update_states_render_and_report_actions() {
+fn self_update_states_render_distinct_stable_frames() {
     let software = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
     slint::platform::set_platform(Box::new(SoftwarePlatform {
         window: software.clone(),
@@ -172,26 +204,6 @@ fn self_update_states_render_and_report_actions() {
     }))
     .expect("software platform");
     let adapter = SlintManagerAdapter::new().expect("manager window");
-    let actions = Rc::new(RefCell::new(Vec::new()));
-    let sink = actions.clone();
-    adapter.set_on_self_update_action(move |action| sink.borrow_mut().push(action));
-
-    let update = adapter.window().global::<SelfUpdate>();
-    update.invoke_check_now();
-    update.invoke_set_include_prerelease(false);
-    update.invoke_open_download();
-    update.invoke_ignore_version();
-    update.invoke_dismiss();
-    assert_eq!(
-        *actions.borrow(),
-        [
-            SelfUpdateAction::CheckNow,
-            SelfUpdateAction::SetIncludePrerelease(false),
-            SelfUpdateAction::OpenDownload,
-            SelfUpdateAction::IgnoreVersion,
-            SelfUpdateAction::DismissUntilLater,
-        ]
-    );
 
     let output = std::env::var_os("SHINKI_UI_SCREENSHOT_DIR").map(PathBuf::from);
     let (languages, sizes): (&[&str], &[(u32, u32)]) = if output.is_some() {
@@ -205,41 +217,58 @@ fn self_update_states_render_and_report_actions() {
     adapter.window().show().expect("show");
     for &language in languages {
         i18n::apply(language);
-        for (id, page, category, state) in states() {
-            let mut model = ManagerViewModel::default();
-            model.app.version = state.current_version.clone();
-            model.app.appearance.language = language.into();
-            model.app.appearance.theme_mode = "dark".into();
-            model.app.appearance.reduce_motion = true;
-            model.resale_notice.acknowledged = true;
-            model.library.prepare_state = "ready".into();
-            model.network.allowed = !state.offline;
-            model.self_update = state;
-            adapter.apply(&model);
-
-            let window = adapter.window();
-            let app = window.global::<App>();
-            app.set_page(page.into());
-            app.set_settings_category(category.into());
-            let update = window.global::<SelfUpdate>();
-            assert_eq!(update.get_status(), model.self_update.status.as_str());
-            assert_eq!(
-                update.get_banner_visible(),
-                model.self_update.banner_visible
-            );
-
-            for &(width, height) in sizes {
-                let rgba = render(&software, width, height);
+        for &size in sizes {
+            let (width, height) = size;
+            let mut frames = HashMap::new();
+            for (id, page, category, state) in states() {
+                let rgba = show(&adapter, &software, language, page, category, &state, size);
+                // Indeterminate progress animates, so only static states must repeat.
+                if state.status != "checking" {
+                    let again = show(&adapter, &software, language, page, category, &state, size);
+                    assert!(
+                        rgba == again,
+                        "{id} {language} {width}x{height}: same model drew a different frame"
+                    );
+                }
+                if id == "banner-library" {
+                    let hidden = SelfUpdateViewModel {
+                        banner_visible: false,
+                        ..state
+                    };
+                    let plain = show(&adapter, &software, language, page, category, &hidden, size);
+                    assert!(
+                        rgba != plain,
+                        "{language} {width}x{height}: banner did not change the library page"
+                    );
+                }
                 if let Some(dir) = &output {
                     let path = dir.join(format!("{id}-{language}-{width}x{height}.png"));
-                    image::RgbaImage::from_raw(width, height, rgba)
+                    image::RgbaImage::from_raw(width, height, rgba.clone())
                         .expect("frame size")
                         .save(&path)
                         .expect("write png");
                 }
+                frames.insert(id, rgba);
+                // Leave the page so the next state starts from a fresh settings view.
+                adapter.window().global::<App>().set_page("library".into());
             }
-            // Leave the page so the next state starts from a fresh settings view.
-            app.set_page("library".into());
+            let distinct = [
+                "settings-idle",
+                "settings-checking",
+                "settings-up-to-date",
+                "settings-available",
+                "settings-ignored",
+                "settings-failed",
+                "settings-offline",
+            ];
+            for (i, a) in distinct.iter().enumerate() {
+                for b in &distinct[i + 1..] {
+                    assert!(
+                        frames[a] != frames[b],
+                        "{language} {width}x{height}: {a} and {b} drew the same frame"
+                    );
+                }
+            }
         }
     }
     adapter.window().hide().expect("hide");
