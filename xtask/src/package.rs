@@ -417,16 +417,11 @@ pub fn stage_core(
         .filter(|(path, _)| is_runtime(path))
         .map(|(path, _)| path.clone())
         .collect();
-    let mut runtimes = std::collections::BTreeMap::<String, PathBuf>::new();
-    let mut add_runtime = |path: PathBuf| -> Result<()> {
+    let mut runtimes = std::collections::BTreeMap::<String, (PathBuf, String)>::new();
+    let mut add_runtime = |path: PathBuf, name: String| -> Result<()> {
         if result.target.contains("apple") && entries.iter().any(|(source, _)| source == &path) {
             return Ok(());
         }
-        let name = path
-            .file_name()
-            .and_then(|s| s.to_str())
-            .context("runtime filename")?
-            .to_owned();
         let key = name.to_ascii_lowercase();
         if key == library.to_ascii_lowercase() {
             if sha256(&path)? != sha256(&result.library)? {
@@ -440,12 +435,12 @@ pub fn stage_core(
         {
             bail!("runtime dependency collides with core layout");
         }
-        if let Some(existing) = runtimes.get(&key) {
+        if let Some((existing, _)) = runtimes.get(&key) {
             if existing != &path && sha256(existing)? != sha256(&path)? {
                 bail!("conflicting runtime dependency {name}");
             }
         } else {
-            runtimes.insert(key, path);
+            runtimes.insert(key, (path, name));
         }
         Ok(())
     };
@@ -477,8 +472,15 @@ pub fn stage_core(
                 continue;
             }
             if path.is_file() && is_runtime(&path) && path != result.library {
-                add_runtime(path.clone())?;
-                roots.push(path);
+                let name = path
+                    .file_name()
+                    .context("runtime filename")?
+                    .to_str()
+                    .context("runtime filename is not UTF-8")?
+                    .to_owned();
+                let source = binary::runtime_source(&path, directory, &result.target)?;
+                add_runtime(source.clone(), name)?;
+                roots.push(source);
             }
         }
     }
@@ -491,14 +493,11 @@ pub fn stage_core(
     search.sort();
     search.dedup();
     for root in roots {
-        for dependency in binary::closure(&root, &search, &result.target)? {
-            add_runtime(dependency)?;
+        for (source, name) in binary::closure(&root, &search, &result.target)? {
+            add_runtime(source, name)?;
         }
     }
-    entries.extend(runtimes.into_values().map(|path| {
-        let name = path.file_name().unwrap().to_string_lossy().into_owned();
-        (path, name)
-    }));
+    entries.extend(runtimes.into_values());
     reject_overlap(&result.library, out)?;
     for asset in m.resources.iter().chain(&m.licenses) {
         reject_overlap(&asset.source, out)?;
@@ -874,10 +873,7 @@ pub fn package(
                 ),
             ];
             for dep in binary::closure(&result.library, &search_dirs(inv, &result)?, target)? {
-                entries.push((
-                    dep.clone(),
-                    dep.file_name().unwrap().to_string_lossy().into_owned(),
-                ));
+                entries.push(dep);
             }
             if dependencies::needs(inv, target, component)?.dxc {
                 for name in [
@@ -1116,11 +1112,8 @@ pub(crate) fn android_inputs(inv: &Inventory, result: &BuildResult, stage: &Path
         format!("jniLibs/{abi}/libshinki_emu_manager.so"),
     )];
     for dep in binary::closure(&result.library, &search_dirs(inv, result)?, &result.target)? {
-        let name = format!(
-            "jniLibs/{abi}/{}",
-            dep.file_name().unwrap().to_string_lossy()
-        );
-        entries.push((dep, name));
+        let (source, name) = dep;
+        entries.push((source, format!("jniLibs/{abi}/{name}")));
     }
     let mut bundled = vec!["THIRD_PARTY_NOTICES.md".to_owned()];
     entries.push((

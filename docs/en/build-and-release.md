@@ -107,6 +107,8 @@ cargo xtask ci --target x86_64-unknown-linux-gnu --component CORE --report .work
 
 The Ren'Py package includes its SDK runtime and installed `Resources`; Impacto and KiriKiri2 include the pinned native shared-library closure. Each core package records system SONAME requirements in `build.json`.
 
+Linux SONAME symlinks in explicitly selected native build directories are resolved to regular files within that same directory. Packages copy their bytes under the loader-requested name, never store symlinks, and reject escaping, broken or cyclic links and conflicting dependency contents. General resource and license inputs still reject symlinks.
+
 The Manager's Linux Bangumi provider builds native-tls with vendored, static OpenSSL, so its executable does not depend on the build host's `libssl.so.3`/`libcrypto.so.3`. Native core packages still bundle their own pinned OpenSSL closure when required.
 
 Linux Manager `deps` checks the distribution's development libraries; it does not run `apt`. Core `deps` prepares the pinned vcpkg native libraries in target-specific roots and materializes relocatable shared-library files for packaging. Run `./shinki-emu-manager` from the packaged directory. Packaging validates ELF architecture, loader paths and the dependency closure, includes notices and the offline metadata snapshot, and preserves executable permissions in the ZIP reported by `ci`. The same prerequisites and xtask commands run in CI and release jobs. Core availability remains defined by `matrix`; declared blocked cores produce no binary artifact.

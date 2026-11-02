@@ -94,6 +94,8 @@ cargo xtask ci --target x86_64-unknown-linux-gnu --component CORE --report .work
 
 Ren'Py 核心包带有 SDK 运行库和安装后的 `Resources`；Impacto 与 KiriKiri2 核心包包含锁定版本的原生共享库依赖闭包。每个核心包在 `build.json` 中记录系统 SONAME 需求。
 
+Linux 原生构建目录中的 SONAME 符号链接只允许指向同一目录内的普通文件。打包按加载器请求的名称复制文件内容，不保留符号链接；越界、失效、循环链接和内容冲突都会失败。资源与许可等一般输入仍禁止符号链接。
+
 Linux Manager 的 Bangumi provider 使用 vendored 静态 OpenSSL 构建 native-tls，不再依赖构建机的 `libssl.so.3`/`libcrypto.so.3`。原生核心需要 OpenSSL 时，仍打包各自固定版本的依赖闭包。
 
 Linux Manager 的 `deps` 检查发行版提供的开发库，不调用 `apt`。核心的 `deps` 在各目标独立的目录中准备锁定的 vcpkg 原生库，并生成可重定位的共享库普通文件供打包使用。在打包目录中运行 `./shinki-emu-manager`。打包会检查 ELF 架构、加载路径和依赖闭包，收集许可证及离线元数据快照；`ci` 报告的 ZIP 保留执行权限。CI 与发布任务使用同一组依赖和 xtask 命令。核心可用性仍以 `matrix` 为准，声明为 blocked 的核心不产生二进制附件。
