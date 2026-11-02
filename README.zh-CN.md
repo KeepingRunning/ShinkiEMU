@@ -5,7 +5,7 @@
 
 # ShinkiEMU
 
-游戏库管理器加一组原生核心，用来运行旧视觉小说引擎制作的游戏。
+ShinkiEMU 让旧引擎制作的视觉小说在现在的电脑和手机上运行。一个 Manager 应用管理游戏库，为每种引擎安装原生核心，从 Bangumi 和 VNDB 获取元数据，还能从 Steam、DLsite、DMM 下载你已购买的游戏。
 
 [![CI](https://github.com/Project-Shinkirou/ShinkiEMU/actions/workflows/ci.yml/badge.svg)](https://github.com/Project-Shinkirou/ShinkiEMU/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/Project-Shinkirou/ShinkiEMU?include_prereleases&sort=date)](https://github.com/Project-Shinkirou/ShinkiEMU/releases)
@@ -16,78 +16,69 @@ ShinkiEMU 仍处于预发布阶段，构建以 beta 版发布。构建成功不�
 
 **门户：**[下载](https://project-shinkirou.github.io/zh-cn/shinkiemu/#download) · [兼容性](https://project-shinkirou.github.io/zh-cn/shinkiemu/compatibility/) · [核心](https://project-shinkirou.github.io/zh-cn/shinkiemu/cores/) · [补丁](https://project-shinkirou.github.io/zh-cn/shinkiemu/patches/) · [常见问题](https://project-shinkirou.github.io/zh-cn/shinkiemu/faq/) · [项目状态](https://project-shinkirou.github.io/zh-cn/status/)
 
-## 功能
+## 兼容性
 
-- **Manager**：一个桌面与移动端应用，管理游戏库、核心、元数据（Bangumi、VNDB）和商店账号（Steam、DLsite、DMM）。
-- **原生核心**：每个核心保留引擎自己的 VM、渲染、音频、菜单和存档。Manager 通过统一的 C ABI 加载核心，见[核心 ABI](docs/zh-cn/core-abi.md)。
-- **核心单独发布**：核心与 Manager 各自发布和更新，在应用内的核心目录里安装。
-- **移动端内嵌**：Android 与 iOS 版 Manager 静态链接所支持的核心；桌面版加载下载的核心动态库。
-- **外部引擎按上游行为运行**：外部核心是组织 fork 上的薄适配层，底下是现有的开源引擎复刻实现。存档、密钥和设置沿用上游的位置与格式。
-- **不弄乱游戏目录**：ShinkiEMU 自己在游戏目录里写的文件都放在 `<game>/.shinki/` 下。
+ShinkiEMU 用 11 个核心支持 10 个引擎家族。每个核心保留引擎自己的 VM、渲染、音频、菜单和存档。其中 9 个核心是现有开源引擎复刻实现上的适配层（见[致谢](#致谢)），Musica 和 CMVS 由 ShinkiEMU 自行实现。核心列表由 [`build/cores.toml`](build/cores.toml) 定义。
 
-## 支持的引擎
+| 核心 | 引擎家族 | 核心读取的内容 |
+|---|---|---|
+| [`rfvp`](docs/zh-cn/cores/rfvp.md) | FVP | HCB 字节码 |
+| [`siglus_rs`](docs/zh-cn/cores/siglus-rs.md) | SiglusEngine | `Scene.pck` 场景包 |
+| [`sena-rs`](docs/zh-cn/cores/sena-rs.md) | SoftPAL | `SCRIPT.SRC` 字节码及配套 `.DAT` 表；适用范围为原版和 Steam 版 Koikake |
+| [`ethornell-rs`](docs/zh-cn/cores/ethornell-rs.md) | BGI / Ethornell | BCS 剧本、BP 系统程序和 DSC 压缩的归档条目 |
+| [`ReMinori`](docs/zh-cn/cores/reminori.md) | Musica | PAZ 归档；围绕 eden* 实现 |
+| [`shinki.emu.musica`](docs/zh-cn/cores/shinki-emu-musica.md) | Musica | PAZ 归档和 SC 脚本；使用原版 eden/Perseus `.sav` 存档 |
+| [`art3m1s-core`](docs/zh-cn/cores/art3m1s-core.md) | Artemis | `system.ini`、PFS（PF6/PF8）归档和编号补丁卷 `.pfs.NNN` |
+| [`renpy`](docs/zh-cn/cores/renpy.md) | Ren'Py | 运行官方 Ren'Py 8.5.3 运行时 |
+| [`shinki.emu.cmvs`](docs/zh-cn/cores/shinki-emu-cmvs.md) | CMVS | CPZ5 归档和 PS2A 脚本 |
+| [`kirikiroid2-web`](docs/zh-cn/cores/kirikiroid2-web.md) | KiriKiri | XP3 归档和 KAG/TJS 脚本 |
+| [`impacto`](docs/zh-cn/cores/impacto.md) | MAGES. | MAGES. SC3 脚本及逐游戏配置 |
 
-| 核心 | 引擎 | 桌面（动态核心） | 内嵌于 Manager |
-|---|---|---|---|
-| [`rfvp`](docs/zh-cn/cores/rfvp.md) | FVP | Windows x64、Linux x64、macOS x64/arm64 | Android、iOS |
-| [`siglus_rs`](docs/zh-cn/cores/siglus-rs.md) | SiglusEngine | Windows x64、Linux x64、macOS x64/arm64 | Android、iOS |
-| [`sena-rs`](docs/zh-cn/cores/sena-rs.md) | SoftPAL | Windows x64、Linux x64、macOS x64/arm64 | iOS |
-| [`ethornell-rs`](docs/zh-cn/cores/ethornell-rs.md) | BGI / Ethornell | Windows x64、Linux x64、macOS x64/arm64 | iOS |
-| [`ReMinori`](docs/zh-cn/cores/reminori.md) | Musica | Windows x64、Linux x64、macOS x64/arm64 | iOS |
-| [`shinki.emu.musica`](docs/zh-cn/cores/shinki-emu-musica.md) | Musica | Windows x64、Linux x64、macOS x64/arm64 | Android、iOS、实验性 OHOS |
-| [`art3m1s-core`](docs/zh-cn/cores/art3m1s-core.md) | Artemis | Windows x64、Linux x64、macOS x64/arm64 | Android |
-| [`renpy`](docs/zh-cn/cores/renpy.md) | Ren'Py | Windows x64、Linux x64、macOS x64/arm64 | Android |
-| [`shinki.emu.cmvs`](docs/zh-cn/cores/shinki-emu-cmvs.md) | CMVS | Windows x64、Linux x64、macOS x64/arm64 | — |
-| [`kirikiroid2-web`](docs/zh-cn/cores/kirikiroid2-web.md) | KiriKiri | Windows x64、Linux x64、macOS x64/arm64（另有独立的 Android 和 iOS 核心包） | — |
-| [`impacto`](docs/zh-cn/cores/impacto.md) | MAGES. | Windows x64、Linux x64、macOS x64/arm64 | Android |
+能识别引擎不代表游戏可玩。具体游戏、平台和发行版本的结论见门户的[兼容性页面](https://project-shinkirou.github.io/zh-cn/shinkiemu/compatibility/)，没有报告的游戏视为未报告。要提交结论，请使用[游戏兼容性报告](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=compatibility.yml)表单。
 
-这张表由 [`build/cores.toml`](build/cores.toml) 和 [`build/targets.toml`](build/targets.toml) 决定；`cargo xtask matrix` 会列出全部组合及 blocked 原因。实际发布了哪些产物，以[核心目录](https://project-shinkirou.github.io/zh-cn/shinkiemu/cores/)为准。实验性 OpenHarmony Manager 只内置 Musica；HAP 使用 SDK 测试 PKI 签名，未作零售设备配签。其他 OHOS 核心仍为 blocked。
+## 扩展性
 
-## 安装
+- **核心以插件形式提供**：核心与 Manager 各自发布和更新。桌面版 Manager 从应用内的核心目录安装和更新核心；Android 与 iOS 版 Manager 静态链接核心。
+- **第三方核心跟随上游**：外部核心是组织 fork 上的薄适配层，存档、密钥和设置沿用上游的位置与格式。现在的核心包以构建所用的上游版本命名，例如 rfvp `0.7.0`、impacto `0.10.8.930`、Ren'Py `8.5.3.26051504`。这类核心包需要 Manager beta.6 或更高版本，旧 Manager 继续使用旧目录。
+- **补丁**：门户[补丁库](https://project-shinkirou.github.io/zh-cn/shinkiemu/patches/)发布经过审核的 Luau 配方，只有在你选中时才会运行。补丁默认输出到新目录，原游戏保持不变；原位覆盖模式会把改动的文件备份到 `<game>/.shinki/backup/`，并可还原最近一次补丁。托管的补丁文件通过 HTTPS 下载，并校验大小和 SHA-256。新补丁可以用[补丁提交](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=patch.yml)表单投稿。
+- **商店下载**：在 Manager 里登录 Steam、DLsite 或 DMM/FANZA，选择账号已拥有的 PC 游戏，下载到游戏库。Steam 下载还能检查更新、校验已安装的文件。登录信息只保存在系统的安全存储里。DRM 和授权检查仍由商店负责。
+
+各项功能的详细说明见[用户指南](docs/zh-cn/user-guide.md)。
+
+## 可移植性
+
+| 核心 | Windows x64 | Linux x64 | macOS x64/arm64 | Android | iOS | OpenHarmony |
+|---|---|---|---|---|---|---|
+| `rfvp` | ✓ | ✓ | ✓ | 内置 | 内置 | — |
+| `siglus_rs` | ✓ | ✓ | ✓ | 内置 | 内置 | — |
+| `sena-rs` | ✓ | ✓ | ✓ | — | 内置 | — |
+| `ethornell-rs` | ✓ | ✓ | ✓ | — | 内置 | — |
+| `ReMinori` | ✓ | ✓ | ✓ | — | 内置 | — |
+| `shinki.emu.musica` | ✓ | ✓ | ✓ | 内置 | 内置 | 内置 |
+| `art3m1s-core` | ✓ | ✓ | ✓ | 内置 | — | — |
+| `renpy` | ✓ | ✓ | ✓ | 内置 | — | — |
+| `shinki.emu.cmvs` | ✓ | ✓ | ✓ | — | — | — |
+| `kirikiroid2-web` | ✓ | ✓ | ✓ | 内置 | — | — |
+| `impacto` | ✓ | ✓ | ✓ | 内置 | — | — |
+
+✓ 表示该核心已在桌面版核心目录中发布。“内置”指 [Manager 0.1.0-beta.7](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.7) 内嵌的核心：Android 7 个，iOS 6 个，OpenHarmony 只有 Musica。Android 与 iOS 版 Manager 使用内置核心，桌面版加载从核心目录下载的核心。
+
+- **Windows、Linux、macOS**：x64 的 ZIP 包，macOS 另有 Apple Silicon 版本。
+- **Android**：一个通用 APK，使用发布签名密钥。debug 签名的 CI APK 只作测试。
+- **iOS**：真机和模拟器包，作为测试构建发布。
+- **OpenHarmony**：实验性 HAP，使用 OpenHarmony SDK 测试 PKI 签名，尚未验证真机启动和零售设备安装。
+
+存档行为因核心而异。外部核心沿用上游的存档位置与格式；Musica 把原版格式的 eden/Perseus `.sav` 存放在 `<game>/.shinki/musica/` 下。ShinkiEMU 自己在游戏目录里写的文件都放在 `<game>/.shinki/` 下。备份存档或交换受支持的原版格式存档前，先关闭游戏。
+
+## 下载与快速上手
 
 1. 从[门户](https://project-shinkirou.github.io/zh-cn/shinkiemu/#download)或 [Releases](https://github.com/Project-Shinkirou/ShinkiEMU/releases) 下载对应平台的 Manager 包。
-2. 解压后运行 `shinki-emu-manager`（Windows 上是 `shinki-emu-manager.exe`）。
-3. Linux 需要先装好[构建与发布](docs/zh-cn/build-and-release.md)里 Linux 桌面一节列出的运行库。
+2. 解压后运行 `shinki-emu-manager`（Windows 上是 `shinki-emu-manager.exe`）。Linux 需要先装好[构建与发布](docs/zh-cn/build-and-release.md)里 Linux 桌面一节列出的运行库。
+3. 在设置中添加存放游戏的目录。
+4. 从核心目录安装或更新游戏需要的核心。
+5. 在游戏库里选中游戏并启动。
 
-公开的 Android 安装包使用发布签名密钥，debug 签名的 CI APK 只作测试。[Manager beta.6 发布说明](docs/zh-cn/releases/manager-0.1.0-beta.6.md)列出其 Android 六核、保留的 iOS 范围与原生能力要求。带上游身份的新核心包需要 beta.6 或更高版本；旧 Manager 继续使用核心 v1 与兼容性 v4 目录。
-
-## 快速上手
-
-1. 在设置中添加存放游戏的目录。
-2. 从核心目录安装或更新游戏需要的核心。
-3. 在游戏库里选中游戏并启动。
-
-配置、存档、元数据和补丁的用法见[用户指南](docs/zh-cn/user-guide.md)。
-
-## 从源码构建
-
-带子模块克隆，使用固定的 Rust 1.99.1 工具链。构建、打包和发布都是在仓库根目录运行的 `cargo xtask` 命令：
-
-```sh
-git clone --recurse-submodules https://github.com/Project-Shinkirou/ShinkiEMU
-cd ShinkiEMU
-cargo xtask doctor --target x86_64-pc-windows-msvc          # 列出缺少的前置条件
-cargo xtask deps --target x86_64-pc-windows-msvc --all-cores
-cargo xtask build --target x86_64-pc-windows-msvc --manager --release
-cargo xtask build --target x86_64-pc-windows-msvc --core rfvp --release
-cargo xtask test --core rfvp
-```
-
-`deps` 按 `build/cores.toml` 固定的精确提交拉取各外部核心的 fork，并准备锁定版本的原生依赖。各平台前置条件（MSVC、Linux 软件包、Android NDK、Ren'Py SDK）以及打包、发布流程见[构建与发布](docs/zh-cn/build-and-release.md)。
-
-## 文档
-
-| | 简体中文 | English | 日本語 |
-|---|---|---|---|
-| 概览 | [index](docs/zh-cn/index.md) | [index](docs/en/index.md) | [index](docs/ja/index.md) |
-| 用户指南 | [user-guide](docs/zh-cn/user-guide.md) | [user-guide](docs/en/user-guide.md) | [user-guide](docs/ja/user-guide.md) |
-| 核心 ABI | [core-abi](docs/zh-cn/core-abi.md) | [core-abi](docs/en/core-abi.md) | [core-abi](docs/ja/core-abi.md) |
-| 构建与发布 | [build-and-release](docs/zh-cn/build-and-release.md) | [build-and-release](docs/en/build-and-release.md) | [build-and-release](docs/ja/build-and-release.md) |
-| 元数据目录 | [metadata](docs/zh-cn/metadata.md) | [metadata](docs/en/metadata.md) | [metadata](docs/ja/metadata.md) |
-
-## 参与贡献
-
-提交 PR 前先读 [CONTRIBUTING.md](CONTRIBUTING.md)。编写新核心，或把现有引擎接入为核心，按 [`.agents/skills/`](.agents/skills/) 里的 agent skill 操作。不要提交商业游戏数据，测试只用自造夹具。
+Manager 界面提供简体中文、英文和日文。配置、存档、元数据、商店下载和补丁的用法见[用户指南](docs/zh-cn/user-guide.md)。发布说明：[Manager beta.7](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.7) · [beta.6](docs/zh-cn/releases/manager-0.1.0-beta.6.md)。
 
 ## 问题反馈
 
@@ -98,6 +89,19 @@ cargo xtask test --core rfvp
 - [补丁提交](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=patch.yml)
 
 外部引擎本身的问题也可以报给上游，每个核心页面都链接了它的上游项目。
+
+## 开发
+
+提交 PR 前先读 [CONTRIBUTING.md](CONTRIBUTING.md)。构建、打包和发布步骤，包括各平台前置条件和固定的工具链，见[构建与发布](docs/zh-cn/build-and-release.md)。编写新核心，或把现有引擎接入为核心，按 [`.agents/skills/`](.agents/skills/) 里的 agent skill 操作。不要提交商业游戏数据，测试只用自造夹具。
+
+| | 简体中文 | English | 日本語 |
+|---|---|---|---|
+| 概览 | [index](docs/zh-cn/index.md) | [index](docs/en/index.md) | [index](docs/ja/index.md) |
+| 用户指南 | [user-guide](docs/zh-cn/user-guide.md) | [user-guide](docs/en/user-guide.md) | [user-guide](docs/ja/user-guide.md) |
+| 核心 ABI | [core-abi](docs/zh-cn/core-abi.md) | [core-abi](docs/en/core-abi.md) | [core-abi](docs/ja/core-abi.md) |
+| 构建与发布 | [build-and-release](docs/zh-cn/build-and-release.md) | [build-and-release](docs/en/build-and-release.md) | [build-and-release](docs/ja/build-and-release.md) |
+| 元数据目录 | [metadata](docs/zh-cn/metadata.md) | [metadata](docs/en/metadata.md) | [metadata](docs/ja/metadata.md) |
+| 无界面运行器 | [headless](docs/zh-cn/headless.md) | [headless](docs/en/headless.md) | [headless](docs/ja/headless.md) |
 
 ## 致谢
 

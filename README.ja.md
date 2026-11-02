@@ -5,7 +5,7 @@
 
 # ShinkiEMU
 
-ゲームライブラリ管理アプリと、旧来のビジュアルノベルエンジンで作られたゲームを動かすネイティブコア群です。
+ShinkiEMU は、旧来のエンジンで作られたビジュアルノベルを今のパソコンやスマートフォンで動かします。Manager アプリひとつでゲームライブラリを管理し、エンジンごとのネイティブコアをインストールし、Bangumi と VNDB からメタデータを取得し、Steam・DLsite・DMM で購入済みのゲームをダウンロードできます。
 
 [![CI](https://github.com/Project-Shinkirou/ShinkiEMU/actions/workflows/ci.yml/badge.svg)](https://github.com/Project-Shinkirou/ShinkiEMU/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/Project-Shinkirou/ShinkiEMU?include_prereleases&sort=date)](https://github.com/Project-Shinkirou/ShinkiEMU/releases)
@@ -16,78 +16,69 @@ ShinkiEMU はプレリリース段階で、ビルドは beta として公開し�
 
 **ポータル：**[ダウンロード](https://project-shinkirou.github.io/ja/shinkiemu/#download) · [互換性](https://project-shinkirou.github.io/ja/shinkiemu/compatibility/) · [コア](https://project-shinkirou.github.io/ja/shinkiemu/cores/) · [パッチ](https://project-shinkirou.github.io/ja/shinkiemu/patches/) · [よくある質問](https://project-shinkirou.github.io/ja/shinkiemu/faq/) · [プロジェクトの状況](https://project-shinkirou.github.io/ja/status/)
 
-## 機能
+## 互換性
 
-- **Manager**：ゲームライブラリ、コア、メタデータ（Bangumi、VNDB）、ストアアカウント（Steam、DLsite、DMM）を扱うデスクトップ・モバイル向けアプリです。
-- **ネイティブコア**：各コアはエンジン本来の VM、描画、音声、メニュー、セーブを保持します。Manager は共通の C ABI でコアを読み込みます（[コア ABI](docs/ja/core-abi.md)）。
-- **コアの個別リリース**：コアは Manager とは別にリリース・更新され、アプリ内のコアカタログからインストールします。
-- **モバイルへの組み込み**：Android と iOS の Manager は対応コアを静的リンクします。デスクトップ版はダウンロードしたコアライブラリを読み込みます。
-- **外部エンジンは上流の挙動のまま**：外部コアは、既存のオープンソースのエンジン再実装を組織でフォークし、その上に薄いアダプターを載せたものです。セーブ、鍵、設定は上流の場所と形式を使います。
-- **ゲームディレクトリを汚さない**：ShinkiEMU 自身がゲームディレクトリに書くファイルは、すべて `<game>/.shinki/` の下に置きます。
+ShinkiEMU は 11 のコアで 10 のエンジンファミリーに対応しています。各コアはエンジン本来の VM、描画、音声、メニュー、セーブを保持します。9 つのコアは既存のオープンソースのエンジン再実装に載せたアダプター（[謝辞](#謝辞)を参照）で、Musica と CMVS は ShinkiEMU 独自の実装です。コアの一覧は [`build/cores.toml`](build/cores.toml) で定義しています。
 
-## 対応エンジン
+| コア | エンジンファミリー | コアが読み込むもの |
+|---|---|---|
+| [`rfvp`](docs/ja/cores/rfvp.md) | FVP | HCB バイトコード |
+| [`siglus_rs`](docs/ja/cores/siglus-rs.md) | SiglusEngine | `Scene.pck` シーンパッケージ |
+| [`sena-rs`](docs/ja/cores/sena-rs.md) | SoftPAL | `SCRIPT.SRC` バイトコードと付随する `.DAT` テーブル。対象はオリジナル版と Steam 版の Koikake |
+| [`ethornell-rs`](docs/ja/cores/ethornell-rs.md) | BGI / Ethornell | BCS シナリオ、BP システムプログラム、DSC 圧縮のアーカイブエントリ |
+| [`ReMinori`](docs/ja/cores/reminori.md) | Musica | PAZ アーカイブ。eden* を基準に実装 |
+| [`shinki.emu.musica`](docs/ja/cores/shinki-emu-musica.md) | Musica | PAZ アーカイブと SC スクリプト。オリジナルの eden/Perseus `.sav` セーブを使用 |
+| [`art3m1s-core`](docs/ja/cores/art3m1s-core.md) | Artemis | `system.ini`、PFS（PF6/PF8）アーカイブ、番号付きパッチボリューム `.pfs.NNN` |
+| [`renpy`](docs/ja/cores/renpy.md) | Ren'Py | 公式の Ren'Py 8.5.3 ランタイムを実行 |
+| [`shinki.emu.cmvs`](docs/ja/cores/shinki-emu-cmvs.md) | CMVS | CPZ5 アーカイブと PS2A スクリプト |
+| [`kirikiroid2-web`](docs/ja/cores/kirikiroid2-web.md) | KiriKiri | XP3 アーカイブと KAG/TJS スクリプト |
+| [`impacto`](docs/ja/cores/impacto.md) | MAGES. | MAGES. SC3 スクリプトとゲームごとの設定 |
 
-| コア | エンジン | デスクトップ（動的コア） | Manager に組み込み |
-|---|---|---|---|
-| [`rfvp`](docs/ja/cores/rfvp.md) | FVP | Windows x64、Linux x64、macOS x64/arm64 | Android、iOS |
-| [`siglus_rs`](docs/ja/cores/siglus-rs.md) | SiglusEngine | Windows x64、Linux x64、macOS x64/arm64 | Android、iOS |
-| [`sena-rs`](docs/ja/cores/sena-rs.md) | SoftPAL | Windows x64、Linux x64、macOS x64/arm64 | iOS |
-| [`ethornell-rs`](docs/ja/cores/ethornell-rs.md) | BGI / Ethornell | Windows x64、Linux x64、macOS x64/arm64 | iOS |
-| [`ReMinori`](docs/ja/cores/reminori.md) | Musica | Windows x64、Linux x64、macOS x64/arm64 | iOS |
-| [`shinki.emu.musica`](docs/ja/cores/shinki-emu-musica.md) | Musica | Windows x64、Linux x64、macOS x64/arm64 | Android、iOS、実験的 OHOS |
-| [`art3m1s-core`](docs/ja/cores/art3m1s-core.md) | Artemis | Windows x64、Linux x64、macOS x64/arm64 | Android |
-| [`renpy`](docs/ja/cores/renpy.md) | Ren'Py | Windows x64、Linux x64、macOS x64/arm64 | Android |
-| [`shinki.emu.cmvs`](docs/ja/cores/shinki-emu-cmvs.md) | CMVS | Windows x64、Linux x64、macOS x64/arm64 | — |
-| [`kirikiroid2-web`](docs/ja/cores/kirikiroid2-web.md) | KiriKiri | Windows x64、Linux x64、macOS x64/arm64（Android と iOS 向けの単体コアパッケージもあり） | — |
-| [`impacto`](docs/ja/cores/impacto.md) | MAGES. | Windows x64、Linux x64、macOS x64/arm64 | Android |
+エンジンを認識できても、そのゲームが遊べるとは限りません。ゲーム・プラットフォーム・リリースごとの結果はポータルの[互換性ページ](https://project-shinkirou.github.io/ja/shinkiemu/compatibility/)にあり、レポートのないゲームは未報告です。結果を追加するには[ゲーム互換性報告](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=compatibility.yml)フォームを使ってください。
 
-この表は [`build/cores.toml`](build/cores.toml) と [`build/targets.toml`](build/targets.toml) で決まります。`cargo xtask matrix` を実行すると、すべての組み合わせと blocked の理由が表示されます。実際に公開されている成果物は[コアディレクトリ](https://project-shinkirou.github.io/ja/shinkiemu/cores/)で確認してください。実験的な OpenHarmony Manager は Musica のみを組み込みます。HAP は SDK テスト PKI 署名で、製品端末向けのプロビジョニングではありません。他の OHOS コアは blocked のままです。
+## 拡張性
 
-## インストール
+- **コアはプラグイン**：コアは Manager とは別にリリース・更新されます。デスクトップ版 Manager はアプリ内のコアカタログからコアをインストール・更新し、Android と iOS の Manager はコアを静的リンクします。
+- **サードパーティのコアは上流に従う**：外部コアは組織のフォークに載せた薄いアダプターで、セーブ、鍵、設定は上流の場所と形式を使います。現在のコアパッケージは、ビルド元の上流リリースにちなんで名付けられています（例：rfvp `0.7.0`、impacto `0.10.8.930`、Ren'Py `8.5.3.26051504`）。これらのパッケージには Manager beta.6 以降が必要で、旧 Manager は従来のカタログを使い続けます。
+- **パッチ**：ポータルの[パッチライブラリ](https://project-shinkirou.github.io/ja/shinkiemu/patches/)では、レビュー済みの Luau レシピを公開しています。レシピは選択したときだけ実行されます。既定では新しいディレクトリに出力し、元のゲームは変更しません。上書きモードでは変更したファイルを `<game>/.shinki/backup/` に退避し、直近のパッチを元に戻せます。ホストされたパッチファイルは HTTPS でダウンロードし、サイズと SHA-256 を検証します。新しいパッチは[パッチの提出](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=patch.yml)フォームから投稿できます。
+- **ストアからのダウンロード**：Manager の中で Steam、DLsite、DMM/FANZA にログインし、アカウントが所有する PC ゲームを選んでライブラリにダウンロードできます。Steam では更新の確認とインストール済みファイルの検証もできます。ログイン情報はプラットフォームの安全な保管領域にだけ保存します。DRM とライセンス確認はストア側の責任です。
+
+それぞれの詳細は[ユーザーガイド](docs/ja/user-guide.md)にあります。
+
+## 移植性
+
+| コア | Windows x64 | Linux x64 | macOS x64/arm64 | Android | iOS | OpenHarmony |
+|---|---|---|---|---|---|---|
+| `rfvp` | ✓ | ✓ | ✓ | 組み込み | 組み込み | — |
+| `siglus_rs` | ✓ | ✓ | ✓ | 組み込み | 組み込み | — |
+| `sena-rs` | ✓ | ✓ | ✓ | — | 組み込み | — |
+| `ethornell-rs` | ✓ | ✓ | ✓ | — | 組み込み | — |
+| `ReMinori` | ✓ | ✓ | ✓ | — | 組み込み | — |
+| `shinki.emu.musica` | ✓ | ✓ | ✓ | 組み込み | 組み込み | 組み込み |
+| `art3m1s-core` | ✓ | ✓ | ✓ | 組み込み | — | — |
+| `renpy` | ✓ | ✓ | ✓ | 組み込み | — | — |
+| `shinki.emu.cmvs` | ✓ | ✓ | ✓ | — | — | — |
+| `kirikiroid2-web` | ✓ | ✓ | ✓ | 組み込み | — | — |
+| `impacto` | ✓ | ✓ | ✓ | 組み込み | — | — |
+
+✓ はデスクトップ版のコアカタログで公開済みであることを示します。「組み込み」は [Manager 0.1.0-beta.7](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.7) に組み込まれたコアで、Android は 7 つ、iOS は 6 つ、OpenHarmony は Musica のみです。Android と iOS の Manager は組み込みのコアを使い、デスクトップ版はカタログからダウンロードしたコアを読み込みます。
+
+- **Windows、Linux、macOS**：x64 向けの ZIP パッケージ。macOS には Apple Silicon 版もあります。
+- **Android**：リリース署名鍵で署名したユニバーサル APK がひとつ。debug 署名の CI APK はテスト用です。
+- **iOS**：実機向けとシミュレーター向けのパッケージを、テストビルドとして公開しています。
+- **OpenHarmony**：OpenHarmony SDK のテスト PKI で署名した実験的な HAP。実機での起動と製品端末へのインストールは未確認です。
+
+セーブの扱いはコアごとに異なります。外部コアは上流のセーブ場所と形式を使います。Musica はオリジナル形式の eden/Perseus `.sav` を `<game>/.shinki/musica/` に保存します。ShinkiEMU 自身がゲームディレクトリに書くファイルは、すべて `<game>/.shinki/` の下に置きます。セーブをバックアップする前や、対応するオリジナル形式のセーブファイルをやり取りする前には、ゲームを終了してください。
+
+## ダウンロードとクイックスタート
 
 1. [ポータル](https://project-shinkirou.github.io/ja/shinkiemu/#download)または [Releases](https://github.com/Project-Shinkirou/ShinkiEMU/releases) から自分のプラットフォーム用の Manager パッケージをダウンロードします。
-2. 展開して `shinki-emu-manager`（Windows では `shinki-emu-manager.exe`）を起動します。
-3. Linux では、[ビルドとリリース](docs/ja/build-and-release.md)の Linux デスクトップの節にあるランタイムライブラリを先にインストールします。
+2. 展開して `shinki-emu-manager`（Windows では `shinki-emu-manager.exe`）を起動します。Linux では、[ビルドとリリース](docs/ja/build-and-release.md)の Linux デスクトップの節にあるランタイムライブラリを先にインストールします。
+3. 設定でゲームの入ったディレクトリを追加します。
+4. コアカタログから、ゲームに必要なコアをインストールまたは更新します。
+5. ライブラリでゲームを選んで起動します。
 
-公開 Android インストーラーはリリース署名鍵を使用し、debug 署名の CI APK はテスト専用です。[Manager beta.6 リリースノート](docs/ja/releases/manager-0.1.0-beta.6.md)に Android の6コア、既存の iOS 対応範囲、ネイティブ機能の要件を記載しています。upstream 識別子付きの新コアパッケージには beta.6 以降が必要です。旧 Manager は core v1 と compatibility v4 のカタログを引き続き使用します。
-
-## クイックスタート
-
-1. 設定でゲームの入ったディレクトリを追加します。
-2. コアカタログから、ゲームに必要なコアをインストールまたは更新します。
-3. ライブラリでゲームを選んで起動します。
-
-設定、セーブ、メタデータ、パッチについては[ユーザーガイド](docs/ja/user-guide.md)を参照してください。
-
-## ソースからのビルド
-
-サブモジュールごとクローンし、固定された Rust 1.99.1 ツールチェーンを使います。ビルド、パッケージ、リリースはすべてリポジトリのルートで実行する `cargo xtask` コマンドです。
-
-```sh
-git clone --recurse-submodules https://github.com/Project-Shinkirou/ShinkiEMU
-cd ShinkiEMU
-cargo xtask doctor --target x86_64-pc-windows-msvc          # 不足している前提条件を表示
-cargo xtask deps --target x86_64-pc-windows-msvc --all-cores
-cargo xtask build --target x86_64-pc-windows-msvc --manager --release
-cargo xtask build --target x86_64-pc-windows-msvc --core rfvp --release
-cargo xtask test --core rfvp
-```
-
-`deps` は、`build/cores.toml` で固定された正確なコミットで各外部コアのフォークを取得し、バージョン固定のネイティブ依存も準備します。プラットフォームごとの前提条件（MSVC、Linux パッケージ、Android NDK、Ren'Py SDK）、パッケージ作成、リリースは[ビルドとリリース](docs/ja/build-and-release.md)にあります。
-
-## ドキュメント
-
-| | 简体中文 | English | 日本語 |
-|---|---|---|---|
-| 概要 | [index](docs/zh-cn/index.md) | [index](docs/en/index.md) | [index](docs/ja/index.md) |
-| ユーザーガイド | [user-guide](docs/zh-cn/user-guide.md) | [user-guide](docs/en/user-guide.md) | [user-guide](docs/ja/user-guide.md) |
-| コア ABI | [core-abi](docs/zh-cn/core-abi.md) | [core-abi](docs/en/core-abi.md) | [core-abi](docs/ja/core-abi.md) |
-| ビルドとリリース | [build-and-release](docs/zh-cn/build-and-release.md) | [build-and-release](docs/en/build-and-release.md) | [build-and-release](docs/ja/build-and-release.md) |
-| メタデータカタログ | [metadata](docs/zh-cn/metadata.md) | [metadata](docs/en/metadata.md) | [metadata](docs/ja/metadata.md) |
-
-## コントリビュート
-
-プルリクエストの前に [CONTRIBUTING.md](CONTRIBUTING.md) を読んでください。新しいコアを書く場合や、既存のエンジンをコアとして取り込む場合は、[`.agents/skills/`](.agents/skills/) のエージェントスキルに従ってください。商用ゲームのデータはコミットせず、テストには自作のフィクスチャだけを使います。
+Manager の表示言語は簡体字中国語、英語、日本語です。設定、セーブ、メタデータ、ストアからのダウンロード、パッチについては[ユーザーガイド](docs/ja/user-guide.md)を参照してください。リリースノート：[Manager beta.7](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.7) · [beta.6](docs/ja/releases/manager-0.1.0-beta.6.md)
 
 ## 問題の報告
 
@@ -98,6 +89,19 @@ cargo xtask test --core rfvp
 - [パッチの提出](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=patch.yml)
 
 外部エンジン自体の問題は上流に報告するほうがよい場合もあります。各コアのページに上流プロジェクトへのリンクがあります。
+
+## 開発
+
+プルリクエストの前に [CONTRIBUTING.md](CONTRIBUTING.md) を読んでください。ビルド、パッケージ作成、リリースの手順は、プラットフォームごとの前提条件と固定ツールチェーンも含めて[ビルドとリリース](docs/ja/build-and-release.md)にあります。新しいコアを書く場合や、既存のエンジンをコアとして取り込む場合は、[`.agents/skills/`](.agents/skills/) のエージェントスキルに従ってください。商用ゲームのデータはコミットせず、テストには自作のフィクスチャだけを使います。
+
+| | 简体中文 | English | 日本語 |
+|---|---|---|---|
+| 概要 | [index](docs/zh-cn/index.md) | [index](docs/en/index.md) | [index](docs/ja/index.md) |
+| ユーザーガイド | [user-guide](docs/zh-cn/user-guide.md) | [user-guide](docs/en/user-guide.md) | [user-guide](docs/ja/user-guide.md) |
+| コア ABI | [core-abi](docs/zh-cn/core-abi.md) | [core-abi](docs/en/core-abi.md) | [core-abi](docs/ja/core-abi.md) |
+| ビルドとリリース | [build-and-release](docs/zh-cn/build-and-release.md) | [build-and-release](docs/en/build-and-release.md) | [build-and-release](docs/ja/build-and-release.md) |
+| メタデータカタログ | [metadata](docs/zh-cn/metadata.md) | [metadata](docs/en/metadata.md) | [metadata](docs/ja/metadata.md) |
+| ヘッドレスランナー | [headless](docs/zh-cn/headless.md) | [headless](docs/en/headless.md) | [headless](docs/ja/headless.md) |
 
 ## 謝辞
 

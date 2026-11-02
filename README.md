@@ -5,7 +5,7 @@
 
 # ShinkiEMU
 
-A game library manager with native cores that run visual novels made with legacy engines.
+ShinkiEMU plays visual novels made with older engines on today's computers and phones. One Manager app keeps your game library, installs a native core for each engine, fetches metadata from Bangumi and VNDB, and downloads games you own from Steam, DLsite and DMM.
 
 [![CI](https://github.com/Project-Shinkirou/ShinkiEMU/actions/workflows/ci.yml/badge.svg)](https://github.com/Project-Shinkirou/ShinkiEMU/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/Project-Shinkirou/ShinkiEMU?include_prereleases&sort=date)](https://github.com/Project-Shinkirou/ShinkiEMU/releases)
@@ -16,78 +16,69 @@ ShinkiEMU is pre-release software. Builds are published as beta releases. A succ
 
 **Portal:** [Download](https://project-shinkirou.github.io/en/shinkiemu/#download) · [Compatibility](https://project-shinkirou.github.io/en/shinkiemu/compatibility/) · [Cores](https://project-shinkirou.github.io/en/shinkiemu/cores/) · [Patches](https://project-shinkirou.github.io/en/shinkiemu/patches/) · [FAQ](https://project-shinkirou.github.io/en/shinkiemu/faq/) · [Project status](https://project-shinkirou.github.io/en/status/)
 
-## Features
+## Compatibility
 
-- **Manager.** One desktop and mobile app for your game library, cores, metadata (Bangumi, VNDB) and store accounts (Steam, DLsite, DMM).
-- **Native cores.** Each core keeps its engine's own VM, rendering, audio, menus and saves. The Manager hosts cores through one C ABI ([Core ABI](docs/en/core-abi.md)).
-- **Separately released cores.** Cores are released and updated independently of the Manager, and installed from the in-app catalog.
-- **Mobile embedding.** Android and iOS Managers link the supported cores statically; desktop Managers load downloaded core libraries.
-- **Upstream engines stay upstream.** External cores are thin adapters on organization forks of existing open-source engine reimplementations. Their saves, keys and settings keep upstream locations and formats.
-- **Your game directory stays clean.** Files ShinkiEMU itself writes in a game directory go under `<game>/.shinki/`.
+ShinkiEMU supports ten engine families through eleven cores. Each core keeps its engine's own VM, rendering, audio, menus and saves. Nine cores are adapters on existing open-source engine reimplementations (see [Acknowledgements](#acknowledgements)); Musica and CMVS are ShinkiEMU's own implementations. [`build/cores.toml`](build/cores.toml) defines this list.
 
-## Supported engines
+| Core | Engine family | What the core reads |
+|---|---|---|
+| [`rfvp`](docs/en/cores/rfvp.md) | FVP | HCB bytecode |
+| [`siglus_rs`](docs/en/cores/siglus-rs.md) | SiglusEngine | `Scene.pck` scene packages |
+| [`sena-rs`](docs/en/cores/sena-rs.md) | SoftPAL | `SCRIPT.SRC` bytecode with its `.DAT` tables; scope is the native and Steam releases of Koikake |
+| [`ethornell-rs`](docs/en/cores/ethornell-rs.md) | BGI / Ethornell | BCS scenarios, BP system programs and DSC-compressed archive entries |
+| [`ReMinori`](docs/en/cores/reminori.md) | Musica | PAZ archives; built around eden* |
+| [`shinki.emu.musica`](docs/en/cores/shinki-emu-musica.md) | Musica | PAZ archives and SC scripts; original eden/Perseus `.sav` saves |
+| [`art3m1s-core`](docs/en/cores/art3m1s-core.md) | Artemis | `system.ini`, PFS (PF6/PF8) archives and numbered `.pfs.NNN` patch volumes |
+| [`renpy`](docs/en/cores/renpy.md) | Ren'Py | Runs the official Ren'Py 8.5.3 runtime |
+| [`shinki.emu.cmvs`](docs/en/cores/shinki-emu-cmvs.md) | CMVS | CPZ5 archives and PS2A scripts |
+| [`kirikiroid2-web`](docs/en/cores/kirikiroid2-web.md) | KiriKiri | XP3 archives and KAG/TJS scripts |
+| [`impacto`](docs/en/cores/impacto.md) | MAGES. | MAGES. SC3 scripts with per-game configuration |
 
-| Core | Engine | Desktop (dynamic core) | Embedded in Manager |
-|---|---|---|---|
-| [`rfvp`](docs/en/cores/rfvp.md) | FVP | Windows x64, Linux x64, macOS x64/arm64 | Android, iOS |
-| [`siglus_rs`](docs/en/cores/siglus-rs.md) | SiglusEngine | Windows x64, Linux x64, macOS x64/arm64 | Android, iOS |
-| [`sena-rs`](docs/en/cores/sena-rs.md) | SoftPAL | Windows x64, Linux x64, macOS x64/arm64 | iOS |
-| [`ethornell-rs`](docs/en/cores/ethornell-rs.md) | BGI / Ethornell | Windows x64, Linux x64, macOS x64/arm64 | iOS |
-| [`ReMinori`](docs/en/cores/reminori.md) | Musica | Windows x64, Linux x64, macOS x64/arm64 | iOS |
-| [`shinki.emu.musica`](docs/en/cores/shinki-emu-musica.md) | Musica | Windows x64, Linux x64, macOS x64/arm64 | Android, iOS, experimental OHOS |
-| [`art3m1s-core`](docs/en/cores/art3m1s-core.md) | Artemis | Windows x64, Linux x64, macOS x64/arm64 | Android |
-| [`renpy`](docs/en/cores/renpy.md) | Ren'Py | Windows x64, Linux x64, macOS x64/arm64 | Android |
-| [`shinki.emu.cmvs`](docs/en/cores/shinki-emu-cmvs.md) | CMVS | Windows x64, Linux x64, macOS x64/arm64 | — |
-| [`kirikiroid2-web`](docs/en/cores/kirikiroid2-web.md) | KiriKiri | Windows x64, Linux x64, macOS x64/arm64 (also packaged as a standalone Android and iOS core) | — |
-| [`impacto`](docs/en/cores/impacto.md) | MAGES. | Windows x64, Linux x64, macOS x64/arm64 | Android |
+Recognizing an engine is not a playability result. Results for specific games, platforms and releases are on the portal's [compatibility page](https://project-shinkirou.github.io/en/shinkiemu/compatibility/); a game without a report is unreported. To add one, use the [game compatibility report](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=compatibility.yml) form.
 
-[`build/cores.toml`](build/cores.toml) and [`build/targets.toml`](build/targets.toml) define this matrix; run `cargo xtask matrix` for every combination with its blocked reason. The [core directory](https://project-shinkirou.github.io/en/shinkiemu/cores/) lists what is actually published. The experimental OpenHarmony Manager embeds Musica only; its HAP uses the SDK test PKI, not retail provisioning. Other OHOS cores remain blocked.
+## Extensibility
 
-## Install
+- **Cores are plugins.** Cores are released and updated independently of the Manager. Desktop Managers install and update them from the in-app core catalog; Android and iOS Managers link their cores statically.
+- **Third-party cores follow upstream.** External cores are thin adapters on organization forks. Their saves, keys and settings keep upstream locations and formats. Current packages are named after the upstream release they are built from, such as rfvp `0.7.0`, impacto `0.10.8.930` and Ren'Py `8.5.3.26051504`; Manager beta.6 or later reads them, while older Managers keep the legacy catalog.
+- **Patches.** The portal's [patch library](https://project-shinkirou.github.io/en/shinkiemu/patches/) publishes reviewed Luau recipes that run only when you select them. By default a patch writes a new directory and leaves the original game unchanged. In-place mode backs up changed files under `<game>/.shinki/backup/` and can restore the latest patch. Hosted patch files are downloaded over HTTPS and checked against their size and SHA-256. Submit a new patch with the [patch submission](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=patch.yml) form.
+- **Store downloads.** Sign in to Steam, DLsite or DMM/FANZA inside the Manager, pick a PC game your account owns, and download it into your library. Steam downloads can also check for updates and verify installed files. Logins are kept only in the platform's secret store. DRM and license checks remain the store's responsibility.
+
+The [user guide](docs/en/user-guide.md) describes each of these in detail.
+
+## Portability
+
+| Core | Windows x64 | Linux x64 | macOS x64/arm64 | Android | iOS | OpenHarmony |
+|---|---|---|---|---|---|---|
+| `rfvp` | ✓ | ✓ | ✓ | Built in | Built in | — |
+| `siglus_rs` | ✓ | ✓ | ✓ | Built in | Built in | — |
+| `sena-rs` | ✓ | ✓ | ✓ | — | Built in | — |
+| `ethornell-rs` | ✓ | ✓ | ✓ | — | Built in | — |
+| `ReMinori` | ✓ | ✓ | ✓ | — | Built in | — |
+| `shinki.emu.musica` | ✓ | ✓ | ✓ | Built in | Built in | Built in |
+| `art3m1s-core` | ✓ | ✓ | ✓ | Built in | — | — |
+| `renpy` | ✓ | ✓ | ✓ | Built in | — | — |
+| `shinki.emu.cmvs` | ✓ | ✓ | ✓ | — | — | — |
+| `kirikiroid2-web` | ✓ | ✓ | ✓ | Built in | — | — |
+| `impacto` | ✓ | ✓ | ✓ | Built in | — | — |
+
+✓ means the core is published in the desktop core catalog. "Built in" is the set embedded in [Manager 0.1.0-beta.7](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.7): seven cores on Android, six on iOS and Musica on OpenHarmony. Android and iOS Managers use their built-in cores; desktop Managers load cores downloaded from the catalog.
+
+- **Windows, Linux and macOS:** ZIP bundles for x64, plus Apple Silicon on macOS.
+- **Android:** one universal APK signed with the release key. Debug-signed CI APKs are test builds.
+- **iOS:** device and simulator packages, published as test builds.
+- **OpenHarmony:** an experimental HAP signed with the OpenHarmony SDK test PKI. Launch on a device and retail installation have not been verified.
+
+Save behavior is core-specific. External cores keep their upstream save locations and formats. Musica stores original-format eden/Perseus `.sav` files under `<game>/.shinki/musica/`. Files that ShinkiEMU itself writes in a game directory go under `<game>/.shinki/`. Close the game before you back up saves or exchange supported original-format save files.
+
+## Download and quick start
 
 1. Download the Manager bundle for your platform from the [portal](https://project-shinkirou.github.io/en/shinkiemu/#download) or [Releases](https://github.com/Project-Shinkirou/ShinkiEMU/releases).
-2. Extract it and start `shinki-emu-manager` (`shinki-emu-manager.exe` on Windows).
-3. On Linux, install the runtime libraries listed in [Build and release](docs/en/build-and-release.md#linux-desktop).
+2. Extract it and start `shinki-emu-manager` (`shinki-emu-manager.exe` on Windows). On Linux, install the runtime libraries listed in [Build and release](docs/en/build-and-release.md#linux-desktop) first.
+3. In Settings, add the directories that contain your games.
+4. Install or update the cores your games need from the core catalog.
+5. Select a game in the library and launch it.
 
-Published Android installers use the release signing key; debug-signed CI APKs are test artifacts. [Manager beta.6 release notes](docs/en/releases/manager-0.1.0-beta.6.md) describe its six embedded Android cores, retained iOS scope and native-capability requirements. Typed upstream-identity core packages require beta.6 or later; older Managers keep using the legacy core v1 and compatibility v4 catalogs.
-
-## Quick start
-
-1. In Settings, add the directories that contain your games.
-2. Install or update the cores your games need from the core catalog.
-3. Select a game in the library and launch it.
-
-The [user guide](docs/en/user-guide.md) covers configuration, saves, metadata and patches.
-
-## Building from source
-
-Clone with submodules and use the pinned Rust 1.99.1 toolchain. All build, packaging and release steps are `cargo xtask` commands run from the repository root:
-
-```sh
-git clone --recurse-submodules https://github.com/Project-Shinkirou/ShinkiEMU
-cd ShinkiEMU
-cargo xtask doctor --target x86_64-pc-windows-msvc          # report missing prerequisites
-cargo xtask deps --target x86_64-pc-windows-msvc --all-cores
-cargo xtask build --target x86_64-pc-windows-msvc --manager --release
-cargo xtask build --target x86_64-pc-windows-msvc --core rfvp --release
-cargo xtask test --core rfvp
-```
-
-`deps` fetches each external core's fork at the exact revision pinned in `build/cores.toml`, along with its locked native dependencies. Platform prerequisites (MSVC, Linux packages, Android NDK, the Ren'Py SDK), packaging and releases are in [Build and release](docs/en/build-and-release.md).
-
-## Documentation
-
-| | 简体中文 | English | 日本語 |
-|---|---|---|---|
-| Overview | [index](docs/zh-cn/index.md) | [index](docs/en/index.md) | [index](docs/ja/index.md) |
-| User guide | [user-guide](docs/zh-cn/user-guide.md) | [user-guide](docs/en/user-guide.md) | [user-guide](docs/ja/user-guide.md) |
-| Core ABI | [core-abi](docs/zh-cn/core-abi.md) | [core-abi](docs/en/core-abi.md) | [core-abi](docs/ja/core-abi.md) |
-| Build and release | [build-and-release](docs/zh-cn/build-and-release.md) | [build-and-release](docs/en/build-and-release.md) | [build-and-release](docs/ja/build-and-release.md) |
-| Metadata catalog | [metadata](docs/zh-cn/metadata.md) | [metadata](docs/en/metadata.md) | [metadata](docs/ja/metadata.md) |
-
-## Contributing
-
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. To write a new core or bring an existing engine in as a core, follow the agent skills in [`.agents/skills/`](.agents/skills/). Never commit commercial game data; tests use synthetic fixtures.
+The Manager is available in Simplified Chinese, English and Japanese. The [user guide](docs/en/user-guide.md) covers configuration, saves, metadata, store downloads and patches. Release notes: [Manager beta.7](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.7) · [beta.6](docs/en/releases/manager-0.1.0-beta.6.md).
 
 ## Reporting issues
 
@@ -98,6 +89,19 @@ Common questions are answered in the [FAQ](https://project-shinkirou.github.io/e
 - [Patch submission](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=patch.yml)
 
 Problems in an external engine itself may also belong upstream; each core page links its upstream project.
+
+## Development
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Build, packaging and release steps, including platform prerequisites and the pinned toolchain, are in [Build and release](docs/en/build-and-release.md). To write a new core or bring an existing engine in as a core, follow the agent skills in [`.agents/skills/`](.agents/skills/). Never commit commercial game data; tests use synthetic fixtures.
+
+| | 简体中文 | English | 日本語 |
+|---|---|---|---|
+| Overview | [index](docs/zh-cn/index.md) | [index](docs/en/index.md) | [index](docs/ja/index.md) |
+| User guide | [user-guide](docs/zh-cn/user-guide.md) | [user-guide](docs/en/user-guide.md) | [user-guide](docs/ja/user-guide.md) |
+| Core ABI | [core-abi](docs/zh-cn/core-abi.md) | [core-abi](docs/en/core-abi.md) | [core-abi](docs/ja/core-abi.md) |
+| Build and release | [build-and-release](docs/zh-cn/build-and-release.md) | [build-and-release](docs/en/build-and-release.md) | [build-and-release](docs/ja/build-and-release.md) |
+| Metadata catalog | [metadata](docs/zh-cn/metadata.md) | [metadata](docs/en/metadata.md) | [metadata](docs/ja/metadata.md) |
+| Headless runner | [headless](docs/zh-cn/headless.md) | [headless](docs/en/headless.md) | [headless](docs/ja/headless.md) |
 
 ## Acknowledgements
 
