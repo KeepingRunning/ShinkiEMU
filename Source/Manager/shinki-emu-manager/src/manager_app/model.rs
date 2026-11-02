@@ -213,13 +213,14 @@ impl ShinkiEmuManagerController {
         let profile = self.profile()?;
         Ok(ManagerViewModel {
             app: AppViewModel {
-                version: env!("CARGO_PKG_VERSION").into(),
+                version: shinki_emu_manager::version().into(),
                 build: option_env!("SHINKI_EMU_MANAGER_RUSTC_FINGERPRINT")
                     .unwrap_or("development")
                     .into(),
                 appearance: self.appearance_view(),
             },
             network: self.network_view(now_ms),
+            self_update: self.self_update_view(),
             library: LibraryViewModel {
                 games: cards,
                 query: self.search_query.clone(),

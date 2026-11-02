@@ -63,7 +63,7 @@ pub struct Arguments {
     /// Optional synthetic dataset JSON. No Manager database is opened.
     #[arg(long)]
     pub demo_data: Option<PathBuf>,
-    #[arg(long, default_value = "appearance", value_parser = ["appearance", "library-roots", "network", "translation", "input", "about"])]
+    #[arg(long, default_value = "appearance", value_parser = ["appearance", "library-roots", "network", "translation", "input", "updates", "about"])]
     pub settings_category: String,
 }
 

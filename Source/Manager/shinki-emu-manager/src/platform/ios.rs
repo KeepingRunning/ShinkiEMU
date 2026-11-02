@@ -113,3 +113,17 @@ pub(super) fn restart() -> Result<(), String> {
 pub(super) fn open_path(path: &Path) -> Result<(), String> {
     roukaku_platform::ios::open_document(path).map_err(|error| error.to_string())
 }
+
+pub(super) fn open_url(url: &str) -> Result<(), String> {
+    use objc2_foundation::{MainThreadMarker, NSDictionary, NSString, NSURL};
+    use objc2_ui_kit::UIApplication;
+    let mtm = MainThreadMarker::new().ok_or("SHINKI_EMU_IOS_URL_MAIN_THREAD")?;
+    let url = NSURL::URLWithString(&NSString::from_str(url)).ok_or("SHINKI_EMU_MANAGER_UPDATE_URL")?;
+    let application = UIApplication::sharedApplication(mtm);
+    if !application.canOpenURL(&url) {
+        return Err("SHINKI_EMU_OPEN_URL_FAILED: no browser".into());
+    }
+    // SAFETY: an empty dictionary has no incorrectly typed option values.
+    unsafe { application.openURL_options_completionHandler(&url, &NSDictionary::new(), None) };
+    Ok(())
+}

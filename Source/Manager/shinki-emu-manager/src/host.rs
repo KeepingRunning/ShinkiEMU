@@ -107,6 +107,10 @@ pub trait ShinkiUnderlayRenderer: 'static {
 }
 
 pub trait ManagerController: 'static {
+    fn self_update_action(
+        &mut self,
+        action: shinki_emu_manager_ui_slint::SelfUpdateAction,
+    ) -> Result<ManagerViewModel, String>;
     fn store_action(
         &mut self,
         action: shinki_emu_manager_ui_slint::StoreAction,

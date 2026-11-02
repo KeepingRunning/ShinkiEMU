@@ -71,6 +71,12 @@ export function listen(context: common.UIAbilityContext): void {
       case 'openPath':
         openPath(context, payload);
         break;
+      case 'openUrl':
+        context.startAbility({ action: 'ohos.want.action.viewData', uri: payload })
+          .catch((error: BusinessError) => {
+            promptAction.showToast({ message: error.message, duration: 5000 });
+          });
+        break;
       case 'pointerVisible':
         pointer.setPointerVisible(payload === '1').catch((error: BusinessError) => {
           hilog.warn(DOMAIN, TAG, 'setPointerVisible failed: %{public}s', error.message);

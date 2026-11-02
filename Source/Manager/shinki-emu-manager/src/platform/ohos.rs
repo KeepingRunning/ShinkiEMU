@@ -550,6 +550,10 @@ pub(super) fn open_path(path: &Path) -> Result<(), String> {
     notify("openPath", &path.to_string_lossy())
 }
 
+pub(super) fn open_url(url: &str) -> Result<(), String> {
+    notify("openUrl", url)
+}
+
 #[repr(C)]
 struct AudioStream {
     _opaque: [u8; 0],

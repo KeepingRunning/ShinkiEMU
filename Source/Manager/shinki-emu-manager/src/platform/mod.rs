@@ -86,6 +86,15 @@ pub fn open_path(path: &Path) -> Result<(), String> {
     imp::open_path(path)
 }
 
+/// Open an allowlisted Manager release page or asset in the system browser.
+/// Validate here as well as at the update action boundary.
+pub fn open_url(url: &str) -> Result<(), String> {
+    if !crate::self_update::release_url_allowed(url) {
+        return Err("SHINKI_EMU_MANAGER_UPDATE_URL".into());
+    }
+    imp::open_url(url)
+}
+
 /// Whether `path` has one of the extensions in `filters` (case-insensitive).
 pub fn matches_filters(path: &Path, filters: &[FileFilter<'_>]) -> bool {
     filters.is_empty()

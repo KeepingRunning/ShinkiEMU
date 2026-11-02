@@ -4,11 +4,17 @@ mod host;
 pub mod modal_service;
 pub mod platform;
 pub mod resale_notice;
+pub mod self_update;
 pub mod startup;
 pub mod static_cores;
 pub mod window_service;
 
 extern crate self as shinki_emu_manager;
+
+/// Product builds inject their release version; local builds use the package version.
+pub const fn version() -> &'static str {
+    env!("SHINKI_EMU_PRODUCT_VERSION")
+}
 
 #[cfg(target_env = "ohos")]
 pub use host::StageImageUpdate;

@@ -1,6 +1,12 @@
 use super::*;
 
 impl ManagerController for ShinkiEmuManagerController {
+    fn self_update_action(
+        &mut self,
+        action: shinki_emu_manager_ui_slint::SelfUpdateAction,
+    ) -> Result<ManagerViewModel, String> {
+        ShinkiEmuManagerController::self_update_action(self, action)
+    }
     fn store_action(
         &mut self,
         action: shinki_emu_manager_ui_slint::StoreAction,

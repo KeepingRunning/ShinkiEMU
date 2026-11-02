@@ -107,6 +107,7 @@ impl ShinkiEmuManagerController {
             .map_err(|error| error.to_string())?;
         let enabling = enabled && !self.network_allowed;
         self.network_allowed = enabled;
+        self.self_update_network_changed();
         if !enabled {
             self.store.suspend()?;
             self.auto_link_queue.clear();

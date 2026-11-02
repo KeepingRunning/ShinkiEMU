@@ -5,6 +5,10 @@ pub(super) fn install<C: ManagerController>(wiring: &Wiring<C>, restart: &std::r
     let Some(window) = wiring.window.upgrade() else {
         return;
     };
+    if let Some(adapter) = wiring.adapter.upgrade() {
+        let w = wiring.clone();
+        adapter.set_on_self_update_action(move |action| w.run(|c| c.self_update_action(action)));
+    }
     install_app(wiring, &window, restart);
     install_settings(wiring, &window);
     install_cores(wiring, &window, restart);

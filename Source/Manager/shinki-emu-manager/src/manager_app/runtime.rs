@@ -142,12 +142,14 @@ impl ShinkiEmuManagerController {
         let connection_changed = self.poll_connection_test();
         let metadata_changed = self.poll_metadata()?;
         let store_changed = self.poll_store()?;
+        let self_update_changed = self.poll_self_update();
         if background_changed
             || patch_changed
             || owner_changed
             || metadata_changed
             || connection_changed
             || store_changed
+            || self_update_changed
         {
             Ok(Some(self.model()?))
         } else {
@@ -160,6 +162,7 @@ impl ShinkiEmuManagerController {
         self.store.set_wake(wake.clone());
         self.host_wake = Some(wake.clone());
         self.metadata.set_wake(wake);
+        self.start_self_update_once();
     }
 
     pub(super) fn runtime_deadline(&self) -> Option<Instant> {

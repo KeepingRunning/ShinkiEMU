@@ -155,7 +155,7 @@ fn report_url_carries_release_emulator_and_versions() {
         url,
         format!(
             "https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=compatibility.yml&vid=v17&rid=r1&emulator=sena-rs&platform={platform}&architecture={architecture}&variant={variant}&emulator_version=0.2.0&manager_version={}",
-            env!("CARGO_PKG_VERSION")
+            shinki_emu_manager::version()
         )
     );
     app.library.add_game(&GameRecord {
