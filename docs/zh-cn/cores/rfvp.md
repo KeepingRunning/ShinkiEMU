@@ -7,7 +7,7 @@ description: RFVP 的格式、原生行为与限制。
 
 `plugin_id: rfvp` · 引擎家族: FVP
 
-上游：[xmoezzz/rfvp](https://github.com/xmoezzz/rfvp)。适配 fork：[Project-Shinkirou/rfvp 的 shinki-sakura-native 分支](https://github.com/Project-Shinkirou/rfvp/tree/shinki-sakura-native)。
+上游：[xmoezzz/rfvp](https://github.com/xmoezzz/rfvp)。适配 fork：[Project-Shinkirou/rfvp 的 shinki 分支](https://github.com/Project-Shinkirou/rfvp/tree/shinki)。
 
 ## 格式
 

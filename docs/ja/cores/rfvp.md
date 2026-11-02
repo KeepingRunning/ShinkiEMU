@@ -7,7 +7,7 @@ description: RFVP のフォーマット、ネイティブ動作、制約。
 
 `plugin_id: rfvp` · エンジンファミリー: FVP
 
-上流：[xmoezzz/rfvp](https://github.com/xmoezzz/rfvp)。適応 fork：[Project-Shinkirou/rfvp の shinki-sakura-native ブランチ](https://github.com/Project-Shinkirou/rfvp/tree/shinki-sakura-native)。
+上流：[xmoezzz/rfvp](https://github.com/xmoezzz/rfvp)。適応 fork：[Project-Shinkirou/rfvp の shinki ブランチ](https://github.com/Project-Shinkirou/rfvp/tree/shinki)。
 
 ## フォーマット
 

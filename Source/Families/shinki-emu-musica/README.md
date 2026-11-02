@@ -15,9 +15,10 @@ target 独立安装到 `.work/vcpkg-ffmpeg/<triple>/installed/<triplet>`，避�
 
 Android Manager 通过 `musica_query` 静态注册核心，并启用 `ffmpeg-vcpkg`。iOS 静态 Manager 集成仍待 AppleNative 完成远端 macOS 构建与验证。Apple 构建使用原生 macOS/Xcode，部署版本为 macOS 13、iOS 16。Android FFmpeg 使用 API 28 静态 triplet。OHOS 依赖准备读取 `OHOS_SDK_NATIVE`；Windows 默认指向已安装的 DevEco Studio native SDK，并使用 API 17 arm64 工具链。xtask 为这些平台隔离 pkg-config，启用完整静态依赖闭包，并向 native 消费者导出 `SHINKI_EMU_FFMPEG_INSTALLED`；Windows/Linux 不设置此变量。
 
+Android 离屏渲染使用 RoukakuEngine 的原生 Vulkan 策略，实例创建、适配器枚举与后端校验均包含 Android。旧 Engine revision `8392cf1` 在 `native_wgpu_instance` 明确拒绝 Android，会在加载有效游戏和密钥后返回 `SHINKI_EMU_MUSICA_RENDERER`；这与静态核心未安装诊断桥无关。静态构建沿用 Manager 已初始化的日志订阅器，`dynamic-plugin-export` 只控制动态导出和动态诊断桥，不提供额外运行功能。
+
 私有 `key.toml` 仍由用户显式选择，游戏内相对路径按游戏根解析，不依赖进程当前目录。
-手机端需把游戏和密钥放入 Manager 可读的本地目录，并保留游戏目录内
-`.shinki/musica` 的写权限；核心不扫描系统密钥目录，也不复制密钥到应用包。
+Android 文件选择器通过 SAF 读取用户选择的游戏目录和密钥，复制到 Manager 私有 `imports/` 后传入普通文件系统路径，不把 `content://` URI 交给核心。单独选择的密钥保存为显式绝对路径；游戏内相对路径仍以游戏根解析。游戏副本内 `.shinki/musica` 需要写权限；核心不扫描系统密钥目录，也不复制密钥到应用包。
 
 
 ## 启动和输入
