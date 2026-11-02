@@ -1,6 +1,6 @@
 ---
 name: shinkiemu-maintenance
-description: Use when maintaining ShinkiEMU itself rather than writing a core - xtask doctor/deps/build/package/release, build/cores.toml and targets.toml edits, external-core version identity (upstream_identity, release_sequence, canonical core tags), fork pin bumps and Cargo.lock discipline, vcpkg baseline/overlay triplets/overlay ports, Android/iOS static Manager embedding, corresponding-source and license bundles, GitHub CI exact-head runs and watchers, release/catalog publication, signing (Android release certificate, Apple ad-hoc, OHOS test PKI), native macOS builds over SSH and Mac disk capacity, and headless runs (shinki-emu-headless run/compare/ui, shinki-emu-manager headless/headless-ui) for frame acceptance, screenshot and hash baselines, input replay scripts and windowless Manager UI screenshots. Not for writing a new core (shinkiemu-new-core) or porting a third-party engine (shinkiemu-integrate-existing-core).
+description: Use when maintaining ShinkiEMU itself rather than writing a core - xtask doctor/deps/build/package/release, build/cores.toml and targets.toml edits, external-core version identity (upstream_identity, release_sequence, canonical core tags), fork pin bumps and Cargo.lock discipline, vcpkg baseline/overlay triplets/overlay ports, Android/iOS static Manager embedding, corresponding-source and license bundles, GitHub CI exact-head runs and watchers, release/catalog publication, signing (Android release certificate, Apple ad-hoc, OHOS test PKI), native macOS builds over SSH and Mac disk capacity, and headless runs (shinki-emu-headless run/compare/ui, shinki-emu-manager headless/headless-ui) for frame acceptance, screenshot and hash baselines, input replay scripts and windowless Manager UI screenshots. Not for writing a new core (shinkiemu-new-core), porting a third-party engine (shinkiemu-integrate-existing-core) or Luau game patches (shinkiemu-patch).
 ---
 
 # ShinkiEMU 项目维护
@@ -11,7 +11,7 @@ description: Use when maintaining ShinkiEMU itself rather than writing a core - 
 - [Core ABI](../../../docs/en/core-abi.md)、[Metadata](../../../docs/en/metadata.md)
 - [xtask/README](../../../xtask/README.md)、[ThirdParty/README](../../../ThirdParty/README.md)
 
-写新核心看 `shinkiemu-new-core`，移植第三方引擎看 `shinkiemu-integrate-existing-core`。
+写新核心看 `shinkiemu-new-core`，移植第三方引擎看 `shinkiemu-integrate-existing-core`，写或审核 Luau 游戏补丁看 `shinkiemu-patch`。
 
 ## 1. 权威文件
 
