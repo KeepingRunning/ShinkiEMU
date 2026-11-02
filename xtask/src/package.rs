@@ -648,6 +648,26 @@ pub(crate) fn search_dirs(inv: &Inventory, result: &BuildResult) -> Result<Vec<P
         } else {
             "linux-x86_64"
         };
+        if selected.native_vcpkg {
+            let clang = ndk
+                .join("toolchains/llvm/prebuilt")
+                .join(host)
+                .join("bin")
+                .join(if cfg!(windows) { "clang.exe" } else { "clang" });
+            let runtime = dependencies::capture(
+                std::process::Command::new(clang)
+                    .arg(format!("--target={}", result.target))
+                    .arg("--print-file-name=libomp.so"),
+            )?;
+            let runtime = PathBuf::from(String::from_utf8(runtime)?.trim());
+            dirs.push(
+                runtime
+                    .parent()
+                    .filter(|path| !path.as_os_str().is_empty())
+                    .context("NDK Clang did not resolve its OpenMP runtime")?
+                    .to_owned(),
+            );
+        }
         if selected.subtitle {
             dirs.push(dependencies::subtitle_install(inv, &result.target)?.join("lib"));
         }
@@ -691,6 +711,12 @@ pub(crate) fn licenses(
                     ),
                 ));
             }
+        }
+    }
+    if result.target.contains("android") && result.component != "manager" {
+        let ndk = dependencies::ndk_root(inv)?;
+        for notice in ["NOTICE", "NOTICE.toolchain"] {
+            entries.push((ndk.join(notice), format!("licenses/android-ndk/{notice}")));
         }
     }
     if selected.subtitle

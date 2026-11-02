@@ -7,7 +7,9 @@ A game library manager with native cores that run visual novels made with legacy
 
 English · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
-ShinkiEMU is pre-release software. Builds are published as beta releases. A successful build does not mean that a given game is verified playable. Per-game reports are in the [portal](https://project-shinkirou.github.io/en/shinkiemu/).
+ShinkiEMU is pre-release software. Builds are published as beta releases. A successful build does not mean that a given game is verified playable; check the [compatibility reports](https://project-shinkirou.github.io/en/shinkiemu/compatibility/) for per-game results.
+
+**Portal:** [Download](https://project-shinkirou.github.io/en/shinkiemu/#download) · [Compatibility](https://project-shinkirou.github.io/en/shinkiemu/compatibility/) · [Cores](https://project-shinkirou.github.io/en/shinkiemu/cores/) · [Patches](https://project-shinkirou.github.io/en/shinkiemu/patches/) · [FAQ](https://project-shinkirou.github.io/en/shinkiemu/faq/) · [Project status](https://project-shinkirou.github.io/en/status/)
 
 ## Features
 
@@ -38,7 +40,7 @@ ShinkiEMU is pre-release software. Builds are published as beta releases. A succ
 
 ## Install
 
-1. Download the Manager bundle for your platform from [Releases](https://github.com/Project-Shinkirou/ShinkiEMU/releases).
+1. Download the Manager bundle for your platform from the [portal](https://project-shinkirou.github.io/en/shinkiemu/#download) or [Releases](https://github.com/Project-Shinkirou/ShinkiEMU/releases).
 2. Extract it and start `shinki-emu-manager` (`shinki-emu-manager.exe` on Windows).
 3. On Linux, install the runtime libraries listed in [Build and release](docs/en/build-and-release.md#linux-desktop).
 
@@ -84,7 +86,7 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. To write 
 
 ## Reporting issues
 
-Use the issue forms:
+Common questions are answered in the [FAQ](https://project-shinkirou.github.io/en/shinkiemu/faq/). For anything else, use the issue forms:
 
 - [Bug report](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=bug.yml)
 - [Game compatibility report](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=compatibility.yml)

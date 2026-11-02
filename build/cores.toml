@@ -60,10 +60,10 @@ static_features = []
 publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/siglus_rs"
-branch = "shinki-android-isolation"
-rev = "d0923af499912b82a3021b7998f44b2c88d52f84"
+branch = "fix/fortune-world-release"
+rev = "c5ee2bc37e91116e11795aa985c6cd394d590ab6"
 upstream = "https://github.com/xmoezzz/siglus_rs"
-release_sequence = 1
+release_sequence = 2
 upstream_identity = { repo = "https://github.com/xmoezzz/siglus_rs", ref_kind = "tag", ref_name = "1.0.0", commit = "5f358ef1360b0439e92aed2b749e8f25d8721954" }
 [[cores.blocked]]
 target = "aarch64-apple-ios"
@@ -202,40 +202,33 @@ features = []
 dependencies = ["native-vcpkg", "bison"]
 artifact_kind = "native-shared"
 resources = []
-licenses = ["ThirdParty/kirikiri2/LICENSE", "ThirdParty/kirikiri2/shinki/README.md", "ThirdParty/kirikiri2/cpp/plugins/layerExImage/LICENSE.TXT", "ThirdParty/kirikiri2/ui/cocos-studio/DroidSansFallback.LICENSE.txt", "ThirdParty/kirikiri2/shinki/licenses/libbpg-MIT.txt", "ThirdParty/kirikiri2/shinki/licenses/minizip-zlib.txt", "ThirdParty/kirikiri2/shinki/licenses/UnRAR.txt"]
-supported_targets = ["x86_64-pc-windows-msvc"]
+licenses = ["ThirdParty/kirikiri2/LICENSE", "ThirdParty/kirikiri2/shinki/README.md", "ThirdParty/kirikiri2/cpp/plugins/layerExImage/LICENSE.TXT", "ThirdParty/kirikiri2/ui/cocos-studio/DroidSansFallback.LICENSE.txt", "ThirdParty/kirikiri2/shinki/licenses/libbpg-MIT.txt", "ThirdParty/kirikiri2/shinki/licenses/minizip-zlib.txt", "ThirdParty/kirikiri2/shinki/licenses/UnRAR.txt", "ThirdParty/kirikiri2/shinki/licenses/FMOD.txt"]
+supported_targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "aarch64-apple-darwin"]
+static_manager_targets = ["aarch64-linux-android", "x86_64-linux-android"]
+static_features = ["static"]
 publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/kirikiroid2-web"
-branch = "shinki-apple-xplat"
-rev = "335d1536e59b5b614867aca04dcf189158e6cd15"
+branch = "shinki-common63"
+rev = "d72046c28e6ada623acdb1d72f7075edd488797d"
 upstream = "https://github.com/fenghengzhi/kirikiroid2-web"
-release_sequence = 1
+release_sequence = 2
 upstream_identity = { repo = "https://github.com/fenghengzhi/kirikiroid2-web", ref_kind = "branch", ref_name = "web", commit = "2028cbccaa91498bd36f270d349ae711d0e8fed3" }
 [[cores.blocked]]
-target = "x86_64-unknown-linux-gnu"
-reason = "Linux candidate build/package and ELF closure gates have not completed; the released fork pin remains Windows-only."
-[[cores.blocked]]
-target = "x86_64-apple-darwin"
-reason = "macOS native dependency closure (vcpkg gperf) has not built in CI; port pending."
-[[cores.blocked]]
-target = "aarch64-apple-darwin"
-reason = "macOS native dependency closure (vcpkg gperf) fails in CI; port pending."
-[[cores.blocked]]
-target = "aarch64-apple-ios"
-reason = "cocos2dx vcpkg port does not support iOS triplets; port pending."
-[[cores.blocked]]
-target = "aarch64-apple-ios-sim"
-reason = "cocos2dx vcpkg port does not support iOS triplets; port pending."
-[[cores.blocked]]
-target = "x86_64-apple-ios"
-reason = "cocos2dx vcpkg port does not support iOS triplets; port pending."
-[[cores.blocked]]
 target = "aarch64-linux-android"
-reason = "Android Manager beta.6 does not embed KiriKiri; static embedding remains in development for a later Manager release. Standalone Android core packages do not establish Manager support."
+reason = "Statically embedded in the Android Manager; standalone dynamic-core installation is not supported."
 [[cores.blocked]]
 target = "x86_64-linux-android"
-reason = "Android Manager beta.6 does not embed KiriKiri; static embedding remains in development for a later Manager release. Standalone Android core packages do not establish Manager support."
+reason = "Statically embedded in the Android Manager; standalone dynamic-core installation is not supported."
+[[cores.blocked]]
+target = "aarch64-apple-ios"
+reason = "Integrated iOS KiriKiri Manager gates are owned by a separate candidate and have not been accepted for this desktop release."
+[[cores.blocked]]
+target = "aarch64-apple-ios-sim"
+reason = "Integrated iOS KiriKiri Manager gates are owned by a separate candidate and have not been accepted for this desktop release."
+[[cores.blocked]]
+target = "x86_64-apple-ios"
+reason = "Integrated iOS KiriKiri Manager gates are owned by a separate candidate and have not been accepted for this desktop release."
 [[cores.blocked]]
 target = "aarch64-unknown-linux-ohos"
 reason = "Native OpenHarmony host and core adapter are not implemented; OHOS_SDK_NATIVE is additionally required."

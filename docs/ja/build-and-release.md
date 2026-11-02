@@ -62,7 +62,7 @@ Manager は、ネットワーククライアントやワーカースレッドを
 リポジトリで固定された Rust 1.99.1 ツールチェーンを使います。Ubuntu 22.04/24.04 では、ネイティブ開発パッケージを明示的にインストールします。
 
 ```sh
-sudo apt-get install -y --no-install-recommends build-essential cmake ninja-build pkg-config nasm patchelf autoconf automake libtool libltdl-dev autoconf-archive python3-jinja2 python3-venv libxtst-dev libxxf86vm-dev bison flex gperf libssl-dev libasound2-dev libudev-dev libx11-dev libx11-xcb-dev libxcb1-dev libxrandr-dev libxi-dev libxcursor-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libfontconfig1-dev libegl1-mesa-dev libgl1-mesa-dev libvulkan-dev mesa-vulkan-drivers xvfb xauth unzip jq
+sudo apt-get install -y --no-install-recommends build-essential cmake ninja-build pkg-config nasm patchelf autoconf automake libtool libltdl-dev autoconf-archive python3-jinja2 python3-venv libxtst-dev libxxf86vm-dev libxinerama-dev bison flex gperf libssl-dev libasound2-dev libudev-dev libx11-dev libx11-xcb-dev libxcb1-dev libxrandr-dev libxi-dev libxcursor-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libfontconfig1-dev libegl1-mesa-dev libgl1-mesa-dev libvulkan-dev mesa-vulkan-drivers xvfb xauth unzip jq
 sudo apt-get install -y --no-install-recommends libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libglib2.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
@@ -92,6 +92,12 @@ Ren'Py のパッケージには SDK ランタイムとインストール済み�
 Linux の Manager 向け `deps` は、ディストリビューションが提供する開発ライブラリを確認するだけで、`apt` は呼び出しません。コア向けの `deps` は、ターゲットごとに独立したディレクトリでロックされた vcpkg のネイティブライブラリを準備し、パッケージング用に再配置可能な共有ライブラリの通常ファイルを生成します。パッケージのディレクトリで `./shinki-emu-manager` を実行してください。パッケージングでは ELF のアーキテクチャ、ローダーのパス、依存関係の閉包を確認し、ライセンス表記とオフラインのメタデータスナップショットを同梱します。`ci` が報告する ZIP では実行権限が保持されます。CI とリリースのジョブは、同じ依存関係と xtask コマンドを使います。コアが利用できるかどうかは引き続き `matrix` に従い、blocked と宣言されたコアにはバイナリの添付ファイルが作られません。
 Linux パッケージは、ディストリビューションが提供する glibc、libstdc++、OpenSSL 3、fontconfig、udev、ALSA の ABI ライブラリに加え、ストアの Web サインイン用に GTK 3 と WebKitGTK 4.1 を使います。導入先のシステムには対応するランタイムパッケージ（Ubuntu では GTK 3 も一緒に入る `libwebkit2gtk-4.1-0`）をインストールし、グラフィックドライバーを備えた X11 または Wayland のデスクトップを用意してください。
 Impacto の Linux VA-API ライブラリは、システムのグラフィックススタックに含まれる `libdrm.so.2`（Ubuntu パッケージ `libdrm2`）も必要とし、コアには同梱しません。
+KiriKiri2 は、ディストリビューションの OpenGL ディスパッチライブラリ `libGL.so.1`、`libGLX.so.0`、`libOpenGL.so.0`（Ubuntu パッケージ `libgl1 libglx0 libopengl0`）も使います。
+X11 と OpenMP には、ディストリビューションの `libX11.so.6` と `libgomp.so.1`（Ubuntu パッケージ `libx11-6 libgomp1`）を使います。
+gdiplus の文字描画には、ディストリビューションの `libpangocairo-1.0.so.0` と `libpangoft2-1.0.so.0`（Ubuntu パッケージ `libpangocairo-1.0-0 libpangoft2-1.0-0`）も必要です。
+GTK ダイアログにはディストリビューションの `libgtk-3.so.0`（Ubuntu 24.04 の `libgtk-3-0t64`）を使います。vcpkg curl が Ubuntu 24.04 より新しい OpenSSL シンボルを必要とするため、対応する固定版の `libssl.so.3` と `libcrypto.so.3` はシステム ABI とせず同梱します。
+Linux では未使用の `BUILD_EDITOR_SPINE` だけを無効にし、CocoStudio UI と MotionPlayer/Emote の実装は維持します。元の Spine ライセンスは完全な上流ソース tar に残し、バイナリが使うモジュールの表記から除きます。Android と Apple の構成は変更しません。
+KiriKiri2 Linux は、固定された Cocos の FMOD ランタイムを `libfmod.so.6` として同梱し、相対 `$ORIGIN` パスで読み込みます。システム ABI には分類しません。プロジェクト所有者は 2026-10-31 に再配布を承認しました。パッケージの `licenses/kirikiroid2-web/FMOD.txt` に Firelight の帰属表示と正確なバイナリ・アーカイブの出所を記録します。Cocos のソースは MIT ですが、FMOD を MIT に変更しません。ソースバンドルには元の依存アーカイブ、実際の FMOD ヘッダー・ビルド済み入力と再ビルド手順を含め、FMOD の実装ソースや過去の EULA を作成しません。
 
 RFVP は、ネイティブの動画デコードのために、ディストリビューションが提供する GStreamer 1.x（1.14 以上）、GLib 2.x（2.56 以上）、および base、good、libav プラグインも必要とします。これらはシステムの実行要件として宣言され、コアには同梱されません。Ubuntu では `libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libglib2.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav` をインストールします。パッケージ内の `build.json` の `system_dependencies` には、実際に依存するシステムの SONAME が記録されます。
 
@@ -114,9 +120,11 @@ cargo xtask build --target x86_64-linux-android --manager --release
 cargo xtask package --target aarch64-linux-android --manager --version 0.1.0-beta.2 --out .work/android-test
 ```
 
-各ビルドは `cargo ndk-env` のツールチェーン環境を取り込み、Cargo を `--locked` で直接実行します。`static_manager_targets` にそのトリプルを含むコア（RFVP、Siglus、Shinki Musica、Artemis、Impacto、Ren’Py）を静的リンクし、ビルド記録が指す target ディレクトリの `android-inputs/` に、JNI ランタイムの依存関係、証明書検証用の AAR、メタデータ、ライセンスを集めます。KiriKiri は含まれません。パッケージングには、**両方のトリプル**について同じソースコミットから作られた release のビルド記録が必要です。続いて Gradle が `arm64-v8a`、`x86_64`、`assets/metadata/` を含むユニバーサル APK を生成し、xtask が署名と各ネイティブライブラリの依存関係の閉包を確認します。署名鍵がない場合の出力は `ShinkiEMU-<version>-android-universal-debug-signed.apk` です。これは debug 署名の CI テスト用パッケージで、正式なインストーラーではありません。テスト用の鍵は `GRADLE_USER_HOME` 内に生成されます。
+各ビルドは `cargo ndk-env` のツールチェーン環境を取り込み、Cargo を `--locked` で直接実行します。`static_manager_targets` にそのトリプルを含むコア（RFVP、Siglus、Shinki Musica、Artemis、Impacto、Ren’Py、KiriKiri）を静的リンクし、ビルド記録が指す target ディレクトリの `android-inputs/` に、JNI ランタイムの依存関係、証明書検証用の AAR、メタデータ、ライセンスを集めます。パッケージングには、**両方のトリプル**について同じソースコミットから作られた release のビルド記録が必要です。続いて Gradle が `arm64-v8a`、`x86_64`、`assets/metadata/` を含むユニバーサル APK を生成し、xtask が署名と各ネイティブライブラリの依存関係の閉包を確認します。署名鍵がない場合の出力は `ShinkiEMU-<version>-android-universal-debug-signed.apk` です。これは debug 署名の CI テスト用パッケージで、正式なインストーラーではありません。テスト用の鍵は `GRADLE_USER_HOME` 内に生成されます。
 
 Gradle の依存関係を一度ダウンロードしたあとは、`SHINKI_EMU_GRADLE_OFFLINE=1` を設定すると `--offline` が渡されます。パッケージングのたびに新しい出力ディレクトリを使ってください。`cargo xtask ci --target aarch64-linux-android --component manager --report .work/android-ci.json` は両方の ABI をビルドし、実際の APK のパスを報告します。CI は両方のトリプルの依存関係を準備したうえで、このコマンドを 1 回だけ実行します。`matrix --json --ci` が、同じユニバーサル APK を作るだけの `x86_64-linux-android` の Manager 行を除くためです。Release はユニバーサルな release 署名 APK を 1 つだけアップロードし、対応する sources ZIP も公開します。
+後継 Android Manager は KiriKiri を加えた七つのコアを静的登録します。既存の MainActivity と実際の JavaVM を使い、元の SDL/Cocos Java ヘルパーとネイティブ SDL/FFmpeg/JNI 閉包を隔離します。`Tools/verify-krkr-android.py` は新しい HEAD の実 APK に対して両 ABI、DEX/JNI、元のリソース、Spine 閉包を検査します。リソースの上限は 32 MiB で、有界ストリーミングと Impacto の 17,032,620 バイトの元フォントを維持します。debug 署名の証明は正式な公開署名の代わりにはなりません。
+
 
 すべての Manager パッケージは `Assets/Branding/shinkiemu-icon.svg` を共通のアイコンソースとして使います。Rust が Windows EXE の ICO リソース、macOS ICNS、iOS の app icon set、Android のアダプティブランチャー mipmap、Linux の hicolor PNG を生成します。Linux ZIP には `share/applications/shinkiemu.desktop` も含まれます。このファイルと `share/icons/hicolor` をアプリケーションとアイコンのディレクトリにインストールしてください。ゲームがウィンドウアイコンを変更した場合、ゲーム終了時に Manager アイコンへ戻ります。
 
@@ -242,6 +250,10 @@ Manager のパッケージングでは、ターゲットプラットフォーム
 
 Manager と自作 CMVS/Musica は独立した SemVer および `manager-v<semver>`、`core-<slug>-v<semver>` タグを維持し、`--version` を指定します。RFVP、Artemis を含む外部コアは `build/cores.toml` から識別子を計算するため `--version` は省略します。`cargo xtask release --component <id> --dry-run` は元の upstream ref、完全なコミットと adapter pin の関係だけを検証し、ビルド・公開しません。`release --target <トリプル>` は `.work/release/<tag>/<target>/` にバイナリ ZIP、対応ソース ZIP と `release.json` を作成します。ブロック対象と `publish_blocked` コアは成果物を作りません。
 
+Manager [0.1.0-beta.7](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.7) は `fd9c78a4cabf1d80430744e4bb5d140c2a837bb9` から全9ターゲットを公開済みです。同じコミットの CI、ホスト準備、OHOS 引き渡しが成功し、全パッケージと対応ソースはこの製品コミットに対応します。Android は7コアを組み込み、既存の正式配布用証明書 `c415bd462d26574758ed455055ff528a3bd6036e39d5ac6887308f8cf69e97fc` を使います。iOS は RFVP、Siglus、Shinki Musica、Sena、Ethornell、ReMinori の6コアを維持し、実機用・シミュレーター用ともテスト成果物です。OHOS も SDK debug-test-PKI のテスト署名です。`fef31a82104a371aa919641f1fe08c65285e5267` からの beta.6 と、それ以前の公開タグ・添付ファイルは変更しません。後続のソース限定機能やコア pin 更新は beta.7 のダウンロードに含まれません。
+
+[KiriKiri2 連番2のリリース](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/core-kirikiroid2-web-branch-web-1e3603089b4951c8e2831d978ea6fe5a8097bceeb0a56fdeb65aa3953e67eecf) は、製品 `fe4e6f2d82c8b61f3f14e13d48af6d57722b9952`、adapter `d72046c28e6ada623acdb1d72f7075edd488797d` から Windows、Linux、両 macOS アーキテクチャを公開しています。同じ adapter は beta.7 Android に静的組み込み済みですが、iOS や OHOS への KiriKiri 追加を意味しません。デスクトップ版には対応ソースと元ライセンスを同梱し、FMOD の条項を別に維持します。
+
 外部識別子は原作者の `upstream {repo, ref_kind, ref_name, commit}` と組織の `adapter {repo, branch, commit}` を別々に保持します。コミットは小文字 40 桁の完全なハッシュです。upstream の該当コミットに検証済みタグがあればタグを使い、なければ本来の upstream ブランチを使います。組織の統合ブランチを upstream と表記しません。表示は `<ref>@<upstream commit12> (adapter <adapter commit12>)` です。ファイル用の版は `<tag|branch>-<ref slug>-<digest>`。ref の先頭 16 ASCII バイトを取り、英数字を小文字化し、それ以外をそれぞれ `-` にします。digest は upstream repo/kind/ref/commit、adapter repo/branch/commit、十進数の `release_sequence` の順で、各 UTF-8 フィールドに LF を付けた列の完全な SHA256 です。版は最大 88 バイト、タグは `core-<plugin slug>-<version>` です。plugin slug は ID を小文字化して `.` と `_` を `-` に置換します。ブランチの `/` はパスに入らず、adapter のみの変更でも別の識別子になります。
 
 外部 plugin slug は最大 32 バイトで、Release タグは安全な ASCII 文字で最大 126 バイトです。
@@ -254,7 +266,7 @@ Manager と自作 CMVS/Musica は独立した SemVer および `manager-v<semver
 
 同じ index に `cores-v2.json`（`shinki.emu.cores.v2`）を追加し、旧エントリと新識別子を収録します。`cores.json` は v1 と identity のない公開済みエントリを維持するため、旧 Manager のダウンロードは継続します。新 Manager は index にある v2 を優先し、旧 v1 snapshot も受け入れます。公開済み beta のタグ、添付ファイルや来歴は変更せず、引き続きインストールできます。更新は adapter crate の版ではなくパッケージの識別子を比較します。
 
-upstream 識別子付きパッケージには Manager `0.1.0-beta.6` 以降が必要です。beta.5 以前は追加の識別子と長い版フィールドを拒否するため、旧カタログと旧パッケージを維持してください。外部コアの新規 Release にはこの要件を明記します。Sakura recipe 0.2 は、対応 Manager と更新版 RFVP の両方を公開入手できるようになってから公開します。
+upstream 識別子付きパッケージには Manager `0.1.0-beta.6` 以降が必要です。beta.5 以前は追加の識別子と長い版フィールドを拒否するため、旧カタログと旧パッケージを維持してください。外部コアの新規 Release にはこの要件を明記します。対応 Manager beta.6 と更新版 RFVP がともに公開入手可能になったため、Sakura recipe 0.2 は公開済みです。変換先は新しい出力ディレクトリとし、元のゲームとセーブは変更しません。
 
 `cargo xtask release --component <id> --version <semver> --publish`（`GH_TOKEN` または `GITHUB_TOKEN` が必要）は、その tag で準備済みのターゲットをすべて集めます。別の製品コミットや別のコア固定 revision の記録、別のコミットを指す既存の tag、別のコミットから作られた draft、空の Release、公開済みの Release は拒否します。実行中のコミットで draft を作るか、そのコミットの draft を再利用し（中断した実行が残した同名の添付ファイルは置き換えます）、ソースとバイナリのアーカイブをアップロードして公開します。tag がなければ GitHub がそのコミットに作成します。コアの場合は続けて、各プラットフォームのカタログエントリを `metadata/release-<tag>` ブランチの `Metadata/engines/cores/` にコミットし、`main` への PR を作ります。組織の設定で Actions による PR 作成が許可されていない場合、この最後の手順は失敗しますが、エントリはすべてブランチにあるので、PR を手動で作成してください。カタログ URL は最終 tag から作り、draft の `untagged-*` URL は使いません。Manager とコアは別々にリリースされます。Android の debug 署名テスト用 APK はブロック扱いとなり、アップロードされません。
 

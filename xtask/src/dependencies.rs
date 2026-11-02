@@ -48,6 +48,10 @@ pub(crate) struct NativeNeeds {
     pub gstreamer: bool,
 }
 
+fn windows_host_bison(selected: bool, host_is_windows: bool) -> bool {
+    selected && host_is_windows
+}
+
 pub(crate) fn needs(inv: &Inventory, target: &str, component: &str) -> Result<NativeNeeds> {
     let mut result = NativeNeeds::default();
     let manager = component == "manager";
@@ -1011,6 +1015,18 @@ pub fn doctor(inv: &Inventory, target: &str, core: Option<&str>) -> Result<()> {
             }
         }
     }
+    if windows_host_bison(selected.bison, cfg!(windows)) {
+        let bison = inv.root.join(".work/bison/win_bison.exe");
+        if !bison.is_file() {
+            missing.push(format!(
+                "{} (cargo xtask deps --target {target})",
+                bison.display()
+            ));
+        }
+    }
+    if !cfg!(windows) && selected.bison && executable("bison").is_none() {
+        missing.push("Bison host executable".into());
+    }
     if crate::apple::supported(target) && selected.subtitle {
         let pc = subtitle_install(inv, target)?.join("lib/pkgconfig/libass.pc");
         if !pc.is_file() {
@@ -1516,6 +1532,30 @@ fn prepare_linux_runtime_tree(install: &Path, runtime: &Path, target: &str) -> R
             .arg(&output))?;
         crate::binary::inspect(&output, target, false)?;
     }
+    // Cocos' pinned Linux SDK keeps FMOD outside lib/ and omits its SONAME link.
+    // This is an authorized bundled runtime, never a distribution/system ABI.
+    let fmod = install.join("share/cocos2dx/linux-specific/fmod/prebuilt/64-bit/libfmod.so");
+    if fmod.is_file() {
+        package::plain(&fmod)?;
+        if package::sha256(&fmod)?
+            != "d4454884763c746c70c4ea2a9b0ca35555fef2bf174072be21924cb9a80d84a9"
+        {
+            bail!("Cocos FMOD runtime differs from the reviewed SDK 1.06.08 input");
+        }
+        let soname = capture(Command::new("patchelf").arg("--print-soname").arg(&fmod))?;
+        if String::from_utf8(soname)?.trim() != "libfmod.so.6" {
+            bail!("Cocos FMOD runtime must declare SONAME libfmod.so.6");
+        }
+        let output = runtime.join("libfmod.so.6");
+        if fs::symlink_metadata(&output).is_ok() {
+            package::plain(&output)?;
+        }
+        fs::copy(&fmod, &output)?;
+        run(Command::new("patchelf")
+            .args(["--set-rpath", "$ORIGIN"])
+            .arg(&output))?;
+        crate::binary::inspect(&output, target, false)?;
+    }
     Ok(())
 }
 fn vcpkg_install_command(inv: &Inventory, executable: &Path) -> Result<Command> {
@@ -1651,6 +1691,15 @@ pub fn apply_environment(
             cmd.env("RENPY_STATIC_ROOT", renpy_android_root(inv, target)?);
         }
     }
+    if cfg!(windows) && !target.contains("windows") && selected.bison {
+        let bison = inv.root.join(".work/bison");
+        let path = env::var_os("PATH").unwrap_or_default();
+        cmd.env("BISON_EXECUTABLE", bison.join("win_bison.exe"))
+            .env(
+                "PATH",
+                env::join_paths(std::iter::once(bison).chain(env::split_paths(&path)))?,
+            );
+    }
     if crate::apple::supported(target) && selected.subtitle {
         // Apple triplets statically link the complete libass closure, including
         // pkg-config's private libraries and system frameworks.
@@ -1668,10 +1717,10 @@ pub fn apply_environment(
             .env("PKG_CONFIG_ALL_STATIC", "1")
             .env("PKG_CONFIG_LIBDIR", subtitle.join("lib/pkgconfig"));
     }
-    if !target.contains("windows") && selected.bison {
+    if !cfg!(windows) && selected.bison {
         cmd.env(
             "BISON_EXECUTABLE",
-            executable("bison").context("Linux Bison is missing")?,
+            executable("bison").context("Bison host executable is missing")?,
         );
     }
     if target == "x86_64-unknown-linux-gnu" && (selected.subtitle || selected.ffmpeg) {
@@ -2091,7 +2140,7 @@ pub fn prepare(
     if selected.dxc {
         dxc(inv)?;
     }
-    if selected.bison && target_spec.platform == "windows" {
+    if windows_host_bison(selected.bison, cfg!(windows)) {
         let archive = inv.root.join(".work/downloads/win_flex_bison-2.5.25.zip");
         download(&pins.bison_url, &pins.bison_sha256, &archive)?;
         let out = inv.root.join(".work/bison");
@@ -2318,6 +2367,26 @@ pub fn prepare_all(inv: &Inventory, target: &str, allow_dirty_sources: bool) -> 
 mod native_tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn windows_host_prepares_bison_for_android_core() {
+        let inv = Inventory::load(Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap()).unwrap();
+        let selected = needs(&inv, "aarch64-linux-android", "kirikiroid2-web").unwrap();
+        assert!(selected.bison);
+    }
+
+    #[test]
+    fn native_manifest_installations_keep_each_target_closure() {
+        let inv = Inventory::load(Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap()).unwrap();
+        let windows = native_install(&inv, "x86_64-pc-windows-msvc", "kirikiroid2-web").unwrap();
+        let arm = native_install(&inv, "aarch64-linux-android", "kirikiroid2-web").unwrap();
+        let x64 = native_install(&inv, "x86_64-linux-android", "kirikiroid2-web").unwrap();
+        assert!(windows.ends_with("kirikiroid2-web/installed-x64-windows"));
+        assert!(arm.ends_with("kirikiroid2-web/installed-arm64-android-ffmpeg"));
+        assert!(x64.ends_with("kirikiroid2-web/installed-x64-android-ffmpeg"));
+        assert_ne!(windows, arm);
+        assert_ne!(arm, x64);
+    }
 
     #[test]
     fn ndk_requires_the_exact_stable_revision() {
