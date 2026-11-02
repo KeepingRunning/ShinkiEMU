@@ -53,6 +53,8 @@ reqwest.workspace = true
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std"] }
 parking_lot = "0.13.0"
 serde_json.workspace = true
+semver.workspace = true
+time.workspace = true
 zip = { version = "=9.1.0", default-features = false, features = ["deflate"] }
 sha2.workspace = true
 hex.workspace = true
@@ -103,6 +105,8 @@ roukaku-platform.workspace = true
 # Positions the sign-in WKWebView inside the Manager view.
 objc2.workspace = true
 objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "objc2", "CFCGTypes"] }
+objc2-foundation = { workspace = true, features = ["NSDictionary", "NSString", "NSURL"] }
+objc2-ui-kit = { version = "0.3.2", default-features = false, features = ["std", "UIApplication", "block2"] }
 shinki-emu-rfvp = { git = "https://github.com/Project-Shinkirou/rfvp", rev = "f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03", default-features = false }
 shinki-emu-siglus_rs = { git = "https://github.com/Project-Shinkirou/siglus_rs", rev = "a0aa629fb5ce467e91c83e2be0fffb3320404527", default-features = false }
 shinki-emu-musica = { path = "../../Families/shinki-emu-musica", default-features = false, features = ["ffmpeg-vcpkg"] }
@@ -137,6 +141,7 @@ rustls-platform-verifier = "=0.7.1"
 [build-dependencies]
 toml = "1.1.8"
 serde_json.workspace = true
+semver.workspace = true
 sha2.workspace = true
 resvg = "0.48.1"
 ico = "0.3.0"

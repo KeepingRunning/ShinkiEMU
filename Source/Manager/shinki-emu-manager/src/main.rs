@@ -22,7 +22,7 @@ const FAMILY_OWNER_STACK_BYTES: usize = 8 * 1024 * 1024;
 // The command line is desktop-only: the Android activity has no arguments.
 #[cfg(not(any(target_os = "android", target_env = "ohos")))]
 #[derive(Parser)]
-#[command(version)]
+#[command(version = shinki_emu_manager::version())]
 struct Arguments {
     #[command(subcommand)]
     command: Option<Command>,

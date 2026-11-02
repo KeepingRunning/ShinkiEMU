@@ -2362,3 +2362,73 @@ msgstr "Fetch the release list, then pin the release that matches the compatibil
 
 msgid "标题未知"
 msgstr "Title unknown"
+
+# self-update
+msgid "更新"
+msgstr "Updates"
+
+msgid "发现新版本 {}"
+msgstr "New version {} available"
+
+msgid "当前版本 {}"
+msgstr "Current version {}"
+
+msgid "当前版本"
+msgstr "Current version"
+
+msgid "稍后"
+msgstr "Later"
+
+msgid "忽略此版本"
+msgstr "Skip this version"
+
+msgid "前往下载"
+msgstr "Go to download"
+
+msgid "上次检查：{}"
+msgstr "Last checked: {}"
+
+msgid "正在检查更新…"
+msgstr "Checking for updates…"
+
+msgid "已是最新版本"
+msgstr "You're up to date"
+
+msgid "检查失败"
+msgstr "Check failed"
+
+msgid "尚未检查更新"
+msgstr "Not checked yet"
+
+msgid "ShinkiEMU 启动时会检查一次新版本，发现后只提示，不会自动下载或安装。"
+msgstr "ShinkiEMU checks for a new version once at startup. It only tells you about it and never downloads or installs anything by itself."
+
+msgid "立即检查"
+msgstr "Check now"
+
+msgid "离线模式"
+msgstr "Offline mode"
+
+msgid "离线模式下不会检查更新。在“联网与资料”中允许联网后才能检查。"
+msgstr "Updates are not checked while offline. Allow network access in “Network & metadata” to check."
+
+msgid "联网设置"
+msgstr "Network settings"
+
+msgid "已忽略"
+msgstr "Skipped"
+
+msgid "此版本没有发布说明。"
+msgstr "This version has no release notes."
+
+msgid "版本通道"
+msgstr "Release channel"
+
+msgid "接收预发布版本"
+msgstr "Include pre-releases"
+
+msgid "预发布版本会更早带来新功能，但可能不稳定。当前版本是预发布版本时默认开启。"
+msgstr "Pre-releases bring new features sooner but may be unstable. On by default when the current version is a pre-release."
+
+msgid "GitHub 请求已达速率限制，请稍后再试"
+msgstr "GitHub rate limit reached. Try again later."

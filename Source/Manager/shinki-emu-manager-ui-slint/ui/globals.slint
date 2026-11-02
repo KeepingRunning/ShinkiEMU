@@ -57,6 +57,27 @@ export global Network {
     callback sync-now();
 }
 
+// Manager self-update check: detect and announce only, never download or install.
+export global SelfUpdate {
+    in-out property <string> current-version;
+    in-out property <bool> include-prerelease;
+    in-out property <bool> offline;
+    // "idle" | "checking" | "up-to-date" | "available" | "failed"
+    in-out property <string> status: "idle";
+    in-out property <string> failure-reason;
+    in-out property <string> latest-version;
+    in-out property <string> notes-summary;
+    in-out property <string> download-url;
+    in-out property <string> last-checked;
+    in-out property <string> ignored-version;
+    in-out property <bool> banner-visible;
+    callback check-now();
+    callback set-include-prerelease(bool);
+    callback open-download();
+    callback ignore-version();
+    callback dismiss();
+}
+
 export struct GameCard {
     id: string,
     title: string,

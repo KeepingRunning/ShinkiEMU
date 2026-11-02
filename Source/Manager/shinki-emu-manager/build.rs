@@ -70,6 +70,19 @@ fn embed_windows_icon() {
 }
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=SHINKI_EMU_PRODUCT_VERSION");
+    let version = match env::var("SHINKI_EMU_PRODUCT_VERSION") {
+        Ok(version) => version,
+        Err(env::VarError::NotPresent) => env::var("CARGO_PKG_VERSION").expect("package version"),
+        Err(error) => panic!("SHINKI_EMU_PRODUCT_VERSION: {error}"),
+    };
+    semver::Version::parse(&version).expect("SHINKI_EMU_PRODUCT_VERSION must be SemVer");
+    let output = std::path::PathBuf::from(env::var_os("OUT_DIR").expect("Manager OUT_DIR"));
+    std::fs::write(
+        output.join("manager-build-version.json"),
+        serde_json::to_vec(&serde_json::json!({ "version": version })).expect("version JSON"),
+    ).expect("Manager compiled version receipt");
+    println!("cargo:rustc-env=SHINKI_EMU_PRODUCT_VERSION={version}");
     write_embedded_core_identities();
     println!("cargo:rerun-if-changed=../../../Assets/Branding/shinkiemu-icon.svg");
     write_runtime_icon();

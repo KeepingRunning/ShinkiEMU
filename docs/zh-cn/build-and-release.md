@@ -56,6 +56,10 @@ build 必须在 `--manager`、`--core`、`--all-cores` 中选一项。check 选�
 
 每个核心的 `build.rs` 校验本核心的目标和输入，在 Cargo `OUT_DIR` 写入 `core-build.json`。C++ 适配通过它驱动真实 CMake 构建，纯 Rust 核心仍由 Cargo 编译。构建脚本不递归运行 Cargo，也不发布 Release。xtask 从 `compiler-artifact` 和 `build-script-executed` JSON 读取真实产物，不猜测 target 路径。各组件使用 `.work/target/<target>/<component>`，构建记录写入 `.work/build/`。Artemis 在所有平台统一使用 Luau，Android 静态嵌入时与 Manager 共用运行时。
 
+编译指定版本的 Manager 前，先将 `SHINKI_EMU_PRODUCT_VERSION` 设为与 `package`/`release` 相同的 SemVer。未设置时，xtask 使用 CI 已有的 `SHINKI_EMU_CI_VERSION`；两者同时存在必须一致。都未设置的开发构建才使用 Manager package version，不为发行标签修改 `Cargo.toml`。Manager 构建脚本写出 `OUT_DIR/manager-build-version.json`，xtask 核对实际编译身份，并在 build/package/release 记录中保存 `product_version`。缺失、错版或 Android 两个 ABI 版本不同都会拒绝打包；应以目标版本正常重建，不能给旧 receipt 改标签。Apple cross 容器转发同一个产品版本变量。
+
+beta.7 已知问题：官方 Windows 二进制内部自报 `0.1.0-beta.6`，而发行包标签为 beta.7。旧 tag 和资产保持不变。上述编译注入与 receipt 校验用于后续构建，下一版 Manager 发布说明保留这项已知问题记录。
+
 Manager 在创建网络客户端和工作线程前，仅初始化一次进程级 Rustls 加密实现，选择与 reqwest 0.13 和平台证书校验栈一致的 AWS-LC。VNDB 当前使用的 reqwest 0.12 还会启用 ring，不能依靠 feature 自动判断默认实现。Steam 等 provider 自身不安装进程级默认实现。
 
 ### 编译进程序的商店插件
@@ -78,6 +82,7 @@ sudo apt-get install -y --no-install-recommends libgstreamer1.0-dev libgstreamer
 ```sh
 cargo xtask deps --target x86_64-unknown-linux-gnu
 cargo xtask deps --target x86_64-unknown-linux-gnu --all-cores
+export SHINKI_EMU_PRODUCT_VERSION=0.1.0-beta.1
 cargo xtask build --target x86_64-unknown-linux-gnu --manager --release
 cargo xtask build --target x86_64-unknown-linux-gnu --all-cores --release
 cargo xtask package --target x86_64-unknown-linux-gnu --manager --version 0.1.0-beta.1 --out .work/linux-manager
@@ -124,6 +129,7 @@ Linux CI 与发布任务还会解压报告中的 Manager ZIP，使用独立用�
 rustup target add aarch64-linux-android x86_64-linux-android
 cargo xtask deps --target aarch64-linux-android
 cargo xtask deps --target x86_64-linux-android
+export SHINKI_EMU_PRODUCT_VERSION=0.1.0-beta.2
 cargo xtask build --target aarch64-linux-android --manager --release
 cargo xtask build --target x86_64-linux-android --manager --release
 cargo xtask package --target aarch64-linux-android --manager --version 0.1.0-beta.2 --out .work/android-test
@@ -164,6 +170,7 @@ export DOCKER_CONFIG="$HOME/shinkirou-apple/docker"
 export SHINKI_APPLE_SDK_DIR="$HOME/shinkirou-apple/sdks/macosx.sdk"
 cargo xtask apple-image --target aarch64-apple-darwin
 cargo xtask deps --target aarch64-apple-darwin
+export SHINKI_EMU_PRODUCT_VERSION=0.1.0-beta.1
 cargo xtask build --target aarch64-apple-darwin --manager --release
 cargo xtask package --target aarch64-apple-darwin --manager --version 0.1.0-beta.1 --out .work/macos-manager
 export SHINKI_APPLE_SDK_DIR="$HOME/shinkirou-apple/sdks/iphonesimulator.sdk"
@@ -200,6 +207,7 @@ Apple Manager 的 `build.json` 记录打包改写和签名前的原生输入，�
 
 ```sh
 cargo xtask deps --target aarch64-unknown-linux-ohos
+export SHINKI_EMU_PRODUCT_VERSION='<version>'
 cargo xtask build --target aarch64-unknown-linux-ohos --manager --release
 cargo xtask package --target aarch64-unknown-linux-ohos --manager --version <version> --out <dir>
 ```
@@ -225,6 +233,7 @@ GitHub Actions 是权威 CI，构建有托管 runner 的发布产物。仅 DevEc
 
 ```sh
 cargo xtask deps --target aarch64-unknown-linux-ohos
+export SHINKI_EMU_PRODUCT_VERSION='<版本>'
 cargo xtask build --target aarch64-unknown-linux-ohos --manager --release
 cargo xtask release --component manager --target aarch64-unknown-linux-ohos --version <版本>
 SHINKI_EMU_RELEASE_CI_RUN_ID=<成功的-ci-运行编号> SHINKI_EMU_RELEASE_HANDOFF_RUN_ID=<成功的-handoff-运行编号> GH_TOKEN=<GitHub-token> cargo xtask release --component manager --version <版本> --publish

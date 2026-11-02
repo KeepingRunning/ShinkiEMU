@@ -15,6 +15,8 @@ pub struct BuildResult {
     pub component: String,
     pub target: String,
     pub profile: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub product_version: Option<String>,
     pub library: PathBuf,
     pub core_build: Option<CoreBuildManifest>,
     pub embedded_core_builds: Vec<CoreBuildManifest>,
@@ -23,6 +25,54 @@ pub struct BuildResult {
     pub toolchain: String,
     pub features: Vec<String>,
     pub target_dir: PathBuf,
+}
+
+impl BuildResult {
+    pub fn require_product_version(&self, expected: &str) -> Result<()> {
+        let actual = self.product_version.as_deref().context(
+            "Manager build receipt lacks compiled product_version; rebuild with SHINKI_EMU_PRODUCT_VERSION",
+        )?;
+        if actual != expected {
+            bail!(
+                "Manager was compiled as {actual}, not requested package version {expected}; rebuild with the requested product version"
+            );
+        }
+        Ok(())
+    }
+}
+
+fn manager_product_version<'a>(
+    package_version: &'a str,
+    explicit: Option<&'a str>,
+    ci: Option<&'a str>,
+) -> Result<&'a str> {
+    if let (Some(explicit), Some(ci)) = (explicit, ci)
+        && explicit != ci
+    {
+        bail!("SHINKI_EMU_PRODUCT_VERSION and SHINKI_EMU_CI_VERSION disagree");
+    }
+    let version = explicit.or(ci).unwrap_or(package_version);
+    semver::Version::parse(version).context("Manager product version must be SemVer")?;
+    Ok(version)
+}
+
+#[derive(Deserialize)]
+struct ManagerBuildVersion {
+    version: String,
+}
+
+fn manager_build_version(path: &Path, expected: &str) -> Result<String> {
+    let compiled: ManagerBuildVersion = serde_json::from_slice(
+        &fs::read(path)
+            .with_context(|| format!("missing Manager compile identity {}", path.display()))?,
+    )?;
+    if compiled.version != expected {
+        bail!(
+            "Manager build-script version {} differs from requested compile version {expected}",
+            compiled.version
+        );
+    }
+    Ok(compiled.version)
 }
 fn receipt_path(inv: &Inventory, target: &str, component: &str) -> PathBuf {
     inv.root
@@ -155,13 +205,36 @@ pub fn execute(
             ])
             .arg(&manifest),
     )?)?;
-    let package_id = metadata["packages"]
+    let package_metadata = metadata["packages"]
         .as_array()
         .context("cargo packages")?
         .iter()
         .find(|p| p["name"] == package)
-        .and_then(|p| p["id"].as_str())
         .with_context(|| format!("package {package} absent from {}", manifest.display()))?;
+    let package_id = package_metadata["id"].as_str().context("cargo package id")?;
+    let version_inputs = (component == "manager").then(|| {
+        [
+            std::env::var_os("SHINKI_EMU_PRODUCT_VERSION"),
+            std::env::var_os("SHINKI_EMU_CI_VERSION"),
+        ]
+    });
+    let product_version = version_inputs
+        .as_ref()
+        .map(|[explicit, ci]| {
+            manager_product_version(
+                package_metadata["version"]
+                    .as_str()
+                    .context("Manager package version")?,
+                explicit
+                    .as_deref()
+                    .map(|v| v.to_str().context("non-UTF-8 SHINKI_EMU_PRODUCT_VERSION"))
+                    .transpose()?,
+                ci.as_deref()
+                    .map(|v| v.to_str().context("non-UTF-8 SHINKI_EMU_CI_VERSION"))
+                    .transpose()?,
+            )
+        })
+        .transpose()?;
     let android_abi = if target.contains("android") {
         Some(if target.starts_with("aarch64") {
             "arm64-v8a"
@@ -222,6 +295,9 @@ pub fn execute(
             .env("ANDROID_ABI", abi)
             .env("CARGO_NDK_ANDROID_PLATFORM", abi);
     }
+    if let Some(version) = product_version {
+        cmd.env("SHINKI_EMU_PRODUCT_VERSION", version);
+    }
     let mut child = cmd
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -230,6 +306,7 @@ pub fn execute(
     let mut libraries = Vec::new();
     let mut manifests = Vec::new();
     let mut parse_error = None;
+    let mut compiled_product_version = None;
     for line in BufReader::new(output).lines() {
         let line = match line {
             Ok(l) => l,
@@ -254,6 +331,15 @@ pub fn execute(
             && (value["package_id"] == package_id || component == "manager")
             && let Some(dir) = value["out_dir"].as_str()
         {
+            if value["package_id"] == package_id
+                && let Some(expected) = product_version
+            {
+                let path = Path::new(dir).join("manager-build-version.json");
+                match manager_build_version(&path, expected) {
+                    Ok(version) => compiled_product_version = Some(version),
+                    Err(error) => parse_error = Some(error),
+                }
+            }
             let path = Path::new(dir).join("core-build.json");
             if path.is_file() {
                 match fs::read(&path)
@@ -304,6 +390,9 @@ pub fn execute(
     }
     if action != "build" {
         return Ok(None);
+    }
+    if component == "manager" && compiled_product_version.is_none() {
+        bail!("Cargo did not report the Manager build-script version identity");
     }
     let mut embedded_core_builds = Vec::new();
     if component == "manager" {
@@ -375,6 +464,7 @@ pub fn execute(
         library,
         core_build,
         embedded_core_builds,
+        product_version: compiled_product_version,
         source_commit,
         source_dirty,
         toolchain,
@@ -425,4 +515,36 @@ pub fn tests(inv: &Inventory, core: Option<&str>, manager: bool) -> Result<()> {
         dependencies::apply_environment(inv, host, core.unwrap_or("manager"), &mut cmd)?;
     }
     dependencies::run(&mut cmd)
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::*;
+
+    #[test]
+    fn manager_compile_inputs_reject_conflicting_and_invalid_versions() {
+        assert!(
+            manager_product_version(
+                "0.1.0-beta.6",
+                Some("0.1.0-beta.8"),
+                Some("0.1.0-beta.7")
+            )
+            .is_err()
+        );
+        for invalid in ["", "beta.8", "v0.1.0-beta.8", "0.1.0-beta.8 "] {
+            assert!(manager_product_version("0.1.0-beta.6", Some(invalid), None).is_err());
+            assert!(manager_product_version("0.1.0-beta.6", None, Some(invalid)).is_err());
+        }
+    }
+
+    #[test]
+    fn manager_build_sidecar_rejects_an_old_or_missing_compile_identity() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("manager-build-version.json");
+        assert!(manager_build_version(&path, "0.1.0-beta.8").is_err());
+        fs::write(&path, r#"{"version":"0.1.0-beta.6"}"#).unwrap();
+        assert!(manager_build_version(&path, "0.1.0-beta.8").is_err());
+        fs::write(&path, r#"{"package_version":"0.1.0-beta.8"}"#).unwrap();
+        assert!(manager_build_version(&path, "0.1.0-beta.8").is_err());
+    }
 }

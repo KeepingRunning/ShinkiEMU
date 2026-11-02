@@ -50,6 +50,10 @@ build では `--manager`、`--core`、`--all-cores` のいずれか 1 つを必�
 
 各コアの `build.rs` は自身のターゲットと入力を検証し、Cargo の `OUT_DIR` に `core-build.json` を書き出します。C++ のアダプターはこれを通じて実際の CMake ビルドを駆動し、純粋な Rust コアはこれまでどおり Cargo がコンパイルします。ビルドスクリプトが Cargo を再帰的に実行したり、Release を公開したりすることはありません。xtask は `compiler-artifact` と `build-script-executed` の JSON から実際の成果物を読み取り、target のパスを推測しません。各コンポーネントは `.work/target/<target>/<component>` を使い、ビルド記録は `.work/build/` に書き込まれます。Artemis はすべてのプラットフォームで Luau を使用し、Android への静的組み込みでは Manager とランタイムを共有します。
 
+版を指定して Manager をコンパイルする前に、`SHINKI_EMU_PRODUCT_VERSION` を `package`/`release` と同じ SemVer に設定します。未設定なら CI の既存の `SHINKI_EMU_CI_VERSION` を使い、両方ある場合は一致が必要です。どちらもない開発ビルドだけが Manager の package version を使います。リリース名のために `Cargo.toml` を変更しません。Manager の build script が書く `OUT_DIR/manager-build-version.json` を xtask が照合し、build/package/release 記録の `product_version` に保持します。版が不明・不一致の場合や Android の両 ABI で版が異なる場合は拒否します。古い receipt のラベルを変えず、目的の版で通常の再ビルドを行ってください。Apple cross コンテナも同じ製品版の変数を転送します。
+
+beta.7 の既知の問題：公式 Windows バイナリは内部の版を `0.1.0-beta.6` と報告しますが、配布パッケージのラベルは beta.7 です。既存タグと添付ファイルは変更しません。上記のコンパイル時注入と receipt 検証で後続ビルドを修正し、次の Manager リリースノートにもこの問題を記載します。
+
 Manager は、ネットワーククライアントやワーカースレッドを作る前に、プロセス全体の Rustls 暗号プロバイダーを一度だけ初期化します。選ぶのは、reqwest 0.13 とプラットフォームの証明書検証スタックに合わせた AWS-LC です。VNDB が現在使っている reqwest 0.12 は ring も有効にするため、feature による自動選択には頼れません。Steam などの provider は、プロセス全体の既定実装を自分ではインストールしません。
 
 ### コンパイル時に組み込むストア
@@ -73,6 +77,7 @@ sudo apt-get install -y --no-install-recommends libgstreamer1.0-dev libgstreamer
 ```sh
 cargo xtask deps --target x86_64-unknown-linux-gnu
 cargo xtask deps --target x86_64-unknown-linux-gnu --all-cores
+export SHINKI_EMU_PRODUCT_VERSION=0.1.0-beta.1
 cargo xtask build --target x86_64-unknown-linux-gnu --manager --release
 cargo xtask build --target x86_64-unknown-linux-gnu --all-cores --release
 cargo xtask package --target x86_64-unknown-linux-gnu --manager --version 0.1.0-beta.1 --out .work/linux-manager
@@ -119,6 +124,7 @@ JDK 27（`JAVA_HOME` を設定し、その `bin` を `PATH` に追加）、Andro
 rustup target add aarch64-linux-android x86_64-linux-android
 cargo xtask deps --target aarch64-linux-android
 cargo xtask deps --target x86_64-linux-android
+export SHINKI_EMU_PRODUCT_VERSION=0.1.0-beta.2
 cargo xtask build --target aarch64-linux-android --manager --release
 cargo xtask build --target x86_64-linux-android --manager --release
 cargo xtask package --target aarch64-linux-android --manager --version 0.1.0-beta.2 --out .work/android-test
@@ -159,6 +165,7 @@ export DOCKER_CONFIG="$HOME/shinkirou-apple/docker"
 export SHINKI_APPLE_SDK_DIR="$HOME/shinkirou-apple/sdks/macosx.sdk"
 cargo xtask apple-image --target aarch64-apple-darwin
 cargo xtask deps --target aarch64-apple-darwin
+export SHINKI_EMU_PRODUCT_VERSION=0.1.0-beta.1
 cargo xtask build --target aarch64-apple-darwin --manager --release
 cargo xtask package --target aarch64-apple-darwin --manager --version 0.1.0-beta.1 --out .work/macos-manager
 export SHINKI_APPLE_SDK_DIR="$HOME/shinkirou-apple/sdks/iphonesimulator.sdk"
@@ -191,6 +198,7 @@ FFmpeg を組み込む Manager には、対象の専用インストールツリ�
 
 ```sh
 cargo xtask deps --target aarch64-unknown-linux-ohos
+export SHINKI_EMU_PRODUCT_VERSION='<version>'
 cargo xtask build --target aarch64-unknown-linux-ohos --manager --release
 cargo xtask package --target aarch64-unknown-linux-ohos --manager --version <version> --out <dir>
 ```
@@ -216,6 +224,7 @@ OHOS Manager を含むリリースでは、release ブランチを push し、�
 
 ```sh
 cargo xtask deps --target aarch64-unknown-linux-ohos
+export SHINKI_EMU_PRODUCT_VERSION='<version>'
 cargo xtask build --target aarch64-unknown-linux-ohos --manager --release
 cargo xtask release --component manager --target aarch64-unknown-linux-ohos --version <version>
 SHINKI_EMU_RELEASE_CI_RUN_ID=<成功した-ci-実行-id> SHINKI_EMU_RELEASE_HANDOFF_RUN_ID=<成功した-handoff-実行-id> GH_TOKEN=<GitHub-token> cargo xtask release --component manager --version <version> --publish

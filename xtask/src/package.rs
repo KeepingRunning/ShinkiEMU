@@ -353,6 +353,7 @@ pub(crate) fn write_provenance(result: &BuildResult, path: &Path) -> Result<()> 
     let provenance = serde_json::json!({
         "schema":"shinki.emu.build_identity.v1","component":result.component,"target":result.target,
         "profile":result.profile,"source_commit":result.source_commit,"source_dirty":result.source_dirty,"toolchain":result.toolchain,
+        "product_version":result.product_version,
         "features":result.features,"abi":result.core_build.as_ref().map(|m|m.abi.as_str()),
         "artifact_kind":result.core_build.as_ref().map(|m|m.artifact_kind.as_str()).unwrap_or("manager"),
         "library":result.library.file_name().and_then(|s|s.to_str()),
@@ -850,6 +851,7 @@ pub fn package(
         bail!("packaging requires a release build receipt");
     }
     if component == "manager" {
+        result.require_product_version(version)?;
         if target.contains("android") {
             return package_android(inv, &result, version, out);
         }
@@ -1254,6 +1256,7 @@ fn package_android(
             if built.profile != "release" || built.source_commit != result.source_commit {
                 bail!("both Android ABIs require release builds from the same source commit");
             }
+            built.require_product_version(version)?;
             let inputs = tempfile::tempdir()?;
             android_inputs(inv, &built, inputs.path())?;
             // Shared metadata/license bytes must be identical for both ABIs.

@@ -99,6 +99,10 @@ pub(super) fn open_path(path: &std::path::Path) -> Result<(), String> {
         .map_err(|error| format!("SHINKI_EMU_OPEN_PATH_FAILED: {error}"))
 }
 
+pub(super) fn open_url(url: &str) -> Result<(), String> {
+    open::that(url).map_err(|error| format!("SHINKI_EMU_OPEN_URL_FAILED: {error}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

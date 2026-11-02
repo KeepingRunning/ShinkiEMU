@@ -719,7 +719,8 @@ impl Worker {
                 if destination.is_empty() {
                     return Err(provider::StoreError::LibraryRootRequired);
                 }
-                open::that(destination).map_err(|_| provider::StoreError::Io)?;
+                shinki_emu_manager::platform::open_path(Path::new(&destination))
+                    .map_err(|_| provider::StoreError::Io)?;
             }
             StoreAction::Login { account, password } => {
                 self.authenticate(provider::LoginRequest::Credentials {

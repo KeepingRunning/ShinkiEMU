@@ -230,8 +230,10 @@ impl ShinkiEmuManagerController {
             )
             .map_err(|error| error.to_string())?
             .flatten();
+        let self_update = self_update::State::load(&library)?;
         let mut controller = Self {
             library,
+            self_update,
             notice_reading: shinki_emu_manager::resale_notice::Reading::restored(
                 notice_record.as_ref(),
             ),

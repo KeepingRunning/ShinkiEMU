@@ -70,6 +70,7 @@ mod session;
 #[cfg(test)]
 mod session_finish_tests;
 mod snackbar;
+mod self_update;
 mod store;
 mod support;
 mod translation;
@@ -175,6 +176,7 @@ struct ShinkiEmuManagerController {
     last_excluded: Option<String>,
     key_capture: Option<input::KeyCapture>,
     store: store::StoreRuntime,
+    self_update: self_update::State,
 }
 
 impl Drop for ShinkiEmuManagerController {

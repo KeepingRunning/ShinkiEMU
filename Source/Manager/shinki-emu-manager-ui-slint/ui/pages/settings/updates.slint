@@ -1,0 +1,187 @@
+import { MaterialPalette, MaterialText, MaterialTypography, TonalButton, TextButton, FilledButton, LinearProgressIndicator, Icon } from "@material";
+import { App, SelfUpdate } from "../../globals.slint";
+import { Icons } from "../../icons.slint";
+import { PageScroll, SettingGroup, SwitchRow, RowText, StatusChip } from "./common.slint";
+
+export component UpdatesSection inherits PageScroll {
+    title: @tr("更新");
+
+    property <bool> checking: SelfUpdate.status == "checking";
+    property <bool> available: SelfUpdate.status == "available";
+    property <bool> ignored: root.available && SelfUpdate.ignored-version != "" && SelfUpdate.ignored-version == SelfUpdate.latest-version;
+    property <string> last-checked: SelfUpdate.last-checked != "" ? @tr("上次检查：{}", SelfUpdate.last-checked) : "";
+    property <string> status-label: root.checking ? @tr("正在检查更新…")
+        : SelfUpdate.status == "up-to-date" ? @tr("已是最新版本")
+        : root.available ? @tr("发现新版本 {}", SelfUpdate.latest-version)
+        : SelfUpdate.status == "failed" ? @tr("检查失败")
+        : @tr("尚未检查更新");
+    property <string> status-detail: SelfUpdate.status == "failed" && SelfUpdate.failure-reason != ""
+        ? (root.last-checked != "" ? SelfUpdate.failure-reason + "\n" + root.last-checked : SelfUpdate.failure-reason)
+        : root.last-checked;
+    // Narrow windows put 立即检查 under the status text.
+    property <bool> narrow: root.width < 480px;
+
+    SettingGroup {
+        title: "ShinkiEMU Manager";
+        description: @tr("ShinkiEMU 启动时会检查一次新版本，发现后只提示，不会自动下载或安装。");
+
+        RowText {
+            label: @tr("当前版本");
+            description: SelfUpdate.current-version != "" ? SelfUpdate.current-version : @tr("未知");
+        }
+        VerticalLayout {
+            spacing: 12px;
+
+            HorizontalLayout {
+                spacing: 16px;
+
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+                    Icon {
+                        width: 24px;
+                        height: 24px;
+                        source: SelfUpdate.status == "failed" ? Icons.error
+                            : SelfUpdate.status == "up-to-date" ? Icons.check
+                            : root.available ? Icons.download
+                            : Icons.refresh;
+                        colorize: SelfUpdate.status == "failed" ? MaterialPalette.error
+                            : root.available ? MaterialPalette.primary
+                            : MaterialPalette.on-surface-variant;
+                    }
+                }
+
+                RowText {
+                    horizontal-stretch: 1;
+                    label: root.status-label;
+                    description: root.status-detail;
+                    error: SelfUpdate.status == "failed";
+                }
+
+                if !root.narrow : VerticalLayout {
+                    horizontal-stretch: 0;
+                    alignment: center;
+                    TonalButton {
+                        text: @tr("立即检查");
+                        icon: Icons.refresh;
+                        enabled: !SelfUpdate.offline && !root.checking;
+                        clicked => { SelfUpdate.check-now(); }
+                    }
+                }
+            }
+
+            if root.narrow : HorizontalLayout {
+                alignment: end;
+                TonalButton {
+                    text: @tr("立即检查");
+                    icon: Icons.refresh;
+                    enabled: !SelfUpdate.offline && !root.checking;
+                    clicked => { SelfUpdate.check-now(); }
+                }
+            }
+
+            if root.checking : LinearProgressIndicator {
+                indeterminate: true;
+            }
+
+            if SelfUpdate.offline : VerticalLayout {
+                spacing: 4px;
+                RowText {
+                    label: @tr("离线模式");
+                    description: @tr("离线模式下不会检查更新。在“联网与资料”中允许联网后才能检查。");
+                }
+                HorizontalLayout {
+                    alignment: end;
+                    TextButton {
+                        text: @tr("联网设置");
+                        clicked => { App.settings-category = "network"; }
+                    }
+                }
+            }
+        }
+
+        if root.available : Rectangle {
+            border-radius: 12px;
+            background: MaterialPalette.surface-container;
+            min-height: release.min-height;
+            preferred-height: release.preferred-height;
+
+            release := VerticalLayout {
+                padding: 16px;
+                padding-bottom: 8px;
+                spacing: 8px;
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    MaterialText {
+                        horizontal-stretch: 1;
+                        text: @tr("版本 {}", SelfUpdate.latest-version);
+                        style: MaterialTypography.title-small;
+                        color: MaterialPalette.on-surface;
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                        overflow: clip;
+                    }
+                    if root.ignored : VerticalLayout {
+                        alignment: center;
+                        StatusChip {
+                            text: @tr("已忽略");
+                        }
+                    }
+                }
+
+                MaterialText {
+                    text: SelfUpdate.notes-summary != "" ? SelfUpdate.notes-summary : @tr("此版本没有发布说明。");
+                    style: MaterialTypography.body-medium;
+                    color: MaterialPalette.on-surface-variant;
+                    wrap: word-wrap;
+                    vertical-alignment: top;
+                    // Six body-medium lines; the release page has the rest.
+                    overflow: clip;
+                    max-height: 120px;
+                }
+
+                // Narrow windows give 前往下载 its own row.
+                if root.width >= 640px : HorizontalLayout {
+                    alignment: end;
+                    spacing: 4px;
+                    if !root.ignored : TextButton {
+                        text: @tr("忽略此版本");
+                        clicked => { SelfUpdate.ignore-version(); }
+                    }
+                    FilledButton {
+                        text: @tr("前往下载");
+                        icon: Icons.download;
+                        clicked => { SelfUpdate.open-download(); }
+                    }
+                }
+                if root.width < 640px : VerticalLayout {
+                    spacing: 4px;
+                    FilledButton {
+                        text: @tr("前往下载");
+                        icon: Icons.download;
+                        clicked => { SelfUpdate.open-download(); }
+                    }
+                    if !root.ignored : HorizontalLayout {
+                        alignment: end;
+                        TextButton {
+                            text: @tr("忽略此版本");
+                            clicked => { SelfUpdate.ignore-version(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    SettingGroup {
+        title: @tr("版本通道");
+
+        SwitchRow {
+            label: @tr("接收预发布版本");
+            description: @tr("预发布版本会更早带来新功能，但可能不稳定。当前版本是预发布版本时默认开启。");
+            value: SelfUpdate.include-prerelease;
+            toggled(on) => { SelfUpdate.set-include-prerelease(on); }
+        }
+    }
+}

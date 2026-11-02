@@ -60,6 +60,10 @@ Select exactly one of `--manager`, `--core` and `--all-cores` for build. Check t
 
 Each core owns a real `build.rs`. It validates target inputs and records `core-build.json` in Cargo's `OUT_DIR`. C++ adapters drive their native CMake builds; pure Rust cores are compiled by Cargo. Build scripts do not recursively run Cargo or publish releases. xtask reads `compiler-artifact` and `build-script-executed` JSON, not guessed target paths. Components build independently under `.work/target/<target>/<component>`; receipts are under `.work/build/`. Artemis uses Luau on every platform and shares Manager's runtime when statically embedded on Android.
 
+Before compiling a versioned Manager, set `SHINKI_EMU_PRODUCT_VERSION` to the same SemVer passed to `package`/`release`. CI's existing `SHINKI_EMU_CI_VERSION` is used when the product variable is absent; if both are set they must agree. Without either input, a development build uses the Manager package version. Do not change `Cargo.toml` merely to label a release. The Manager build script writes `OUT_DIR/manager-build-version.json`; xtask checks that actual compile identity and records `product_version` in the build/package/release records. Packaging rejects missing or different versions, including mixed Android ABI versions: rebuild normally with the intended version instead of relabeling an old receipt. Apple cross containers forward the same product variable.
+
+Known beta.7 issue: the official Windows binary reports `0.1.0-beta.6` internally although its release/package label is beta.7. Its existing tag and assets remain immutable. The compile-time injection and receipt checks above fix subsequent builds; the next Manager release notes retain this known-issue record.
+
 Android Manager and standalone-core builds import the pinned `cargo ndk-env` toolchain and invoke Cargo directly, preserving its real build-script manifests. Native standalone builds receive their selected core's exact prepared installation through `SHINKI_EMU_VCPKG_INSTALLED`; embedded builds use the per-core native root so multiple cores do not share one installation.
 
 Manager initializes the process-wide Rustls crypto provider once, before creating network clients or workers. It selects AWS-LC, matching reqwest 0.13 and platform certificate verification; VNDB's current reqwest 0.12 dependency also enables ring, so automatic feature-based selection is ambiguous. Steam and the other providers do not install a process default themselves.
@@ -91,6 +95,7 @@ release-only native dependency builds receive these tools too.
 ```sh
 cargo xtask deps --target x86_64-unknown-linux-gnu
 cargo xtask deps --target x86_64-unknown-linux-gnu --all-cores
+export SHINKI_EMU_PRODUCT_VERSION=0.1.0-beta.1
 cargo xtask build --target x86_64-unknown-linux-gnu --manager --release
 cargo xtask build --target x86_64-unknown-linux-gnu --all-cores --release
 cargo xtask package --target x86_64-unknown-linux-gnu --manager --version 0.1.0-beta.1 --out .work/linux-manager
@@ -175,6 +180,7 @@ Use JDK 27 (`JAVA_HOME` and its `bin` on `PATH`), Android SDK platform 37.2, bui
 rustup target add aarch64-linux-android x86_64-linux-android
 cargo xtask deps --target aarch64-linux-android
 cargo xtask deps --target x86_64-linux-android
+export SHINKI_EMU_PRODUCT_VERSION=0.1.0-beta.2
 cargo xtask build --target aarch64-linux-android --manager --release
 cargo xtask build --target x86_64-linux-android --manager --release
 cargo xtask package --target aarch64-linux-android --manager --version 0.1.0-beta.2 --out .work/android-test
@@ -259,6 +265,7 @@ export DOCKER_CONFIG="$HOME/shinkirou-apple/docker"
 export SHINKI_APPLE_SDK_DIR="$HOME/shinkirou-apple/sdks/macosx.sdk"
 cargo xtask apple-image --target aarch64-apple-darwin
 cargo xtask deps --target aarch64-apple-darwin
+export SHINKI_EMU_PRODUCT_VERSION=0.1.0-beta.1
 cargo xtask build --target aarch64-apple-darwin --manager --release
 cargo xtask package --target aarch64-apple-darwin --manager --version 0.1.0-beta.1 --out .work/macos-manager
 export SHINKI_APPLE_SDK_DIR="$HOME/shinkirou-apple/sdks/iphonesimulator.sdk"
@@ -301,6 +308,7 @@ Use DevEco Studio with its OpenHarmony native SDK 5.0.5 (API 17; the HAP targets
 
 ```sh
 cargo xtask deps --target aarch64-unknown-linux-ohos
+export SHINKI_EMU_PRODUCT_VERSION='<version>'
 cargo xtask build --target aarch64-unknown-linux-ohos --manager --release
 cargo xtask package --target aarch64-unknown-linux-ohos --manager --version <version> --out <dir>
 ```
@@ -326,6 +334,7 @@ For a Manager release containing a local-only OHOS target, push the release bran
 
 ```sh
 cargo xtask deps --target aarch64-unknown-linux-ohos
+export SHINKI_EMU_PRODUCT_VERSION='<version>'
 cargo xtask build --target aarch64-unknown-linux-ohos --manager --release
 cargo xtask release --component manager --target aarch64-unknown-linux-ohos --version <version>
 SHINKI_EMU_RELEASE_CI_RUN_ID=<successful-ci-run-id> SHINKI_EMU_RELEASE_HANDOFF_RUN_ID=<successful-handoff-run-id> GH_TOKEN=<GitHub-token> cargo xtask release --component manager --version <version> --publish

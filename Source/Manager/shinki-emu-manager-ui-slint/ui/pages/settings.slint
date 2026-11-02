@@ -7,6 +7,7 @@ import { NetworkSection } from "./settings/network.slint";
 import { TranslationSection } from "./settings/translation.slint";
 import { InputSection } from "./settings/input.slint";
 import { AboutSection } from "./settings/about.slint";
+import { UpdatesSection } from "./settings/updates.slint";
 
 // Single-pane navigation state. Leaving the settings page resets
 // App.settings-category to "" (shown as 外观), so any deep link -- writing a
@@ -195,6 +196,13 @@ component SectionHost {
         height: root.height;
         show-title: root.show-title;
     }
+    if root.category == "updates" : UpdatesSection {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        show-title: root.show-title;
+    }
     if root.category == "about" : AboutSection {
         x: 0px;
         y: 0px;
@@ -213,6 +221,7 @@ export component SettingsPage {
         { id: "network", label: @tr("联网与资料"), icon: Icons.public },
         { id: "translation", label: @tr("实时翻译"), icon: Icons.translate },
         { id: "input", label: @tr("输入与手柄"), icon: Icons.sports-esports },
+        { id: "updates", label: @tr("更新"), icon: Icons.refresh },
         { id: "about", label: @tr("关于"), icon: Icons.info },
     ];
     property <bool> two-pane: root.width >= 760px;
@@ -229,6 +238,7 @@ export component SettingsPage {
             : id == "network" ? @tr("联网与资料")
             : id == "translation" ? @tr("实时翻译")
             : id == "input" ? @tr("输入与手柄")
+            : id == "updates" ? @tr("更新")
             : id == "about" ? @tr("关于")
             : @tr("设置");
     }

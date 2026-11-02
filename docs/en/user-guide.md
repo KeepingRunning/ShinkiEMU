@@ -25,6 +25,12 @@ Game titles, descriptions and patch notes come from metadata. Manager shows the 
 
 Metadata request failures belong to the selected installation. Starting a retry clears its previous failure state while the request is pending; changing the interface language does not change whether a request failed.
 
+## Manager updates
+
+When networking is allowed, Manager checks its own version once in the background at startup. This never blocks startup or opens an error dialog. **Settings → Updates → Check now** performs a manual check and displays failures. Releases come from Project-Shinkirou/ShinkiEMU's GitHub Releases and are compared using `manager-v<semver>` tags. Core and store-game updates keep their separate controls.
+
+The prerelease channel is selectable and defaults to enabled when running a prerelease Manager. An available update shows its version, release notes and a download link for the current platform, opened in the system browser. Manager never downloads or installs itself. Ignored versions are saved locally and are not prompted again; **Later** hides the prompt for this session. Offline mode sends no update requests.
+
 ## Add games and install cores
 
 In Settings, add the directories containing your legally obtained game installations, then scan the library. Select the detected game and check the selected core and game-specific configuration before starting. An engine probe identifies a format; encrypted resources can still require a private profile. Keep all keys local.

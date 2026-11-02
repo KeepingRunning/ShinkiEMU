@@ -153,7 +153,7 @@ impl ShinkiEmuManagerController {
             encode(architecture),
             encode(variant),
             encode(version),
-            encode(env!("CARGO_PKG_VERSION")),
+            encode(shinki_emu_manager::version()),
         )
     }
 

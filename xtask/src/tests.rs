@@ -95,6 +95,7 @@ fn result(temp: &Path) -> BuildResult {
         component: "fixture".into(),
         target: f.target.clone(),
         profile: "release".into(),
+        product_version: None,
         library: f.library.clone(),
         core_build: Some(CoreBuildManifest {
             schema: shinki_emu_build::SCHEMA.into(),
@@ -117,6 +118,25 @@ fn result(temp: &Path) -> BuildResult {
         features: vec![],
         target_dir: temp.to_owned(),
     }
+}
+
+#[test]
+fn manager_package_identity_cannot_relabel_old_or_unversioned_builds() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut receipt = result(temp.path());
+    receipt.component = "manager".into();
+    receipt.core_build = None;
+    assert!(receipt.require_product_version("0.1.0-beta.8").is_err());
+    receipt.product_version = Some("0.1.0-beta.6".into());
+    assert!(receipt.require_product_version("0.1.0-beta.8").is_err());
+    receipt.product_version = Some("0.1.0-beta.8".into());
+    receipt.require_product_version("0.1.0-beta.8").unwrap();
+    let path = temp.path().join("build.json");
+    write_provenance(&receipt, &path).unwrap();
+    let packaged: serde_json::Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(packaged["product_version"], "0.1.0-beta.8");
+    receipt.product_version = Some("0.1.0-beta.9".into());
+    assert!(receipt.require_product_version("0.1.0-beta.8").is_err());
 }
 #[test]
 fn paths_reject_traversal_ads_devices_and_collisions() {
