@@ -70,15 +70,13 @@ Release selection keeps the full release title, platform list and known release 
 
 ## Patches
 
-Reviewed **Luau recipes** run only when explicitly selected. The patch page defaults to **New directory**, which keeps the source game unchanged. **In-place overwrite** writes through private staging, moves changed and removed original files to `<game>/.shinki/backup/<id>/`, records their hashes in `manifest.json`, and re-probes the same game. **Restore latest patch** checks that patched files still match the manifest before restoring; if you edited a patched file, restoration refuses to overwrite it. The receipt is `<game>/.shinki/patch-result.json` in in-place mode. External and hosted catalog patches with artifacts offer an HTTPS download action: Manager verifies size and SHA256 before publishing the file under `<game>/.shinki/patch/`, then selects that directory as patch input. Downloads never execute on their own; only a separately selected trusted Luau recipe can run. Check licenses, authorizations and applicable releases; an empty release list means “release not restricted,” not “every edition tested.” See [patch contributions](metadata.md).
+Choose a reviewed Luau patch from **Online patches**, or use **Load local patch…** for a `.luau` script or ZIP. Local scripts without catalog binding are marked unreviewed. Catalog patches match a concrete release and verify file fingerprints before writing. Scripts run only when explicitly selected; permitted script downloads use HTTPS and verify declared size and SHA256 before caching under `<game>/.shinki/patch/`. Online entries allow only their declared downloads.
+
+The patch page defaults to **New directory**, which keeps the source game unchanged and does not copy saves. **In-place overwrite** writes through private staging, backs up changed/removed originals under `<game>/.shinki/backup/<id>/`, and records hashes in `manifest.json`. **Restore latest patch** refuses to overwrite patched files you have edited. The in-place receipt is `<game>/.shinki/patch-result.json`. Resource patches cannot create or modify EXE files. See [patch contributions](metadata.md).
 
 In **New directory** mode on Windows, macOS and Linux, **Choose output** opens a folder picker. Choose the parent location, or create a folder there using the system's folder controls. Manager displays the full proposed output path below that location: `localized-output`, or `localized-output-1`, `localized-output-2`, etc. if a name is already occupied. Check this path before starting. Selection never creates the conversion directory; only a successful conversion publishes it. Cancelling the picker leaves the previous selection unchanged. Existing files and directories are never overwritten, including anything created at the proposed path after selection. Output cannot overlap the game or patch input. **In-place overwrite** does not use the output selection. On iOS the selected parent receives a new `localized-output` child; Android uses a new app-private export directory.
 
-Some converted games require native core semantics such as isolated script saves
-and a consistent configured font. Manager checks the selected loaded core before
-importing or launching those outputs. If it requests a core update, install the
-updated core before retrying; a matching version label alone is not sufficient.
-Ordinary recipes without semantic requirements keep their existing behavior.
+New Musica patches require Musica core beta.5 or later; Yorino requires capability bits 256 and 512. RFVP native-script patches require isolated script saves and configured-font priority. Manager checks the actual loaded core before importing or launching converted outputs. If it requests a core update, update before retrying; a version label alone is insufficient. Older Managers continue reading the retained v1 patch catalog and legacy scripts.
 
 ## Data and saves
 

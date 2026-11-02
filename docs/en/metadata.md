@@ -17,17 +17,17 @@ Platforms are `windows`, `linux`, `macos`, `android`, `ios`, `ohos`; architectur
 
 Source entries live at `Metadata/compatibility/entries/<vid>/<rid>/<plugin_id>/<platform>-<architecture>-<variant>.json`. Old records without an explicit architecture require evidence before publication; do not guess.
 
-## Patch kinds and permission
+## Luau patches and permission
 
-Patch entries live at `Metadata/patches/entries/<id>.json`. The generated catalog uses `shinki.emu.patches.v1`. Provide an ID, semver version, localized `title`/`summary` maps (`zh-CN` and `en` required, `ja` optional; the portal falls back to `en`), work/release IDs, exact cores, kind and license. Supply HTTPS source/authorization links and an issue reference where applicable.
+Patch entries live at `Metadata/patches/entries/<id>.json`. `patches-v2.json` uses `shinki.emu.patches.v2`; every entry references a reviewed relative `.luau` script under `Metadata/patches/`. There are no recipe/external/hosted categories in v2. Provide an ID, semver version, localized `title`/`summary` maps (`zh-CN` and `en` required, `ja` optional), exact core IDs, source, license, authorization and issue references.
 
-- **recipe:** references a safe relative `.luau` script under `Metadata/patches/`. The script must be reviewed repository content. Only recipes enter the executable recipe menu; users explicitly select execution.
-- **external:** supplies an artifact or source URL. It is displayed as a link/download, not run by the product.
-- **hosted:** requires a public HTTPS authorization record and an artifact with URL, SHA256, byte size and safe filename. The URL must be under `https://github.com/Project-Shinkirou/ShinkiEMU/releases/download/`. The default maximum is 1 GiB per artifact. A license label alone is not evidence that someone else's patch can be redistributed.
+Each `releases` record binds a concrete VNDB `release_id` and `vn_id` to its title, edition, known game version and file fingerprints (`path`, `size`, `sha256`). Do not invent missing edition/version facts. Manager verifies the selected release before creating a writable transaction.
 
-Hosted release naming follows `patch-<id>-v<semver>`. Attachments are separately reviewed distribution artifacts, not files embedded in the metadata snapshot. Updating a version requires binding its exact bytes and authorization again. An empty `release_ids` list means the submitter declared work-level applicability; display “release not restricted,” not “all releases verified.”
+Scripts may call `ctx.download(url, sha256, size)`. Catalog entries must declare each allowed HTTPS URL, SHA256 and byte size in `downloads`; an absent or empty list permits no downloads. Sizes must be between 1 byte and 1 GiB. Verified hash-named files are cached under `<game>/.shinki/patch/`; redirects remain HTTPS and cached files are rechecked. A license label alone is not redistribution permission.
 
-Manager offers a download action for applicable hosted artifacts and external entries that include an artifact. It follows HTTPS redirects only (hosted release assets retain the GitHub release CDN allowlist), writes a temporary `.part` file, verifies byte count and SHA256, then publishes `<game>/.shinki/patch/<file_name>` atomically. A previously verified artifact is reused. The download directory becomes patch input; the artifact never runs as a script. In-place recipes back up changed originals under `<game>/.shinki/backup/<id>/` with a manifest and support hash-checked restore.
+Online and local Luau/ZIP patches use the same VM and transactions. Local scripts without catalog binding are marked unreviewed. Output defaults to a separate directory; in-place mode supports backup and hash-checked restoration. Resource patches cannot create or modify EXE files. Musica's new native patches require core beta.5 or later; Manager checks the actual descriptor's required capability bits, including 256 and 512 for Yorino.
+
+Older Managers retain `patches.json`, `patches/catalog.json` and scripts under `patches/legacy/`, generated from `Metadata/legacy`. They do not consume v2 entries.
 
 ## Maintainer review
 
@@ -50,7 +50,7 @@ cargo xtask metadata intake --kind patch --event event.json --out .work/patch-ca
 
 Schema exports default to `Metadata/schema` and come from Rust DTOs. Edit source entries and scripts, not generated parallel schema rules. Validate/build accept `--root`; build/intake require a new output directory.
 
-Snapshot output contains `compatibility.json`, `cores.json`, `presets.json`, `patches.json`, recipe-only `patches/catalog.json`, reviewed scripts and `index.json`. Recipe titles in the executable catalog use `zh-CN`. Core release entries come from `Metadata/engines/cores/<plugin_id>/<platform>/<version>.json` and only reference this repository's release downloads. Index SHA256 hashes/sizes and source commit cover generated files. Commit time supplies the timestamp, making the same committed input deterministic. Limits are 8 MiB per file, 64 MiB total and 4096 files; large attachments remain outside this budget.
+Snapshot output contains `compatibility.json`, `cores.json`, `presets.json`, `patches-v2.json`, legacy `patches.json` and `patches/catalog.json`, reviewed current/legacy scripts and `index.json`. Core release entries come from `Metadata/engines/cores/<plugin_id>/<platform>/<version>.json` and only reference this repository's release downloads. Index SHA256 hashes/sizes and source commit cover generated files. Commit time supplies the timestamp, making the same committed input deterministic. Limits are 8 MiB per file, 64 MiB total and 4096 files; large downloads remain outside this budget.
 
 The index also covers `cores-v2.json` (`shinki.emu.cores.v2`), containing both authentic legacy entries and new external `identity` records. `cores.json` remains legacy v1 and retains published downloads for older Managers. New consumers prefer indexed v2 and fall back to v1 only when v2 is absent. Upstream/adapter identities, safe filenames and sequence-based latest selection are defined in [Build and release](build-and-release.md#package-and-release).
 

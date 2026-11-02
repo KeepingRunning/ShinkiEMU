@@ -17,17 +17,17 @@ description: 互換性 v4、パッチのレビュー、生成スナップショ�
 
 元記録のパスは `Metadata/compatibility/entries/<vid>/<rid>/<plugin_id>/<platform>-<architecture>-<variant>.json` です。アーキテクチャが明記されていない古い記録は、根拠を確認してから公開してください。推測で補ってはいけません。
 
-## パッチの種類と許諾
+## Luau パッチと許諾
 
-パッチの元記録は `Metadata/patches/entries/<id>.json` にあり、生成されるカタログは `shinki.emu.patches.v1` を使います。id、semver バージョン、`title`/`summary`（`zh-CN` と `en` は必須、`ja` は任意で、ない場合ポータルは `en` を表示します）、作品とリリースの識別子、正確なコア識別子、種類、ライセンスを記載します。必要に応じて HTTPS の出典、許諾リンク、issue への参照を添えてください。
+パッチの元記録は `Metadata/patches/entries/<id>.json` にあります。`patches-v2.json` は `shinki.emu.patches.v2` を使い、各記録は `Metadata/patches/` 配下の安全な相対パスにあるレビュー済み `.luau` スクリプトを参照します。v2 には recipe/external/hosted の種類はありません。id、semver、`title`/`summary`（`zh-CN` と `en` は必須、`ja` は任意）、正確なコア識別子、出典、ライセンス、許諾、issue への参照を記載します。
 
-- **recipe（レシピ）**は `Metadata/patches/` 配下の安全な相対パスにある `.luau` スクリプトを参照します。スクリプトはリポジトリ内のレビュー済みの内容でなければなりません。実行可能なメニューに入るのはレシピだけで、実行はユーザーが明示的に選んだときに限られます。
-- **external（外部）**は添付ファイルまたは出典の URL を提供します。リンクやダウンロードとして表示するだけで、製品が実行することはありません。
-- **hosted（ホスト）**には、公開 HTTPS の許諾根拠と、URL、SHA256、バイト数、安全なファイル名を含む添付ファイル記録が必要です。URL は `https://github.com/Project-Shinkirou/ShinkiEMU/releases/download/` 配下に限られます。添付ファイル 1 件あたりの既定の上限は 1 GiB です。ライセンス名を書くだけでは、他者のパッチを再配布してよい根拠になりません。
+各 `releases` 記録は具体的な VNDB `release_id`、`vn_id`、タイトル、edition、既知のゲーム版とファイル指紋（`path`、`size`、`sha256`）を結び付けます。不明な版情報は推測しません。Manager は書き込み可能なトランザクションを作成する前に対象リリースの指紋を確認します。
 
-ホストする Release の名前は `patch-<id>-v<semver>` 形式にします。添付ファイルは個別にレビューして配布し、メタデータのスナップショットには埋め込みません。新しいバージョンでは、正確なバイト列と許諾根拠を改めて紐づける必要があります。`release_ids` が空の場合は、提出者が作品単位で適用対象を宣言したことだけを意味します。画面には「対象リリース未限定」と表示し、「全リリースで検証済み」と書いてはいけません。
+スクリプトは `ctx.download(url, sha256, size)` を呼び出せます。オンライン記録の `downloads` に許可する HTTPS URL、SHA256、バイト数をすべて宣言します。省略または空ならダウンロードを許可しません。サイズは 1 バイトから 1 GiB です。検証済みファイルはハッシュ名で `<game>/.shinki/patch/` に保存し、リダイレクトも HTTPS に限定します。キャッシュは再検証してから使います。ライセンス名だけでは再配布の許諾になりません。
 
-Manager は対象ゲームに一致する hosted の添付ファイルと、添付ファイル付きの external エントリにダウンロードボタンを表示します。リダイレクト先も HTTPS に限定し、ホストされた Release 添付ファイルには GitHub CDN の許可リストを適用します。まず `.part` ファイルに書き込み、バイト数と SHA256 を確認してから `<game>/.shinki/patch/<file_name>` にアトミックに配置します。検証済みの既存ファイルは再利用します。このディレクトリをパッチ入力に設定しますが、添付ファイル自体はスクリプトとして実行されません。その場で上書きするレシピは変更前のファイルを `<game>/.shinki/backup/<id>/` に退避し、マニフェストによる照合後に復元できます。
+オンラインとローカル Luau/ZIP は同じ VM とトランザクションを使います。カタログに紐付かないローカルスクリプトは未レビューと表示します。既定では別の新しいディレクトリへ出力し、その場での上書きはバックアップとハッシュ照合による復元に対応します。リソースパッチは EXE を作成・変更できません。新しい Musica ネイティブパッチにはコア beta.5 以降が必要で、Manager は実際の descriptor の機能を確認します。Yorino はビット 256 と 512 の両方を必要とします。
+
+旧 Manager 用に `Metadata/legacy` から `patches.json`、`patches/catalog.json`、`patches/legacy/` 配下のスクリプトを生成・維持します。旧 Manager は v2 記録を読み込みません。
 
 ## メンテナーによるレビュー
 
@@ -50,7 +50,7 @@ cargo xtask metadata intake --kind patch --event event.json --out .work/patch-ca
 
 schema の出力先は既定で `Metadata/schema` で、ルールは Rust の DTO から生成されます。編集するのは元記録とスクリプトで、別系統の schema を手書きしないでください。validate/build は `--root` を受け付けます。build/intake の出力先ディレクトリは、まだ存在しないものを指定する必要があります。
 
-スナップショットには、`compatibility.json`、`cores.json`、`presets.json`、`patches.json`、レシピだけを含む `patches/catalog.json`、レビュー済みスクリプト、`index.json` が含まれます。実行可能なレシピカタログのタイトルには `zh-CN` を使います。コアのリリース記録は `Metadata/engines/cores/<plugin_id>/<platform>/<version>.json` から生成され、ダウンロード先は本リポジトリの Releases だけです。index には生成ファイルの SHA256、サイズ、元のコミットが記録されます。タイムスタンプには元コミットの時刻を使うため、同じコミット済みの入力からは同じバイト列が生成されます。上限は 1 ファイル 8 MiB、合計 64 MiB、4096 ファイルで、大きな添付ファイルはこの上限に含まれません。
+スナップショットには `compatibility.json`、`cores.json`、`presets.json`、`patches-v2.json`、旧版の `patches.json` と `patches/catalog.json`、レビュー済みの新旧スクリプト、`index.json` が含まれます。コア記録は `Metadata/engines/cores/<plugin_id>/<platform>/<version>.json` から生成し、本リポジトリの Releases のみを参照します。index は生成ファイルの SHA256、サイズ、元コミットを記録します。時刻は元コミットから取得するため、同じ入力から同じバイト列を生成します。上限は 1 ファイル 8 MiB、合計 64 MiB、4096 ファイルで、大きなダウンロードはこの上限に含まれません。
 
 index は `cores-v2.json`（`shinki.emu.cores.v2`）も対象とし、実際の旧エントリと外部コアの新しい `identity` を収録します。`cores.json` は v1 と公開済みダウンロードを維持し、旧 Manager が利用できます。新しい consumer は index の v2 を優先し、v2 がない場合だけ v1 を読み込みます。upstream/adapter の来歴、安全なファイル名、連番による最新選択は[ビルドとリリース](build-and-release.md#パッケージングとリリース)を参照してください。
 

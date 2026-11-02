@@ -17,17 +17,17 @@ description: 兼容性 v4、补丁审查和生成快照。
 
 源记录路径为 `Metadata/compatibility/entries/<vid>/<rid>/<plugin_id>/<platform>-<architecture>-<variant>.json`。旧记录缺少明确架构时，需要先找到依据，不猜测补齐后发布。
 
-## 补丁种类与授权
+## Luau 补丁与授权
 
-补丁源记录位于 `Metadata/patches/entries/<id>.json`，生成目录使用 `shinki.emu.patches.v1`。提供 id、semver 版本、`title`/`summary`（必须含 `zh-CN` 和 `en`，可选 `ja`，缺少时门户显示 `en`）、作品/发行版标识、精确核心标识、种类及许可；按实际情况附 HTTPS 来源、授权链接和 issue 引用。
+补丁源记录位于 `Metadata/patches/entries/<id>.json`。`patches-v2.json` 使用 `shinki.emu.patches.v2`，每条记录引用 `Metadata/patches/` 下安全相对路径的已审查 `.luau` 脚本。v2 不再区分 recipe/external/hosted 种类。提供 id、semver 版本、`title`/`summary`（必须含 `zh-CN` 和 `en`，可选 `ja`）、精确核心标识、来源、许可、授权及 issue 引用。
 
-- **recipe（配方）**引用 `Metadata/patches/` 下安全相对路径的 `.luau` 脚本，必须是仓库内已审查内容。只有配方进入可执行菜单，并由用户明确选择运行。
-- **external（外部）**提供附件或来源 URL，只展示链接或下载，不由产品执行。
-- **hosted（托管）**必须提供公开 HTTPS 授权依据，以及包含 URL、SHA256、字节数和安全文件名的附件记录。URL 只允许 `https://github.com/Project-Shinkirou/ShinkiEMU/releases/download/`。默认单附件上限为 1 GiB。仅填写许可证名称，不能证明他人补丁已获分发授权。
+每条 `releases` 记录绑定具体 VNDB `release_id`、`vn_id`、发行标题、edition、已知游戏版本及文件指纹（`path`、`size`、`sha256`）。缺少发行信息时不猜测补齐。Manager 在创建可写事务前核对所选发行指纹。
 
-托管 Release 使用 `patch-<id>-v<semver>` 命名。附件单独审查和分发，不嵌入元数据快照；新版本需重新绑定确切字节和授权依据。`release_ids` 为空只表示提交者按作品声明适用，界面显示“发行版本未限定”，不能写成“全部版本已验证”。
+脚本可调用 `ctx.download(url, sha256, size)`。在线条目必须在 `downloads` 声明每个允许的 HTTPS URL、SHA256 和字节数；缺省或空列表不允许下载。大小范围为 1 字节至 1 GiB。通过校验的文件按摘要命名，缓存到 `<game>/.shinki/patch/`；跳转保持 HTTPS，复用缓存前重新校验。仅填写许可证名称不能证明已获分发授权。
 
-Manager 会为匹配游戏的 hosted 附件及带附件的 external 记录提供下载按钮。每次跳转都须使用 HTTPS；托管 Release 仍限制在 GitHub 附件 CDN 白名单内。下载先写 `.part` 临时文件，核对字节数和 SHA256 后，原子发布到 `<game>/.shinki/patch/<file_name>`；已有且校验通过的文件直接复用。该目录成为补丁输入，附件本身不会作为脚本运行。原位覆盖配方把变动原文件备份到 `<game>/.shinki/backup/<id>/`，附带清单并支持核对哈希后还原。
+在线目录和本地 Luau/ZIP 共用 VM 与事务；未绑定目录的本地脚本标记为未经审核。默认输出到独立新目录，原位覆盖支持备份与哈希校验还原。资源补丁不能新增或修改 EXE。新 Musica 原生补丁要求核心 beta.5 或更高版本；Manager 检查实际 descriptor 的能力位，Yorino 需要 256 和 512。
+
+旧 Manager 继续读取从 `Metadata/legacy` 生成的 `patches.json`、`patches/catalog.json` 和 `patches/legacy/` 下的脚本，不读取 v2 条目。
 
 ## 维护者审查
 
@@ -50,7 +50,7 @@ cargo xtask metadata intake --kind patch --event event.json --out .work/patch-ca
 
 schema 默认导出到 `Metadata/schema`，规则来自 Rust DTO。修改源记录和脚本，不手写另一套 schema。validate/build 接受 `--root`；build/intake 要求输出目录尚不存在。
 
-快照包含 `compatibility.json`、`cores.json`、`presets.json`、`patches.json`、仅含配方的 `patches/catalog.json`、已审查脚本和 `index.json`。可执行配方目录的标题取 `zh-CN`。核心发行记录来自 `Metadata/engines/cores/<plugin_id>/<platform>/<version>.json`，下载只指向本仓库 Releases。index 记录生成文件的 SHA256、大小和来源提交，时间取源提交时间，同一已提交输入可生成相同字节。限制为单文件 8 MiB、总计 64 MiB、4096 个文件，大附件不计入该快照。
+快照包含 `compatibility.json`、`cores.json`、`presets.json`、`patches-v2.json`、旧版 `patches.json` 和 `patches/catalog.json`、已审查的新旧脚本及 `index.json`。核心发行记录来自 `Metadata/engines/cores/<plugin_id>/<platform>/<version>.json`，下载只指向本仓库 Releases。index 记录生成文件的 SHA256、大小和来源提交，时间取源提交时间，同一已提交输入可生成相同字节。限制为单文件 8 MiB、总计 64 MiB、4096 个文件，大下载文件不计入该快照。
 
 索引还包含 `cores-v2.json`（`shinki.emu.cores.v2`），其中既有真实的旧记录，也有新的第三方 `identity`。`cores.json` 保持旧 v1，并保留已发布下载，供旧 Manager 使用。新消费者优先读索引中的 v2，仅在 v2 不存在时读取 v1；上游/适配身份、安全文件名及按发布序号选最新的规则见[构建与发布](build-and-release.md#打包与发布)。
 
