@@ -205,6 +205,8 @@ cargo xtask ci --target x86_64-pc-windows-msvc --component rfvp --report .work/r
 
 未対応の組み合わせは `blocked`、`artifact: null` を報告します。OHOS Manager のローカル署名ビルドは、同じコミットの成功したリモート CI と結合してから公開します。対応対象のビルド失敗は `failed` を返します。`publish_blocked` は配布上の制限を別に記録します。
 
+通常の CI/package は、カタログに新しいリリース番号があっても固定済みの外部コア pin を再ビルドできます。バージョンはその pin から導出します。Release の dry-run・準備・公開では、リリース成果物の作成前に番号の単調増加を確認します。古い pin をビルドできても、新規リリースとしての公開は許可されません。
+
 GitHub Actions が正式な CI であり、ホストされたプラットフォームのリリース成果物をビルドします。DevEco が必要な OHOS HAP は、以下のゲート付きローカル引き渡しで追加します。
 OHOS Manager を含むリリースでは、release ブランチを push し、同じコミットの `ci.yml` の成功を確認します。`components=manager` で `release.yml` を実行します。このワークフローは全ホスト行の成功を要求し、Manager の公開はローカル引き渡しに残します。実行中の `release-files-manager@*` artifact をすべてダウンロードし、その `<tag>/<target>/` を同じコミットのクリーンな checkout の `.work/release/<tag>/` に配置します。DevEco と checkout 外の署名ディレクトリを設定して、次を実行します。
 

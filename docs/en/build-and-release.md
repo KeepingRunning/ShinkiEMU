@@ -315,6 +315,8 @@ cargo xtask ci --target x86_64-pc-windows-msvc --component rfvp --report .work/r
 
 Unsupported combinations report `blocked` with `artifact: null`. The OHOS Manager is supported for experimental test-signed packaging only; its local-only build is joined to a successful exact-head GitHub CI run before publication. A supported build failure reports `failed` and exits nonzero. `publish_blocked` denotes distribution restrictions independently of build availability.
 
+Ordinary CI/package builds may rebuild a frozen external-core pin even when the catalog contains a newer release sequence. The version still derives from that pin. Release dry-run, preparation and publication enforce sequence monotonicity before creating release artifacts; building an older pin does not authorize publishing it as a new release.
+
 GitHub Actions is the CI of record and builds the hosted-platform release assets. The DevEco-only OHOS HAP is prepared and uploaded in the gated local handoff below.
 For a Manager release containing a local-only OHOS target, push the release branch and require `ci.yml` to finish successfully at the exact release commit. Dispatch `release.yml` for that commit with `components=manager` and the version; its `publish (manager)` job checks all hosted build rows and leaves publication to the local handoff. In a clean checkout of that exact commit, download every `release-files-manager@*` artifact from the release run into `.work/release/` (`gh run download <release-run-id> -R Project-Shinkirou/ShinkiEMU -p 'release-files-manager@*' -D <scratch>`; copy each artifact's `<tag>/<target>/` directory into `.work/release/<tag>/`). Then, with DevEco and the signing directory set, run:
 

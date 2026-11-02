@@ -60,8 +60,8 @@ static_features = []
 publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/siglus_rs"
-branch = "fix/fortune-world-release"
-rev = "c5ee2bc37e91116e11795aa985c6cd394d590ab6"
+branch = "fix/main-ci-android"
+rev = "a0aa629fb5ce467e91c83e2be0fffb3320404527"
 upstream = "https://github.com/xmoezzz/siglus_rs"
 release_sequence = 2
 upstream_identity = { repo = "https://github.com/xmoezzz/siglus_rs", ref_kind = "tag", ref_name = "1.0.0", commit = "5f358ef1360b0439e92aed2b749e8f25d8721954" }

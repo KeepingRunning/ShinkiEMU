@@ -214,6 +214,8 @@ cargo xtask ci --target x86_64-pc-windows-msvc --component rfvp --report .work/r
 
 未支持的组合报告 `blocked` 和 `artifact: null`。OHOS Manager 本地签名构建必须与同一提交的成功远端 CI 汇合后才能发布；受支持组合编译失败仍报告 `failed`。`publish_blocked` 单独记录分发限制。
 
+普通 CI/package 可以重建冻结的外部核心 pin，即使目录里已有更高的发布序号，版本仍由该 pin 推导。Release dry-run、准备和发布在生成发布产物前检查序号单调性；能构建旧 pin 不代表可以把它作为新版本发布。
+
 GitHub Actions 是权威 CI，构建有托管 runner 的发布产物。仅 DevEco 可构建的 OHOS HAP 由下述有门禁的本地流程提交。
 发布含 OHOS Manager 的版本时，先推送 release 分支，等待同一提交的 `ci.yml` 成功。以该分支和版本触发 `release.yml`，传入 `components=manager`；工作流核对全部托管平台构建行，不会自动发布 Manager。把此运行的每份 `release-files-manager@*` artifact 下载到临时目录，并将其中的 `<tag>/<target>/` 合并到干净且处于同一提交的 `.work/release/<tag>/`。设置 DevEco SDK 与仓库外签名目录后执行：
 

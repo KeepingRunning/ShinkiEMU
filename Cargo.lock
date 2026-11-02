@@ -1063,7 +1063,7 @@ dependencies = [
  "bitflags 2.13.2",
  "cexpr",
  "clang-sys",
- "itertools 0.13.0",
+ "itertools 0.12.1",
  "log 0.4.34",
  "prettyplease 0.2.37",
  "proc-macro2",
@@ -1088,7 +1088,7 @@ dependencies = [
  "regex",
  "rustc-hash 2.1.3",
  "shlex 2.0.1",
- "syn 2.0.119",
+ "syn 3.0.9",
 ]
 
 [[package]]
@@ -2309,7 +2309,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d045de693cb712d0b22c6a64be5b953f67b3ce00ab5ad3dd5d8b441886ab8e1a"
 dependencies = [
  "quote",
- "syn 2.0.119",
+ "syn 3.0.9",
 ]
 
 [[package]]
@@ -2925,7 +2925,7 @@ checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
 [[package]]
 name = "eluna_rs"
 version = "0.1.0"
-source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=c5ee2bc37e91116e11795aa985c6cd394d590ab6#c5ee2bc37e91116e11795aa985c6cd394d590ab6"
+source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=a0aa629fb5ce467e91c83e2be0fffb3320404527#a0aa629fb5ce467e91c83e2be0fffb3320404527"
 dependencies = [
  "flate2",
  "lz4_flex",
@@ -4480,7 +4480,7 @@ dependencies = [
  "log 0.4.34",
  "presser",
  "thiserror 2.0.21",
- "windows 0.62.2",
+ "windows 0.60.0",
 ]
 
 [[package]]
@@ -5425,7 +5425,7 @@ dependencies = [
  "js-sys",
  "log 0.4.34",
  "wasm-bindgen",
- "windows-core 0.58.0",
+ "windows-core 0.62.2",
 ]
 
 [[package]]
@@ -5919,15 +5919,6 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
@@ -6210,7 +6201,7 @@ dependencies = [
 [[package]]
 name = "kira"
 version = "0.9.6"
-source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=c5ee2bc37e91116e11795aa985c6cd394d590ab6#c5ee2bc37e91116e11795aa985c6cd394d590ab6"
+source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=a0aa629fb5ce467e91c83e2be0fffb3320404527#a0aa629fb5ce467e91c83e2be0fffb3320404527"
 dependencies = [
  "cpal 0.15.3",
  "glam 0.29.3",
@@ -7037,7 +7028,7 @@ dependencies = [
 [[package]]
 name = "na_mpeg2_decoder"
 version = "0.1.0"
-source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=c5ee2bc37e91116e11795aa985c6cd394d590ab6#c5ee2bc37e91116e11795aa985c6cd394d590ab6"
+source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=a0aa629fb5ce467e91c83e2be0fffb3320404527#a0aa629fb5ce467e91c83e2be0fffb3320404527"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -7521,7 +7512,7 @@ version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8"
 dependencies = [
- "proc-macro-crate 3.5.0",
+ "proc-macro-crate 2.0.2",
  "proc-macro2",
  "quote",
  "syn 2.0.119",
@@ -8191,7 +8182,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.45.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -8961,7 +8952,7 @@ version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03da047801ff44bb6a4d407d4860c05fd70bb81714e6b2f3812603d5b145b042"
 dependencies = [
- "heck 0.5.0",
+ "heck 0.4.1",
  "itertools 0.14.0",
  "log 0.4.34",
  "multimap",
@@ -11468,7 +11459,7 @@ dependencies = [
 [[package]]
 name = "shinki-emu-siglus_rs"
 version = "1.0.0"
-source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=c5ee2bc37e91116e11795aa985c6cd394d590ab6#c5ee2bc37e91116e11795aa985c6cd394d590ab6"
+source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=a0aa629fb5ce467e91c83e2be0fffb3320404527#a0aa629fb5ce467e91c83e2be0fffb3320404527"
 dependencies = [
  "pollster 0.3.0",
  "shinki-emu-abi",
@@ -11524,7 +11515,7 @@ dependencies = [
 [[package]]
 name = "shion-xfile"
 version = "0.1.0"
-source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=c5ee2bc37e91116e11795aa985c6cd394d590ab6#c5ee2bc37e91116e11795aa985c6cd394d590ab6"
+source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=a0aa629fb5ce467e91c83e2be0fffb3320404527#a0aa629fb5ce467e91c83e2be0fffb3320404527"
 dependencies = [
  "flate2",
 ]
@@ -11544,7 +11535,7 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 [[package]]
 name = "siglus_assets"
 version = "0.1.0"
-source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=c5ee2bc37e91116e11795aa985c6cd394d590ab6#c5ee2bc37e91116e11795aa985c6cd394d590ab6"
+source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=a0aa629fb5ce467e91c83e2be0fffb3320404527#a0aa629fb5ce467e91c83e2be0fffb3320404527"
 dependencies = [
  "anyhow",
  "encoding_rs",
@@ -11552,13 +11543,13 @@ dependencies = [
  "hex",
  "image 0.24.9",
  "lewton",
- "na_mpeg2_decoder 0.1.0 (git+https://github.com/Project-Shinkirou/siglus_rs?rev=c5ee2bc37e91116e11795aa985c6cd394d590ab6)",
+ "na_mpeg2_decoder 0.1.0 (git+https://github.com/Project-Shinkirou/siglus_rs?rev=a0aa629fb5ce467e91c83e2be0fffb3320404527)",
 ]
 
 [[package]]
 name = "siglus_key_recovery"
 version = "0.1.0"
-source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=c5ee2bc37e91116e11795aa985c6cd394d590ab6#c5ee2bc37e91116e11795aa985c6cd394d590ab6"
+source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=a0aa629fb5ce467e91c83e2be0fffb3320404527#a0aa629fb5ce467e91c83e2be0fffb3320404527"
 dependencies = [
  "siglus_assets",
 ]
@@ -11566,7 +11557,7 @@ dependencies = [
 [[package]]
 name = "siglus_omv_decoder"
 version = "0.1.0"
-source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=c5ee2bc37e91116e11795aa985c6cd394d590ab6#c5ee2bc37e91116e11795aa985c6cd394d590ab6"
+source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=a0aa629fb5ce467e91c83e2be0fffb3320404527#a0aa629fb5ce467e91c83e2be0fffb3320404527"
 dependencies = [
  "anyhow",
  "lewton",
@@ -11577,7 +11568,7 @@ dependencies = [
 [[package]]
 name = "siglus_scene_vm"
 version = "1.0.0"
-source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=c5ee2bc37e91116e11795aa985c6cd394d590ab6#c5ee2bc37e91116e11795aa985c6cd394d590ab6"
+source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=a0aa629fb5ce467e91c83e2be0fffb3320404527#a0aa629fb5ce467e91c83e2be0fffb3320404527"
 dependencies = [
  "ab_glyph",
  "android_logger 0.14.1",
@@ -11597,7 +11588,7 @@ dependencies = [
  "js-sys",
  "kira 0.9.6",
  "log 0.4.34",
- "na_mpeg2_decoder 0.1.0 (git+https://github.com/Project-Shinkirou/siglus_rs?rev=c5ee2bc37e91116e11795aa985c6cd394d590ab6)",
+ "na_mpeg2_decoder 0.1.0 (git+https://github.com/Project-Shinkirou/siglus_rs?rev=a0aa629fb5ce467e91c83e2be0fffb3320404527)",
  "ndk-context",
  "pollster 0.3.0",
  "raw-window-handle 0.6.2",
@@ -11896,7 +11887,7 @@ version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1c97747dbf44bb1ca44a561ece23508e99cb592e862f22222dcf42f51d1e451"
 dependencies = [
- "heck 0.5.0",
+ "heck 0.4.1",
  "proc-macro2",
  "quote",
  "syn 2.0.119",
@@ -12251,7 +12242,7 @@ version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c2499c2d826531388872b2268718aed907a39bd785ab0dcfe57fab26283f92e"
 dependencies = [
- "skrifa 0.44.0",
+ "skrifa 0.40.0",
  "yazi",
  "zeno",
 ]
@@ -12838,7 +12829,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.5",
  "windows-sys 0.59.0",
@@ -12891,7 +12882,7 @@ dependencies = [
 [[package]]
 name = "theora-rs"
 version = "0.1.0"
-source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=c5ee2bc37e91116e11795aa985c6cd394d590ab6#c5ee2bc37e91116e11795aa985c6cd394d590ab6"
+source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=a0aa629fb5ce467e91c83e2be0fffb3320404527#a0aa629fb5ce467e91c83e2be0fffb3320404527"
 
 [[package]]
 name = "thiserror"
@@ -16189,7 +16180,7 @@ dependencies = [
 [[package]]
 name = "wmv-decoder"
 version = "0.2.1"
-source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=c5ee2bc37e91116e11795aa985c6cd394d590ab6#c5ee2bc37e91116e11795aa985c6cd394d590ab6"
+source = "git+https://github.com/Project-Shinkirou/siglus_rs?rev=a0aa629fb5ce467e91c83e2be0fffb3320404527#a0aa629fb5ce467e91c83e2be0fffb3320404527"
 dependencies = [
  "byteorder",
  "log 0.4.34",
