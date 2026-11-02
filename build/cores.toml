@@ -287,13 +287,15 @@ artifact_kind = "rust-cdylib"
 resources = []
 licenses = ["LICENSE-MIT", "LICENSE-APACHE", "Assets/Fonts/OFL-NotoSansJP.txt"]
 supported_targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "aarch64-apple-darwin"]
+static_manager_targets = ["aarch64-linux-android", "x86_64-linux-android"]
+static_features = ["video-ffmpeg"]
 publish_blocked = ""
 [[cores.blocked]]
 target = "aarch64-linux-android"
-reason = "Waiting on Android Manager static embedding; standalone dynamic-core installation is not supported."
+reason = "Statically embedded in the Android Manager; standalone dynamic-core installation is not supported."
 [[cores.blocked]]
 target = "x86_64-linux-android"
-reason = "Waiting on Android Manager static embedding; standalone dynamic-core installation is not supported."
+reason = "Statically embedded in the Android Manager; standalone dynamic-core installation is not supported."
 [[cores.blocked]]
 target = "aarch64-apple-ios"
 reason = "Waiting on Manager static embedding and AppleNative remote mac verification."
