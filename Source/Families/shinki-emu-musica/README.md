@@ -52,9 +52,11 @@ Yorino 的带括号姓名由核心根据实际 SC speaker 生成。补丁只写�
 
 `mount_musica(game_root, profile_path)` 只读取不超过 1 MiB 的 UTF-8 TOML，按原始文件字节 SHA-256 绑定私有配置身份。`MusicaKeyFile` 使用 `shinki.emu.musica.keys.v2`，必须明确声明 `paz_version`、`index_size_xor`、`rc4_skip_crc` 和八个固定 role 的 `archive_keys`。`rc4_skip_crc` 控制 PAZ v2 的 entry CRC32 skip，缺失算法参数直接拒绝，不补默认值。配置包含私有解密信息，不进 Git、日志或报告；读取失败不写文件。
 
+原生 reader 同时接受旧 schema 标识 `astra.emu.musica.keys.v2`，仅在内存中规范化为 `shinki.emu.musica.keys.v2`，不改写用户的原始 `key.toml`，配置身份仍绑定原始文件字节。Manager 读取和补丁转换共用该 reader，无需用户手动转换这个 v2 schema 标识；新生成的 key 使用 canonical schema。
+
 每个 `MusicaArchiveKey` 声明偶数长度的 `index_key_hex` 和 `data_key_hex`，接受大小写十六进制；mov 允许空 data key。可选字段保留各 role 的 `type_passwords`、`archive_xor` 和 256 字节 `video_key_hex`，`texture_overrides` 仍是整份配置的可选映射。`MusicaKeyFile::validate` 纯校验 schema、算法参数、密钥和路径语法；`load_musica_key_file` 有界读取普通文件并校验，不初始化游戏或设备。TOML 错误不回显源行、密钥或路径。
 
-PAZ 探测只识别引擎，不能据此得出密钥已安装。Manager 只选择现有 key.toml，并将明确路径保存到当前游戏的 `profile_file`；JSON profile、GARbro 方案和旧 `keys.v1` TOML 的转换只由开发 CLI 提供。运行时没有导入器、兼容解析或格式回退。转换说明见 [CLI](../../Programs/shinki-emu-musica-cli/README.md)；原游戏、密钥与存档保持不变。
+PAZ 探测只识别引擎，不能据此得出密钥已安装。Manager 只选择现有 key.toml，并将明确路径保存到当前游戏的 `profile_file`；JSON profile、GARbro 方案和旧 `keys.v1` TOML 的转换只由开发 CLI 提供。运行时不导入这些不同格式；上述两个 v2 schema 标识由同一原生 parser 读取，不做格式猜测。转换说明见 [CLI](../../Programs/shinki-emu-musica-cli/README.md)；原游戏、密钥与存档保持不变。
 
 同一 key.toml 可以可选地声明 `texture_overrides`。它是 `musica:/` 原资源 URI 到游戏目录内安全相对 PNG 路径的显式映射，例如 `musica:/bg/BG.png` 到 `hd/BG.png`。启动先验证原资源、帧数和映射路径，首次使用先解码原资源；逻辑尺寸与 ANI 原点始终来自原资源，替换图只提供物理像素。静态 PNG 与单帧 ANI 支持 PNG 替换；多帧 ANI、SQZ、缺失文件、非法路径、尺寸超限和解码失败都明确报错，不回退原图。原生和替换纹理共用 SDK `TextureCache`，通过不同 cache identity 区分。高清素材放在 ignored 私有目录，不进入仓库、日志或存档。
 
