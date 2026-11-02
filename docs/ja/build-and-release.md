@@ -19,7 +19,7 @@ Ren’Py にはさらに、固定バージョンの公式 SDK が必要です。
 POSIX SDL 2.0.20 のソースは SDL 公式 GitHub Release から取得します。SHA256 は `c56aba1d7b5b0e7e999e4a7698c70b63a3394ff9704b5f6e1c57e0c16f04dd06` のままで、アーカイブの内容と SDK ABI は変わりません。Android Ren’Py のソースビルドには LLVM 18/Clang 18、LLD、ccache とネイティブ開発パッケージも必要です。CI と Release は同じ既存の依存関係一覧を使います。Android SDK/NDK だけでは足りません。
 
 
-CMVS は Win32 に依存せず、Windows x64、Linux x64、macOS の両アーキテクチャ向けに動的コアとしてビルドします。Android と iOS は Manager への静的組み込みを待っています。RoukakuEngine は公開リビジョン `8392cf161800f7684af7704eb95f7a5526d2015d` に固定されています。
+CMVS は Win32 に依存せず、Windows x64、Linux x64、macOS の両アーキテクチャ向けに動的コアとしてビルドします。Android と iOS は Manager への静的組み込みを待っています。RoukakuEngine は Android オフスクリーン Vulkan バックエンドを含む公開リビジョン `374a7a20780153766d9d0256e4cf4d7754fd02f9` に固定されています。
 
 リポジトリのルートで実行します。
 

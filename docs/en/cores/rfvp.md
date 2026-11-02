@@ -7,7 +7,7 @@ description: Formats, native behavior and limits of RFVP.
 
 `plugin_id: rfvp` · Engine family: FVP
 
-Upstream: [xmoezzz/rfvp](https://github.com/xmoezzz/rfvp). Adaptation fork: [Project-Shinkirou/rfvp, shinki-sakura-native branch](https://github.com/Project-Shinkirou/rfvp/tree/shinki-sakura-native).
+Upstream: [xmoezzz/rfvp](https://github.com/xmoezzz/rfvp). Adaptation fork: [Project-Shinkirou/rfvp, shinki branch](https://github.com/Project-Shinkirou/rfvp/tree/shinki).
 
 ## Formats
 

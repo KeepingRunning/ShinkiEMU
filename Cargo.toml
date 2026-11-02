@@ -164,15 +164,15 @@ zstd = "0.14.3"
 anyhow = "1.0.104"
 ndk-sys = "0.6.0"
 oboe = "0.6.1"
-roukaku-byte-source = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "8392cf161800f7684af7704eb95f7a5526d2015d" }
-roukaku-core = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "8392cf161800f7684af7704eb95f7a5526d2015d" }
-roukaku-media = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "8392cf161800f7684af7704eb95f7a5526d2015d" }
-roukaku-media-core = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "8392cf161800f7684af7704eb95f7a5526d2015d" }
-roukaku-observability = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "8392cf161800f7684af7704eb95f7a5526d2015d" }
-roukaku-platform = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "8392cf161800f7684af7704eb95f7a5526d2015d" }
-roukaku-platform-common = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "8392cf161800f7684af7704eb95f7a5526d2015d" }
-roukaku-subtitle = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "8392cf161800f7684af7704eb95f7a5526d2015d" }
-roukaku-text = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "8392cf161800f7684af7704eb95f7a5526d2015d" }
+roukaku-byte-source = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "374a7a20780153766d9d0256e4cf4d7754fd02f9" }
+roukaku-core = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "374a7a20780153766d9d0256e4cf4d7754fd02f9" }
+roukaku-media = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "374a7a20780153766d9d0256e4cf4d7754fd02f9" }
+roukaku-media-core = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "374a7a20780153766d9d0256e4cf4d7754fd02f9" }
+roukaku-observability = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "374a7a20780153766d9d0256e4cf4d7754fd02f9" }
+roukaku-platform = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "374a7a20780153766d9d0256e4cf4d7754fd02f9" }
+roukaku-platform-common = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "374a7a20780153766d9d0256e4cf4d7754fd02f9" }
+roukaku-subtitle = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "374a7a20780153766d9d0256e4cf4d7754fd02f9" }
+roukaku-text = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "374a7a20780153766d9d0256e4cf4d7754fd02f9" }
 
 [patch."https://github.com/Project-Shinkirou/ShinkiEMU"]
 shinki-emu-abi = { path = "Source/FamilyApi/shinki-emu-abi" }

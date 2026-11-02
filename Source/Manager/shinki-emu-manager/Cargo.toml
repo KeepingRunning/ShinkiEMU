@@ -105,7 +105,7 @@ roukaku-platform.workspace = true
 # Positions the sign-in WKWebView inside the Manager view.
 objc2.workspace = true
 objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "objc2", "CFCGTypes"] }
-shinki-emu-rfvp = { git = "https://github.com/Project-Shinkirou/rfvp", rev = "f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03", default-features = false }
+shinki-emu-rfvp = { git = "https://github.com/Project-Shinkirou/rfvp", rev = "cc0cc5c9648d481693cfa353c11e1d61311f6246", default-features = false }
 shinki-emu-siglus_rs = { git = "https://github.com/Project-Shinkirou/siglus_rs", rev = "c5ee2bc37e91116e11795aa985c6cd394d590ab6", default-features = false }
 shinki-emu-musica = { path = "../../Families/shinki-emu-musica", default-features = false, features = ["ffmpeg-vcpkg"] }
 shinki-emu-sena-rs = { git = "https://github.com/Project-Shinkirou/sena-rs", rev = "22ac45acc6a436516333a85a4ac3b8470e1cc574", default-features = false }
@@ -117,7 +117,7 @@ shinki-emu-ReMinori = { git = "https://github.com/Project-Shinkirou/ReMinori", r
 # be enabled too or the unified codespan API rejects naga 26's String buffer.
 naga-26 = { package = "naga", version = "26.0.0", default-features = false, features = ["termcolor"] }
 [target.'cfg(target_os = "android")'.dependencies]
-shinki-emu-rfvp = { git = "https://github.com/Project-Shinkirou/rfvp", rev = "f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03", default-features = false }
+shinki-emu-rfvp = { git = "https://github.com/Project-Shinkirou/rfvp", rev = "cc0cc5c9648d481693cfa353c11e1d61311f6246", default-features = false }
 shinki-emu-siglus_rs = { git = "https://github.com/Project-Shinkirou/siglus_rs", rev = "c5ee2bc37e91116e11795aa985c6cd394d590ab6", default-features = false }
 shinki-emu-musica = { path = "../../Families/shinki-emu-musica", default-features = false, features = ["ffmpeg-vcpkg"] }
 shinki-emu-cmvs = { path = "../../Families/shinki-emu-cmvs", default-features = false, features = ["video-ffmpeg"] }

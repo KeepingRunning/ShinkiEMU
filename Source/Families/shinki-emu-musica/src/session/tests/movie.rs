@@ -95,7 +95,10 @@ fn movie_close_cancels_blocked_pcm_and_pending_decode_on_repeated_open() {
 fn native_gpu_movie_plays_pcm_pauses_restores_and_completes() {
     let _session = PROVIDER_SESSION.lock();
     let root = tempfile::tempdir().unwrap();
-    fixture::game(root.path(), b".movie 1 sample.mp4 1280 720 t\r\n.end\r\n");
+    fixture::game(
+        root.path(),
+        b".message 1   Before movie\r\n.movie 1 sample.mp4 1280 720 t\r\n.end\r\n",
+    );
     let bytes = std::fs::read(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../Fixtures/Media/flower-roar.mp4"),
@@ -128,6 +131,16 @@ fn native_gpu_movie_plays_pcm_pauses_restores_and_completes() {
     });
     let mut opened = provider.open(req).unwrap();
     let mut capture = Capture(Vec::new());
+    opened.session.advance(16_666_667, &[]).unwrap();
+    opened.session.advance(0, &[key(KeyCode::F5)]).unwrap();
+    capture
+        .read(opened.session.acquire_frame(None).unwrap())
+        .unwrap();
+    let saved_message = capture.0.clone();
+    opened
+        .session
+        .advance(16_666_667, &[key(KeyCode::Enter)])
+        .unwrap();
     let mut last = Vec::new();
     let mut changes = 0;
     let mut restored = false;
@@ -151,7 +164,6 @@ fn native_gpu_movie_plays_pcm_pauses_restores_and_completes() {
                 .session
                 .advance(0, &[RuntimeEvent::WindowSuspended { suspended: true }])
                 .unwrap();
-            opened.session.advance(0, &[key(KeyCode::F5)]).unwrap();
             for _ in 0..5 {
                 opened.session.advance(16_666_667, &[]).unwrap();
             }
@@ -160,9 +172,19 @@ fn native_gpu_movie_plays_pcm_pauses_restores_and_completes() {
                 .unwrap();
             assert_eq!(capture.0, last);
             opened.session.advance(0, &[key(KeyCode::F9)]).unwrap();
+            capture
+                .read(opened.session.acquire_frame(None).unwrap())
+                .unwrap();
+            assert_eq!(capture.0, saved_message);
+            seen_red = false;
+            seen_green = false;
             opened
                 .session
                 .advance(0, &[RuntimeEvent::WindowSuspended { suspended: false }])
+                .unwrap();
+            opened
+                .session
+                .advance(16_666_667, &[key(KeyCode::Enter)])
                 .unwrap();
             restored = true;
         }
