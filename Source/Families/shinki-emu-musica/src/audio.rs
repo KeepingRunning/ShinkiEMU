@@ -299,7 +299,7 @@ impl Drop for Audio {
 /// The PCM destination: the SDK device backend, or a host-provided sink.
 enum Output {
     #[cfg(not(target_env = "ohos"))]
-    Device(NativeAudioOutput),
+    Device(Box<NativeAudioOutput>),
     Sink(Arc<AudioSinkBox>),
 }
 impl Output {
@@ -307,7 +307,9 @@ impl Output {
         match sink {
             Some(sink) => Ok(Self::Sink(sink)),
             #[cfg(not(target_env = "ohos"))]
-            None => Ok(Self::Device(NativeAudioOutput::open(stop.clone())?)),
+            None => Ok(Self::Device(Box::new(NativeAudioOutput::open(
+                stop.clone(),
+            )?))),
             #[cfg(target_env = "ohos")]
             None => {
                 let _ = stop;
