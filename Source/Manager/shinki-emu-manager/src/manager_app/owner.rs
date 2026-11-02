@@ -281,10 +281,7 @@ impl FamilyOwner {
                 .register_provider(factory())
                 .map_err(|error| error.to_string())?;
             collect_metadata(registry, None)
-        })))?;
-        // Metadata is ready only after this registry mutation completes.
-        self.ready = false;
-        Ok(())
+        })))
     }
 
     pub(super) fn open(&self, mut request: OpenSession) -> Result<(), String> {
