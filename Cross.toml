@@ -1,6 +1,6 @@
 # Private images contain locally supplied Apple SDKs; never publish them.
 [build.env]
-passthrough = ["MACOSX_DEPLOYMENT_TARGET", "IPHONEOS_DEPLOYMENT_TARGET"]
+passthrough = ["MACOSX_DEPLOYMENT_TARGET", "IPHONEOS_DEPLOYMENT_TARGET", "SHINKI_EMU_PRODUCT_VERSION"]
 
 [target.x86_64-apple-darwin]
 image = "shinkirou/apple-cross:x86_64-apple-darwin-1.99.1"
