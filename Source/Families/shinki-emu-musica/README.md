@@ -41,6 +41,8 @@ Android 文件选择器通过 SAF 读取用户选择的游戏目录和密钥，�
 
 字幕时间来自 `movie.position_us`，storage 来自实际解码视频，raster/偏移来自视频 viewport；颜色使用原生 swscale 实际转换的 matrix/range 和 BGRA8 的 SDR 呈现策略，不按分辨率补猜。显式 HDR、未支持转换仍报 `SHINKI_EMU_MUSICA_SUBTITLE_COLOR`。内容变化才上传 Alpha8 mask，位置变化不重传；mask revision 与轨道 serial 避免 ID 冲突，视频双槽 ID 保证单帧不同时释放/重传同一资源。暂停不推进时钟；读档、seek、换片、跳过和结束释放旧轨道。原生 handles 始终在 session 线程创建、使用和销毁。
 
+原生槽保存消息边界，不保存影片中间 PC。影片播放中读入已有消息槽会关闭旧 decoder；重建场景保留当前 `subtitle_map` catalog，之后再次进入影片仍按新的原生电影时钟显示 ASS。影片回归覆盖消息槽存读档、暂停、重新进入影片后的字幕颜色转换、PCM 输出和关闭。
+
 Yorino 的可选日文 overlay 目标按原始显示路径保留 `\a`、`\N` 和 ruby 花括号等字面字符，不把目标再次交给 VM 控制解析；原始脚本控制与选择/文件目标保持不变。十五个未完全映射的名字使用点不靠猜测改解码或删表，完整有序名字记录照常保留。
 
 
