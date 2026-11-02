@@ -59,7 +59,8 @@ pub enum PatchMode {
 
 pub(crate) const PROFILE_CAPABILITIES: u64 = shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY
     | shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY
-    | shinki_emu_abi::CAP_NATIVE_EMBEDDED_TEXT;
+    | shinki_emu_abi::CAP_NATIVE_EMBEDDED_TEXT
+    | shinki_emu_abi::CAP_NATIVE_NAME_RESOURCES;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -158,7 +159,10 @@ fn apply_transaction(
     )
     .map_err(PatchError::recovered)?;
     let root = paths::AuthorizedRoot::from_dir(transaction.open_staging()?);
-    receipt::write(&root, &execution, cancelled.clone(), &progress)?;
+    let source = paths::AuthorizedRoot::from_input_dir(transaction.open_source()?);
+    receipt::write(&root, &source, &execution, cancelled.clone(), &progress)
+        .map_err(PatchError::recovered)?;
+    drop(source);
     drop(root);
     let output = match request.mode {
         PatchMode::NewDirectory { .. } => transaction.publish(&cancelled)?,

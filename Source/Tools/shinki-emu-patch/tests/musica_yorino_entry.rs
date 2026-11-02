@@ -267,7 +267,7 @@ fn ordered_acr_rows_embed_into_native_sc_and_backgrounds_preserve_alpha() {
     assert_eq!(config["script_directory"], "scripts");
     assert_eq!(
         result.profile.required_capabilities,
-        shinki_emu_abi::CAP_NATIVE_EMBEDDED_TEXT
+        shinki_emu_abi::CAP_NATIVE_EMBEDDED_TEXT | shinki_emu_abi::CAP_NATIVE_NAME_RESOURCES
     );
     assert_eq!(config["script_encoding"], "gbk");
     assert_eq!(config["font_path"], "font.ttf");
@@ -370,7 +370,7 @@ fn ordered_acr_rows_embed_into_native_sc_and_backgrounds_preserve_alpha() {
 #[test]
 fn final_background_crc_failure_rolls_back_all_copied_archives_and_generated_images() {
     let root = tempfile::tempdir().unwrap();
-    let fixture = Fixture::new(root.path(), 3, 3, true, false);
+    let fixture = Fixture::new(root.path(), 44, 3, true, false);
     assert_eq!(
         fixture.run().err().unwrap().kind(),
         PatchErrorKind::Integrity
@@ -388,7 +388,7 @@ fn final_background_crc_failure_rolls_back_all_copied_archives_and_generated_ima
 #[test]
 fn missing_eighth_key_role_never_publishes_partial_output() {
     let root = tempfile::tempdir().unwrap();
-    let fixture = Fixture::new(root.path(), 3, 2, false, true);
+    let fixture = Fixture::new(root.path(), 44, 2, false, true);
     assert_eq!(
         fixture.run().err().unwrap().kind(),
         PatchErrorKind::Integrity
@@ -399,7 +399,7 @@ fn missing_eighth_key_role_never_publishes_partial_output() {
 #[test]
 fn changed_pinned_source_fingerprint_is_rejected_without_touching_any_input() {
     let root = tempfile::tempdir().unwrap();
-    let mut fixture = Fixture::new(root.path(), 3, 2, false, false);
+    let mut fixture = Fixture::new(root.path(), 44, 2, false, false);
     let fingerprint = hex::encode(Sha256::digest(
         fs::read(root.path().join("source/bg.paz")).unwrap(),
     ));

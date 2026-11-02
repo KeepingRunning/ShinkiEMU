@@ -589,6 +589,25 @@ fn validate_profile(profile: &OutputProfile) -> Result<(), PatchError> {
 
 fn context(lua: &Lua, files: Arc<Files>, scripts: Arc<Scripts>) -> mlua::Result<Table> {
     let ctx = lua.create_table()?;
+    ctx.set(
+        "musica_profile",
+        lua.create_function(|lua, bytes: Buffer| {
+            let profile = buffer::input(lua, bytes, |bytes| {
+                shinki_emu_musica_keys::parse_key_file(bytes).map_err(|error| {
+                    let kind = if error.code == "SHINKI_EMU_MUSICA_PRIVATE_ROLES" {
+                        PatchErrorKind::Integrity
+                    } else {
+                        PatchErrorKind::UnsupportedInput
+                    };
+                    PatchError::with_source(kind, "invalid private Musica key.toml", error)
+                })
+            })?;
+            lua.to_value_with(
+                &profile,
+                mlua::serde::SerializeOptions::new().serialize_none_to_null(false),
+            )
+        })?,
+    )?;
     let state = files.clone();
     ctx.set(
         "open",

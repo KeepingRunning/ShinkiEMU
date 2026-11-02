@@ -4,40 +4,36 @@ use std::{
     sync::{Arc, atomic::AtomicBool},
 };
 
-/// Local private inputs are copied first. This never starts either executable.
+/// Copies private input first; neither original nor output executable is run.
 #[test]
-#[ignore = "requires SHINKI_YORINO_SOURCE with locally supplied game data"]
-fn real_yorino_executable_constants_and_generated_names_patch_in_independent_copy() {
+#[ignore = "requires SHINKI_YORINO_SOURCE with copied local game data"]
+fn real_yorino_executable_is_unchanged_and_constants_are_native_resources() {
     let input = std::path::PathBuf::from(
-        std::env::var_os("SHINKI_YORINO_SOURCE").expect("local Yorino source"),
+        std::env::var_os("SHINKI_YORINO_SOURCE").expect("copied Yorino source"),
     );
     let root = tempfile::tempdir().unwrap();
     let source = root.path().join("source");
     let patch = root.path().join("patch");
     fs::create_dir(&source).unwrap();
     fs::create_dir(&patch).unwrap();
-    let before = fs::read(input.join("yorino.exe")).unwrap();
-    fs::write(source.join("yorino.exe"), &before).unwrap();
-    fs::copy(input.join("name.acr"), patch.join("name.acr")).unwrap();
+    let original = fs::read(input.join("yorino.exe")).unwrap();
+    fs::write(source.join("yorino.exe"), &original).unwrap();
+    let records = fs::read(input.join("name.acr")).unwrap();
+    fs::write(patch.join("name.acr"), &records).unwrap();
     fs::write(
         root.path().join("musica_acr.luau"),
         include_str!("../../../../Metadata/patches/common/musica_acr.luau"),
     )
     .unwrap();
     let script = root.path().join("entry.luau");
-    fs::write(&script, r#"
-return {id='yorino-executable-copy',version=1,title='Yorino copied executable',output_mode='new_directory',apply=function(ctx)
-    local acr=ctx.load('musica_acr.luau')
-    local names=acr.read(ctx,ctx.open('patch','name.acr'))
-    acr.embed_executable(ctx,names,{
-        path='yorino.exe',size=2278400,sha256='0664a773545cccfa04f6f0e840fbf6302913a721bc2fc956cf206111b9c93553',
-        constants={{row=27,offset=0x112098},{row=43,offset=0x121f18}},
-        brackets={{offset=0x121f24,text='】'},{offset=0x121f28,text='【'}},
-        generated_names={{28,1},{29,2},{30,3},{31,6},{32,7},{33,9},{34,10},{35,10},{36,12},{37,13},{38,15},{39,16},{40,17},{41,21},{42,25}},
-    })
-    return {plugin_id='shinki.emu.musica',configuration={}}
-end}
-"#).unwrap();
+    fs::write(&script,r#"return {id='yorino-resource-copy',version=1,title='Yorino native name resources',apply=function(ctx)
+        local executable=ctx.open('source','yorino.exe')
+        if executable:size()~=2278400 or executable:sha256()~='0664a773545cccfa04f6f0e840fbf6302913a721bc2fc956cf206111b9c93553' then ctx.fail('UNSUPPORTED_INPUT','Unexpected Yorino executable') end
+        ctx.copy('source','yorino.exe','yorino.exe')
+        local acr=ctx.load('musica_acr.luau')
+        acr.name_resource(ctx,acr.read(ctx,ctx.open('patch','name.acr')),'scripts/shinki-names.sc')
+        return {plugin_id='shinki.emu.musica',required_capabilities=768,configuration={script_directory='scripts',script_encoding='gbk'}}
+    end}"#).unwrap();
     let result = apply(
         PatchRequest {
             script,
@@ -51,30 +47,47 @@ end}
         |_| {},
     )
     .unwrap();
-    let after = fs::read(result.output.join("yorino.exe")).unwrap();
-    assert_eq!(after.len(), before.len());
-    let spans = [(0x112098, 6), (0x121f18, 10), (0x121f24, 2), (0x121f28, 2)];
-    for (at, (old, new)) in before.iter().zip(&after).enumerate() {
-        if !spans
-            .iter()
-            .any(|(start, size)| (*start..start + size).contains(&at))
-        {
-            assert_eq!(old, new, "unexpected PE change at {at:x}");
+    assert_eq!(
+        fs::read(result.output.join("yorino.exe")).unwrap(),
+        original
+    );
+    assert_eq!(fs::read(source.join("yorino.exe")).unwrap(), original);
+    assert_eq!(fs::read(input.join("yorino.exe")).unwrap(), original);
+    fn u32_at(bytes: &[u8], at: usize) -> usize {
+        u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap()) as usize
+    }
+    let literal = |row: usize| {
+        let at = 16 + row * 20;
+        let start = u32_at(&records, at + 12);
+        let size = u32_at(&records, at + 16);
+        let text = encoding_rs::GBK
+            .decode_without_bom_handling_and_without_replacement(&records[start..start + size])
+            .unwrap();
+        let mut literal = String::new();
+        for character in text.chars() {
+            use std::fmt::Write;
+            write!(&mut literal, "\\u{{{:x}}}", u32::from(character)).unwrap();
         }
-    }
-    for (at, size) in [(0x112098, 6), (0x121f18, 10)] {
-        let original = encoding_rs::SHIFT_JIS
-            .decode_without_bom_handling_and_without_replacement(&before[at..at + size])
-            .unwrap();
-        let translated = encoding_rs::GBK
-            .decode_without_bom_handling_and_without_replacement(&after[at..at + size])
-            .unwrap();
-        assert_eq!(original, translated);
-        assert_eq!(after[at + size], 0);
-        assert_ne!(before[at..at + size], after[at..at + size]);
-    }
-    assert_eq!(&after[0x121f24..0x121f26], &[0xa1, 0xbf]);
-    assert_eq!(&after[0x121f28..0x121f2a], &[0xa1, 0xbe]);
-    assert_eq!(fs::read(source.join("yorino.exe")).unwrap(), before);
-    assert_eq!(fs::read(input.join("yorino.exe")).unwrap(), before);
+        literal
+    };
+    let resource = fs::read_to_string(result.output.join("scripts/shinki-names.sc")).unwrap();
+    assert_eq!(
+        resource,
+        format!(
+            ".pragma shinki_name_unknown {}\n.pragma shinki_history_name_unknown {}\n",
+            literal(27),
+            literal(43)
+        )
+    );
+    let parsed = shinki_emu_musica::parse_sc_with_encoding(
+        resource.as_bytes(),
+        &shinki_emu_musica::ScOpcodeCatalog::observed_musica(),
+        shinki_emu_musica::ScriptEncoding::Gbk,
+    )
+    .unwrap();
+    assert_eq!(parsed.lines.len(), 2);
+    assert_eq!(
+        result.profile.required_capabilities,
+        shinki_emu_abi::CAP_NATIVE_EMBEDDED_TEXT | shinki_emu_abi::CAP_NATIVE_NAME_RESOURCES
+    );
 }

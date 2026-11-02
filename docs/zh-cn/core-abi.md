@@ -28,11 +28,12 @@ description: C ABI v3 生命周期、owner 线程、CPU 帧租约和核心包。
 
 ## 转换结果兼容性
 
-现有 `Descriptor.capabilities` 掩码提供三个可选语义位，ABI 版本 3、C 布局和 fingerprint 均不变：
+现有 `Descriptor.capabilities` 掩码提供四个可选语义位，ABI 版本 3、C 布局和 fingerprint 均不变：
 
 - `CAP_NATIVE_SCRIPT_IDENTITY`（64）：校验显式声明的转换脚本 hash，隔离该脚本的存档与既读；没有 marker 的游戏保留原命名空间。
 - `CAP_CONFIGURED_FONT_PRIORITY`（128）：配置的字体优先于脚本或恢复状态中的首选字体，包括 ruby 和 UI 文字。
 - `CAP_NATIVE_EMBEDDED_TEXT`（256）：原生 SC 显示操作数支持 Unicode scalar 字面转义，离线嵌入译文，不加载运行时翻译表。Musica 配方要求 256，RFVP 原生 GBK/统一字体配方仍要求 192，复用同一 descriptor/receipt 检查。
+- `CAP_NATIVE_NAME_RESOURCES`（512）：从原生 SC 读取姓名常量，复现实时/历史姓名规则，资源缺失时只读回退 EXE。Yorino 要求 256|512=768，不修改 EXE。
 
 Luau recipe 在输出 profile 的 `plugin_id`、`configuration` 旁声明 `required_capabilities = 192`，receipt 保留此要求。Manager 在新增导入游戏或绑定配置前，以及启动会话前，分别检查实际加载的所选核心的 `describe` 结果。自动导入还会拒绝转换完成后要求被改动的 receipt。缺少能力时拒绝操作并提示更新核心；未知要求会使 profile 无效，不会被忽略。不以版本字符串或文件名判定功能。旧 profile 省略该字段，默认要求为零；新 receipt 中的零值也省略，保持旧协议兼容。
 

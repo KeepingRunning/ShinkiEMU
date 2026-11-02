@@ -194,3 +194,34 @@ fn script_fail_and_native_error_roll_back_game_copy_and_keep_message() {
         assert!(!shinki_emu_patch::has_backup(&root.path().join("game")).unwrap());
     }
 }
+
+#[test]
+fn script_profile_reader_accepts_legacy_schema_without_modifying_user_file() {
+    let root = tempfile::tempdir().unwrap();
+    let mut profile = String::from(
+        "schema='astra.emu.musica.keys.v2'\npaz_version=0\nindex_size_xor=0\nrc4_skip_crc=false\n",
+    );
+    for role in ["bg", "bgm", "scr", "st", "sys", "se", "voice", "mov"] {
+        profile.push_str(&format!(
+            "[archive_keys.{role}]\nindex_key_hex='01020304'\ndata_key_hex='01020304'\n"
+        ));
+    }
+    let output = root.path().join("output");
+    let script = r#"return {id='legacy-profile',version=1,title='Legacy user profile',apply=function(ctx)
+        local source=ctx.open('source','key.toml')
+        local profile=ctx.musica_profile(source:read(0,source:size()))
+        assert(profile.schema=='shinki.emu.musica.keys.v2')
+        assert(profile.archive_keys.mov.video_key_hex==nil)
+        local output=ctx.create('key.toml');output:write(0,buffer.fromstring(ctx.toml.encode(profile)));output:close()
+        return {plugin_id='rfvp',configuration={}}
+    end}"#;
+    let request = request(root.path(), script, PatchMode::NewDirectory { output });
+    fs::write(request.source.join("key.toml"), profile.as_bytes()).unwrap();
+    let original = request.source.join("key.toml");
+    let result = apply(request, Arc::new(AtomicBool::new(false)), |_| {}).unwrap();
+    let canonical =
+        shinki_emu_musica_keys::load_musica_key_file(&result.output.join("key.toml")).unwrap();
+    assert_eq!(canonical.schema, shinki_emu_musica_keys::MUSICA_KEY_SCHEMA);
+    assert_eq!(canonical.archive_keys.len(), 8);
+    assert_eq!(fs::read(original).unwrap(), profile.as_bytes());
+}

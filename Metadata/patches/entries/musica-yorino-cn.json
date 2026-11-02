@@ -12,8 +12,8 @@
   "license": "MIT OR Apache-2.0",
   "authorization_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/LICENSE",
   "summary": {
-    "zh-CN": "保留原生 SC 中文正文，嵌入姓名译文、转换背景并修补 EXE 姓名常量和历史姓名括号；支持独立目录或备份后的原位覆盖。",
-    "en": "Preserves native SC Chinese dialogue, embeds localized names, converts backgrounds and patches executable name constants and history brackets, using independent output or backed-up in-place overwrite."
+    "zh-CN": "保留原生 SC 中文正文，嵌入姓名译文与姓名常量资源、转换背景；核心原生生成历史姓名，EXE 仅校验并原样复制，不作修改。",
+    "en": "Preserves native SC Chinese dialogue, embeds localized names and name-constant resources, and converts backgrounds. The core generates native history names; the executable is only verified and copied unchanged."
   },
   "issue_url": null,
   "recipe": {

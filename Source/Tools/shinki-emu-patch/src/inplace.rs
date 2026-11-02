@@ -295,6 +295,14 @@ fn commit_inner(
                 .get(&path)
                 .map(String::as_str)
                 .unwrap_or(ABSENT);
+            if new == ABSENT
+                && std::path::Path::new(&path)
+                    .extension()
+                    .and_then(|extension| extension.to_str())
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case("exe"))
+            {
+                return None;
+            }
             (old != new).then_some(Entry {
                 relpath: path,
                 original_sha256: old.into(),

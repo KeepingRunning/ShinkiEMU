@@ -12,14 +12,23 @@ pub(crate) fn compatibility_json(entries: &str) -> Vec<u8> {
 
 pub(crate) fn patch_catalog_json(recipes: &[u8]) -> Vec<u8> {
     let recipes: Vec<serde_json::Value> = serde_json::from_slice(recipes).unwrap();
+    let mut release_ids = std::collections::BTreeMap::new();
+    for recipe in &recipes {
+        for vn_id in recipe["vn_ids"].as_array().unwrap() {
+            let next_id = release_ids.len() + 1;
+            release_ids
+                .entry(vn_id.as_str().unwrap())
+                .or_insert(next_id);
+        }
+    }
     let entries: Vec<_> = recipes.iter().map(|r| serde_json::json!({
         "id": r["id"], "title": {"zh-CN": r["title"], "en": r["title"]},
         "summary": {"zh-CN": "公开测试配方", "en": "Public fixture recipe"},
         "version": "1.0.0", "emulators": r["emulators"],
         "recipe": {"script": r["script"]}, "license": "MIT",
         "source_url": "https://example.org/public-fixture",
-        "releases": r["vn_ids"].as_array().unwrap().iter().enumerate().map(|(index,vn_id)| serde_json::json!({
-            "release_id": format!("r{}",index+1), "vn_id": vn_id, "title":{"zh-CN":"公开版本","en":"Public edition"},
+        "releases": r["vn_ids"].as_array().unwrap().iter().map(|vn_id| serde_json::json!({
+            "release_id": format!("r{}",release_ids[vn_id.as_str().unwrap()]), "vn_id": vn_id, "title":{"zh-CN":"公开版本","en":"Public edition"},
             "edition":"download","game_version":null,
             "fingerprints":[{"path":"match","size":13,"sha256":sha256_hex(b"public marker")}]
         })).collect::<Vec<_>>()

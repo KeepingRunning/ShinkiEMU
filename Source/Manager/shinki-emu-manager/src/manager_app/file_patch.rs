@@ -30,6 +30,9 @@ pub(super) fn require_profile_capabilities(
     if descriptor.has_capability(shinki_emu_manager_core::FamilyCapability::NativeEmbeddedText) {
         supported |= shinki_emu_abi::CAP_NATIVE_EMBEDDED_TEXT;
     }
+    if descriptor.has_capability(shinki_emu_manager_core::FamilyCapability::NativeNameResources) {
+        supported |= shinki_emu_abi::CAP_NATIVE_NAME_RESOURCES;
+    }
     if descriptor.plugin_id != profile.plugin_id || profile.required_capabilities & !supported != 0
     {
         return Err(format!(

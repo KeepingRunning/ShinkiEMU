@@ -191,12 +191,9 @@ fn real_yorino_names_embed_without_changing_chinese_bodies() {
         let target = encoding_rs::GBK
             .decode_without_bom_handling_and_without_replacement(&names[offset..offset + length])
             .unwrap();
-        targets.entry(u32_at(&names, at)).or_insert_with(|| {
-            target
-                .strip_prefix(['@', '#'])
-                .unwrap_or(&target)
-                .to_owned()
-        });
+        targets
+            .entry(u32_at(&names, at))
+            .or_insert_with(|| target.into_owned());
     }
     fs::write(
         root.path().join("musica_acr.luau"),

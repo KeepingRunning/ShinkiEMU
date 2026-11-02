@@ -33,6 +33,7 @@ description: C ABI v3 のライフサイクル、owner スレッド、CPU フレ
 - `CAP_NATIVE_SCRIPT_IDENTITY`（64）：明示された変換スクリプトの hash を検証し、そのセーブ・既読を分離します。marker のないゲームは従来の保存先を使います。
 - `CAP_CONFIGURED_FONT_PRIORITY`（128）：設定したフォントを、スクリプトや復元状態の優先フォントより先に使用します。ruby と UI テキストも対象です。
 - `CAP_NATIVE_EMBEDDED_TEXT`（256）：ネイティブ SC の表示オペランドが Unicode scalar リテラルを扱い、実行時翻訳表なしで埋め込み訳文を表示します。Musica レシピは 256、RFVP の GBK/統一フォント用レシピは 192 を要求し、同じ descriptor/receipt 検証を使います。
+- `CAP_NATIVE_NAME_RESOURCES`（512）：ネイティブ SC の姓名定数と元の表示・履歴規則を使い、リソースがない場合だけ EXE を読み取り専用で参照します。Yorino は 256|512=768 を要求し、EXE は変更しません。
 
 Luau レシピは出力 profile の `plugin_id`、`configuration` と並べて `required_capabilities = 192` を指定できます。receipt にも要件を保持します。Manager はインポートするゲームの追加や設定の保存前とセッションの開始前に、実際にロードした選択コアの `describe` を確認します。自動インポートでは、変換完了後に要件が変更された receipt も拒否します。機能が不足すれば操作を拒否してコアの更新を案内し、未知の要件があれば profile 自体を拒否します。バージョン文字列やファイル名から機能を推測しません。旧 profile で省略されたフィールドは 0 とし、新 receipt でも 0 は書き出さないため、従来のレシピは影響を受けません。
 

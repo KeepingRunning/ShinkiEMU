@@ -355,3 +355,27 @@ fn key_file_io_errors_map_to_redacted_codes() {
         assert!(!error.to_string().contains("private-secret-sentinel"));
     }
 }
+
+#[test]
+fn legacy_v2_user_file_is_read_canonically_without_disk_changes() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("selected-user-key.toml");
+    let mut original = key_file();
+    original.schema = "astra.emu.musica.keys.v2".into();
+    let bytes = text(&original).into_bytes();
+    fs::write(&path, &bytes).unwrap();
+    let parsed = load_musica_key_file(&path).unwrap();
+    assert_eq!(parsed.schema, MUSICA_KEY_SCHEMA);
+    assert_eq!(parsed.paz_version, original.paz_version);
+    assert_eq!(parsed.index_size_xor, original.index_size_xor);
+    assert_eq!(parsed.rc4_skip_crc, original.rc4_skip_crc);
+    assert_eq!(parsed.archive_keys.len(), original.archive_keys.len());
+    for (role, before) in &original.archive_keys {
+        let after = &parsed.archive_keys[role];
+        assert!(before.index_key_hex == after.index_key_hex);
+        assert!(before.data_key_hex == after.data_key_hex);
+        assert!(before.type_passwords == after.type_passwords);
+        assert_eq!(before.archive_xor, after.archive_xor);
+    }
+    assert_eq!(fs::read(path).unwrap(), bytes);
+}

@@ -57,8 +57,8 @@ function M.apply(ctx, edition)
     if key_source:size() == 0 or key_source:size() > 1024 * 1024 then
         fail(ctx, "A bounded canonical private key.toml is required")
     end
-    local key = ctx.toml.decode(ctx.encoding.decode(key_source:read(0, key_source:size()), "utf8"))
-    if key.schema ~= "shinki.emu.musica.keys.v2" or type(key.archive_keys) ~= "table" then
+    local key = ctx.musica_profile(key_source:read(0, key_source:size()))
+    if type(key.archive_keys) ~= "table" then
         fail(ctx, "Yorino requires a canonical Musica keys.v2 profile")
     end
     for _, role in roles do
@@ -71,7 +71,13 @@ function M.apply(ctx, edition)
     if #names ~= edition.names then
         fail(ctx, "Yorino ACR ordered record counts disagree with the supported edition")
     end
-    if edition.executable then legacy.embed_executable(ctx, names, edition.executable) end
+    if edition.executable then
+        local executable = ctx.open("source", edition.executable.path)
+        if executable:size() ~= edition.executable.size or executable:sha256() ~= edition.executable.sha256 then
+            ctx.fail("UNSUPPORTED_INPUT", "Yorino executable does not match its supported fingerprint")
+        end
+        ctx.copy("source", edition.executable.path, edition.executable.path)
+    end
     local translations, record_audit = legacy.translation_table(ctx, names, {},
         {source="gbk", names="gbk", dialogue="gbk"})
     translations.dialogue = ctx.json.decode("[]")
@@ -132,6 +138,7 @@ function M.apply(ctx, edition)
     write(ctx, "key.toml", buffer.fromstring(ctx.toml.encode(key)))
     local embedded = ctx.musica_embed("key.toml", translations,
         {scr_archive="cnscr.paz", sys_archive="cnsys.paz"}, "scripts")
+    legacy.name_resource(ctx, names, "scripts/shinki-names.sc")
     write(ctx, "yorino-coverage.json", buffer.fromstring(ctx.json.encode({
         version=2, embedded_display_operands=embedded,
         names=#names, record_audit=record_audit,
@@ -144,7 +151,7 @@ function M.apply(ctx, edition)
         scr_archive="cnscr.paz", sys_archive="cnsys.paz",
         script_directory="scripts"}
     if #fonts > 0 then configuration.font_path = fonts[1] end
-    return {plugin_id="shinki.emu.musica", required_capabilities=256, configuration=configuration}
+    return {plugin_id="shinki.emu.musica", required_capabilities=768, configuration=configuration}
 end
 
 return M

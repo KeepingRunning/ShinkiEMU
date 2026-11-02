@@ -13,6 +13,7 @@ roukaku-byte-source = { workspace = true }
 shinki-emu-metadata = { path = "../../Providers/shinki-emu-metadata" }
 shinki-emu-abi = { path = "../../FamilyApi/shinki-emu-abi" }
 shinki-emu-musica = { path = "../../Families/shinki-emu-musica" }
+shinki-emu-musica-keys = { path = "../../Families/shinki-emu-musica-keys" }
 cap-std = "=4.0.3"
 cap-fs-ext = "=4.0.3"
 dunce.workspace = true

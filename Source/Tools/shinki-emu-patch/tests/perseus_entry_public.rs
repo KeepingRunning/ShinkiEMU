@@ -347,10 +347,19 @@ impl Fixture {
         let aligned = sys_bytes.len();
         let mut sys = vec![0u8; 8];
         sys.extend(sys_bytes);
-        let key = format!(
-            "schema = 'shinki.emu.musica.keys.v2'\npaz_version = 2\nrc4_skip_crc = true\n[archive_keys.sys]\ndata_key_hex = '{}'\n[archive_keys.sys.type_passwords]\npng = 'public-password'\n[texture_overrides]\n'musica:/sys/unchanged.png' = 'independent.png'\n",
-            hex(SYS_KEY)
+        let mut key = String::from(
+            "schema = 'shinki.emu.musica.keys.v2'\npaz_version = 2\nindex_size_xor = 0\nrc4_skip_crc = true\n",
         );
+        for role in ["bg", "bgm", "scr", "st", "sys", "se", "voice", "mov"] {
+            let value = hex(SYS_KEY);
+            key.push_str(&format!(
+                "[archive_keys.{role}]\nindex_key_hex='{value}'\ndata_key_hex='{value}'\n"
+            ));
+            if role == "sys" {
+                key.push_str("[archive_keys.sys.type_passwords]\npng='public-password'\n");
+            }
+        }
+        key.push_str("[texture_overrides]\n'musica:/sys/unchanged.png'='independent.png'\n");
         fs::write(source.join("key.toml"), &key).unwrap();
         fs::write(source.join("public.exe"), &wrapper).unwrap();
         fs::write(source.join("public.mys"), &package).unwrap();

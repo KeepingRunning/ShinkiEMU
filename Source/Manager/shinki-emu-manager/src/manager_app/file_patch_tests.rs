@@ -511,12 +511,15 @@ fn explicit_receipt_import_reads_only_data_and_private_staging_is_never_discover
 fn native_profile_import_requires_every_loaded_core_capability_before_binding() {
     let required = shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY
         | shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY
-        | shinki_emu_abi::CAP_NATIVE_EMBEDDED_TEXT;
+        | shinki_emu_abi::CAP_NATIVE_EMBEDDED_TEXT
+        | shinki_emu_abi::CAP_NATIVE_NAME_RESOURCES;
     for available in [
         0,
         shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY,
         shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY,
         shinki_emu_abi::CAP_NATIVE_EMBEDDED_TEXT,
+        shinki_emu_abi::CAP_NATIVE_NAME_RESOURCES,
+        shinki_emu_abi::CAP_NATIVE_EMBEDDED_TEXT | shinki_emu_abi::CAP_NATIVE_NAME_RESOURCES,
         shinki_emu_abi::CAP_NATIVE_SCRIPT_IDENTITY | shinki_emu_abi::CAP_CONFIGURED_FONT_PRIORITY,
         required,
     ] {
@@ -686,7 +689,7 @@ fn native_profile_receipt_blocks_launch_after_reopening_with_an_older_core() {
 #[test]
 fn malformed_receipt_requirements_block_import_and_retained_receipt_launch() {
     for required in [
-        serde_json::json!(512),
+        serde_json::json!(1024),
         serde_json::json!(-1),
         serde_json::json!(1.5),
         serde_json::json!("192"),

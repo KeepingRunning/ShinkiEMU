@@ -93,84 +93,105 @@ fn copy_inputs(source: &Path, destination: &Path) {
     }
 }
 
-#[test]
-#[ignore = "requires SHINKI_PATCH_PRIVATE_INPUTS JSON mapping patch IDs to authorized private game roots"]
-fn all_six_catalog_and_local_recipes_convert_game_copies() {
+fn convert_game_copy(id: &str) {
     let input =
         PathBuf::from(std::env::var_os("SHINKI_PATCH_PRIVATE_INPUTS").expect("private input map"));
     let inputs: BTreeMap<String, PathBuf> =
         serde_json::from_slice(&fs::read(input).unwrap()).unwrap();
     let metadata = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../Metadata");
     let fixture = tempfile::tempdir().unwrap();
-    for id in [
-        "fvp-sakura-cn",
-        "musica-eden-cn",
-        "musica-ef-first-cn",
-        "musica-perseus-cn",
-        "musica-yorino-cn",
-        "renpy-himanatsu",
-    ] {
-        let entry: shinki_emu_metadata::PatchCatalogEntry = serde_json::from_slice(
-            &fs::read(metadata.join(format!("patches/entries/{id}.json"))).unwrap(),
-        )
-        .unwrap();
-        entry.validate().unwrap();
-        let game = fixture.path().join(id).join("source");
-        copy_inputs(&inputs[id], &game);
-        for catalog in [false, true] {
-            let output = fixture.path().join(id).join(if catalog {
-                "catalog-output"
-            } else {
-                "local-output"
-            });
-            let request = PatchRequest {
-                script: metadata.join("patches").join(&entry.recipe.script),
-                source: game.clone(),
-                patch: game.clone(),
-                mode: PatchMode::NewDirectory {
-                    output: output.clone(),
-                },
-            };
-            let cancelled = Arc::new(AtomicBool::new(false));
-            let result = if catalog {
-                apply_bound(
-                    request,
-                    &entry.releases,
-                    Some(&entry.downloads),
-                    cancelled,
-                    |_| {},
-                )
-            } else {
-                apply(request, cancelled, |_| {})
-            }
-            .unwrap_or_else(|error| {
-                panic!(
-                    "{id} {}: {error}",
-                    if catalog { "catalog" } else { "local" }
-                )
-            });
-            assert_eq!(result.profile.plugin_id, entry.emulators[0]);
-            assert!(
-                !result
-                    .profile
-                    .configuration
-                    .contains_key("translation_table")
-            );
-            assert!(
-                !result
-                    .profile
-                    .configuration
-                    .contains_key("translation_mode")
-            );
-            assert!(result.output.join("shinki-patch-result.json").is_file());
-            assert!(!result.output.join("save").exists());
-            assert!(!result.output.join("savedata").exists());
-            println!(
-                "Private copied input converted: {id}, source={}, release={}",
-                if catalog { "catalog" } else { "local" },
-                entry.releases[0].release_id
-            );
-            fs::remove_dir_all(output).unwrap();
+    let entry: shinki_emu_metadata::PatchCatalogEntry = serde_json::from_slice(
+        &fs::read(metadata.join(format!("patches/entries/{id}.json"))).unwrap(),
+    )
+    .unwrap();
+    entry.validate().unwrap();
+    let game = fixture.path().join(id).join("source");
+    copy_inputs(&inputs[id], &game);
+    for catalog in [false, true] {
+        let output = fixture.path().join(id).join(if catalog {
+            "catalog-output"
+        } else {
+            "local-output"
+        });
+        let request = PatchRequest {
+            script: metadata.join("patches").join(&entry.recipe.script),
+            source: game.clone(),
+            patch: game.clone(),
+            mode: PatchMode::NewDirectory {
+                output: output.clone(),
+            },
+        };
+        let cancelled = Arc::new(AtomicBool::new(false));
+        println!(
+            "Starting private copied conversion: {id}, source={}",
+            if catalog { "catalog" } else { "local" }
+        );
+        let result = if catalog {
+            apply_bound(
+                request,
+                &entry.releases,
+                Some(&entry.downloads),
+                cancelled,
+                |_| {},
+            )
+        } else {
+            apply(request, cancelled, |_| {})
         }
+        .unwrap_or_else(|error| {
+            panic!(
+                "{id} {}: {error}",
+                if catalog { "catalog" } else { "local" }
+            )
+        });
+        assert_eq!(result.profile.plugin_id, entry.emulators[0]);
+        assert!(
+            !result
+                .profile
+                .configuration
+                .contains_key("translation_table")
+        );
+        assert!(
+            !result
+                .profile
+                .configuration
+                .contains_key("translation_mode")
+        );
+        assert!(result.output.join("shinki-patch-result.json").is_file());
+        if id == "musica-yorino-cn" {
+            assert_eq!(
+                fs::read(game.join("yorino.exe")).unwrap(),
+                fs::read(result.output.join("yorino.exe")).unwrap()
+            );
+            assert!(result.output.join("scripts/shinki-names.sc").is_file());
+            assert_eq!(
+                result.profile.required_capabilities,
+                shinki_emu_abi::CAP_NATIVE_EMBEDDED_TEXT
+                    | shinki_emu_abi::CAP_NATIVE_NAME_RESOURCES
+            );
+        }
+        assert!(!result.output.join("save").exists());
+        assert!(!result.output.join("savedata").exists());
+        println!(
+            "Private copied input converted: {id}, source={}, release={}",
+            if catalog { "catalog" } else { "local" },
+            entry.releases[0].release_id
+        );
+        fs::remove_dir_all(output).unwrap();
     }
 }
+
+macro_rules! private_copy_case {
+    ($name:ident, $id:literal) => {
+        #[test]
+        #[ignore = "requires SHINKI_PATCH_PRIVATE_INPUTS; operates only on copied game data"]
+        fn $name() {
+            convert_game_copy($id);
+        }
+    };
+}
+private_copy_case!(fvp_sakura_catalog_and_local, "fvp-sakura-cn");
+private_copy_case!(musica_eden_catalog_and_local, "musica-eden-cn");
+private_copy_case!(musica_ef_first_catalog_and_local, "musica-ef-first-cn");
+private_copy_case!(musica_perseus_catalog_and_local, "musica-perseus-cn");
+private_copy_case!(musica_yorino_catalog_and_local, "musica-yorino-cn");
+private_copy_case!(renpy_himanatsu_catalog_and_local, "renpy-himanatsu");

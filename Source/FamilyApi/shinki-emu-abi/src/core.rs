@@ -20,6 +20,9 @@ pub const CAP_CONFIGURED_FONT_PRIORITY: u64 = 128;
 /// Native SC display operands support literal Unicode scalar escapes. Offline
 /// recipes embed translations in scripts instead of runtime translation tables.
 pub const CAP_NATIVE_EMBEDDED_TEXT: u64 = 256;
+/// Loads native SC name constants and applies original live/history name rules,
+/// with a read-only original-executable fallback when the resource is absent.
+pub const CAP_NATIVE_NAME_RESOURCES: u64 = 512;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 64;
 pub const MAX_RENDER_EXTENT: u32 = 16384;
 pub const RENDER_PRESERVE_ASPECT: u32 = 1;

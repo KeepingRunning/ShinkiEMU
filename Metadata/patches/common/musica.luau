@@ -26,8 +26,8 @@ local function origin_hash(raw)
     return hash
 end
 
--- The unchanged second pointer is the native lookup key. The DLL replaces
--- only the first (display-name) pointer; hashing decoded Unicode loses identity.
+-- Offline SC uses the display-name pointer, not the executable's second
+-- Japanese reference pointer. Pinned Chinese archives also contain GBK targets.
 function musica.names(ctx, executable, patch, layout)
     local pe = ctx.load("common/pe.luau")
     local original = pe.parse(ctx, executable)
@@ -39,7 +39,7 @@ function musica.names(ctx, executable, patch, layout)
     for index, target_rva in ipairs(layout.targets) do
         ctx.check_cancelled()
         local pair = pe.offset(original, layout.table_rva + (index - 1) * 8, 8)
-        local source_va = original.reader:u32le(pair + 4)
+        local source_va = original.reader:u32le(pair)
         if source_va < original.base then
             reject(ctx, "Musica name source pointer is outside the image")
         end
@@ -60,6 +60,10 @@ function musica.names(ctx, executable, patch, layout)
         local text = ctx.encoding.decode(target, "gbk")
         local hash = origin_hash(raw)
         table.insert(names, { source_hash = hash, source_sha256 = ctx.hash.sha256(raw), text = text })
+        local localized_sha = ctx.hash.sha256(target)
+        if localized_sha ~= names[#names].source_sha256 then
+            table.insert(names, { source_hash = origin_hash(target), source_sha256 = localized_sha, text = text })
+        end
     end
     return {
         version = 2,
@@ -91,20 +95,16 @@ function musica.apply_names(ctx, edition)
     if key_source:size() == 0 or key_source:size() > 1024 * 1024 then
         reject(ctx, "Musica requires an existing bounded private key.toml")
     end
-    local key_text = ctx.encoding.decode(key_source:read(0, key_source:size()), "utf8")
-    local key = ctx.toml.decode(key_text)
-    -- Native Musica validates keys.v2 and actual archive/resource consumers.
-    -- TOML is read here only to preserve explicitly referenced independent files.
-    if key.schema ~= "shinki.emu.musica.keys.v2" then
-        reject(ctx, "Musica requires a canonical keys.v2 private key.toml")
-    end
+    local key = ctx.musica_profile(key_source:read(0, key_source:size()))
     local copy = ctx.load("common/copy.luau")
     for index, role in ipairs(roles) do
         ctx.check_cancelled()
         ctx.progress("Copying unchanged Musica resources", index - 1, #roles)
         ctx.copy("source", role .. ".paz", role .. ".paz")
     end
-    ctx.copy(key_root, "key.toml", "key.toml")
+    local output_key = ctx.create("key.toml")
+    output_key:write(0, buffer.fromstring(ctx.toml.encode(key)))
+    output_key:close()
     local copied = {}
     for _, path in pairs(key.texture_overrides or {}) do
         if not copied[path] then

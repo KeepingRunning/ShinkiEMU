@@ -11362,6 +11362,7 @@ dependencies = [
  "shinki-emu-abi",
  "shinki-emu-metadata",
  "shinki-emu-musica",
+ "shinki-emu-musica-keys",
  "tempfile",
  "time",
  "tokio",
