@@ -524,18 +524,27 @@ pub(crate) fn open_web_login(url: &str) -> Result<(), String> {
 pub(super) fn open_url(url: &str) -> Result<(), String> {
     call_activity("startActivity", |env, activity| {
         let url = env.new_string(url)?;
-        let uri = env.call_static_method(
-            jni_str!("android/net/Uri"), jni_str!("parse"),
-            jni_sig!("(Ljava/lang/String;)Landroid/net/Uri;"), &[JValue::Object(&url)],
-        )?.l()?;
+        let uri = env
+            .call_static_method(
+                jni_str!("android/net/Uri"),
+                jni_str!("parse"),
+                jni_sig!("(Ljava/lang/String;)Landroid/net/Uri;"),
+                &[JValue::Object(&url)],
+            )?
+            .l()?;
         let action = env.new_string("android.intent.action.VIEW")?;
         let intent = env.new_object(
             jni_str!("android/content/Intent"),
             jni_sig!("(Ljava/lang/String;Landroid/net/Uri;)V"),
             &[JValue::Object(&action), JValue::Object(&uri)],
         )?;
-        env.call_method(activity, jni_str!("startActivity"),
-            jni_sig!("(Landroid/content/Intent;)V"), &[JValue::Object(&intent)]).map(drop)
+        env.call_method(
+            activity,
+            jni_str!("startActivity"),
+            jni_sig!("(Landroid/content/Intent;)V"),
+            &[JValue::Object(&intent)],
+        )
+        .map(drop)
     })
 }
 

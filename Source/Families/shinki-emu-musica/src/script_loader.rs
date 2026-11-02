@@ -40,10 +40,7 @@ pub(crate) fn load_script(
     } else {
         Hash256::from_sha256(&bytes)
     };
-    Ok(LoadedScript {
-        hash,
-        script,
-    })
+    Ok(LoadedScript { hash, script })
 }
 
 /// Reads through the same bounded loose/PAZ/include pipeline as native playback.

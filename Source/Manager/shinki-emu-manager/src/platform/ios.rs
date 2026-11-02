@@ -118,7 +118,8 @@ pub(super) fn open_url(url: &str) -> Result<(), String> {
     use objc2_foundation::{MainThreadMarker, NSDictionary, NSString, NSURL};
     use objc2_ui_kit::UIApplication;
     let mtm = MainThreadMarker::new().ok_or("SHINKI_EMU_IOS_URL_MAIN_THREAD")?;
-    let url = NSURL::URLWithString(&NSString::from_str(url)).ok_or("SHINKI_EMU_MANAGER_UPDATE_URL")?;
+    let url =
+        NSURL::URLWithString(&NSString::from_str(url)).ok_or("SHINKI_EMU_MANAGER_UPDATE_URL")?;
     let application = UIApplication::sharedApplication(mtm);
     if !application.canOpenURL(&url) {
         return Err("SHINKI_EMU_OPEN_URL_FAILED: no browser".into());

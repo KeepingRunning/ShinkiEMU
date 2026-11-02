@@ -23,7 +23,10 @@ pub(crate) fn game_identity(
         archive.manifest(),
         archive.script_source_identity()?,
         // None preserves the v1 identity envelope for games without a patch.
-        archive.name_resources.as_ref().and_then(|names| names.resource_identity),
+        archive
+            .name_resources
+            .as_ref()
+            .and_then(|names| names.resource_identity),
         "replace",
         font,
         subtitles,

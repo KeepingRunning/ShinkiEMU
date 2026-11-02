@@ -464,7 +464,10 @@ impl MusicaVm {
             return Err(MusicaRuntimeError::State);
         }
         let speaker = if self.state.name_resources.is_some() {
-            self.state.message.as_ref().and_then(|message| message.animation_speaker.as_deref())
+            self.state
+                .message
+                .as_ref()
+                .and_then(|message| message.animation_speaker.as_deref())
         } else {
             speaker
         };

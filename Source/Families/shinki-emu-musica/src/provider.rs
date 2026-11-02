@@ -497,7 +497,10 @@ impl MusicaProvider {
         .map_err(core_error)?;
         let mut native = crate::native_directory::NativeFiles::open(root, primary_encoding)?;
         native.set_name_resource_identity(
-            archive.name_resources.as_ref().and_then(|names| names.resource_identity),
+            archive
+                .name_resources
+                .as_ref()
+                .and_then(|names| names.resource_identity),
         )?;
         native.import_legacy_progress(root, game)?;
         native.import_legacy_settings(root, game)?;

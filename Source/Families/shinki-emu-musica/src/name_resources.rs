@@ -2,7 +2,10 @@ use crate::{CoreError, ScLineKind, ScOpcodeCatalog, ScriptEncoding};
 use roukaku_core::Hash256;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{io::{Read, Seek, SeekFrom}, path::Path};
+use std::{
+    io::{Read, Seek, SeekFrom},
+    path::Path,
+};
 
 const RESOURCE: &str = "shinki-names.sc";
 const MAX_BYTES: u64 = 16 * 1024;
@@ -17,7 +20,10 @@ pub struct MusicaNameResources {
 }
 
 fn invalid() -> CoreError {
-    CoreError::invalid("SHINKI_EMU_MUSICA_NAME_RESOURCE", "native name resource is malformed")
+    CoreError::invalid(
+        "SHINKI_EMU_MUSICA_NAME_RESOURCE",
+        "native name resource is malformed",
+    )
 }
 
 impl MusicaNameResources {
@@ -25,7 +31,12 @@ impl MusicaNameResources {
         if !directory.is_empty() {
             let relative = format!("{directory}/{RESOURCE}");
             match std::fs::symlink_metadata(root.join(&relative)) {
-                Ok(_) => return Self::parse(&crate::resources::read_resource(root, &relative, MAX_BYTES)?).map(Some),
+                Ok(_) => {
+                    return Self::parse(&crate::resources::read_resource(
+                        root, &relative, MAX_BYTES,
+                    )?)
+                    .map(Some);
+                }
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
                 Err(_) => return Err(invalid()),
             }
@@ -41,17 +52,25 @@ impl MusicaNameResources {
     }
 
     fn parse(bytes: &[u8]) -> Result<Self, CoreError> {
-        let script = crate::parse_sc_with_encoding(bytes, &ScOpcodeCatalog::observed_musica(), ScriptEncoding::Gbk)
-            .map_err(|_| invalid())?;
+        let script = crate::parse_sc_with_encoding(
+            bytes,
+            &ScOpcodeCatalog::observed_musica(),
+            ScriptEncoding::Gbk,
+        )
+        .map_err(|_| invalid())?;
         let mut unknown = None;
         let mut history_unknown = None;
         for line in &script.lines {
-            let ScLineKind::Command { command } = &line.kind else { continue };
+            let ScLineKind::Command { command } = &line.kind else {
+                continue;
+            };
             if command.opcode != "pragma" || line.language_guard.is_some() {
                 return Err(invalid());
             }
             let tokens = command.tokens().map_err(|_| invalid())?;
-            let [key, literal] = tokens.as_slice() else { return Err(invalid()) };
+            let [key, literal] = tokens.as_slice() else {
+                return Err(invalid());
+            };
             if !literal.starts_with("\\u{") {
                 return Err(invalid());
             }
@@ -76,13 +95,23 @@ impl MusicaNameResources {
     }
 
     fn from_exe(exe: &mut (impl Read + Seek)) -> Result<Self, CoreError> {
-        fn constant<const N: usize>(exe: &mut (impl Read + Seek), offset: u64) -> Result<String, CoreError> {
+        fn constant<const N: usize>(
+            exe: &mut (impl Read + Seek),
+            offset: u64,
+        ) -> Result<String, CoreError> {
             let mut bytes = [0; N];
             exe.seek(SeekFrom::Start(offset)).map_err(|_| invalid())?;
             exe.read_exact(&mut bytes).map_err(|_| invalid())?;
-            let end = bytes.iter().position(|byte| *byte == 0).ok_or_else(invalid)?;
-            let value = ScriptEncoding::ShiftJis.decode(&bytes[..end]).ok_or_else(invalid)?;
-            if value.is_empty() { return Err(invalid()); }
+            let end = bytes
+                .iter()
+                .position(|byte| *byte == 0)
+                .ok_or_else(invalid)?;
+            let value = ScriptEncoding::ShiftJis
+                .decode(&bytes[..end])
+                .ok_or_else(invalid)?;
+            if value.is_empty() {
+                return Err(invalid());
+            }
             Ok(value.into_owned())
         }
         Ok(Self {
@@ -93,8 +122,13 @@ impl MusicaNameResources {
     }
 
     /// Yorino's GetNameType is based solely on the authored first byte.
-    pub(crate) fn live_name(&self, token: &str, encoding: ScriptEncoding) -> Result<Option<String>, crate::MusicaRuntimeError> {
-        let mut token = crate::embed::decode_sc_literal(token).map_err(|_| crate::MusicaRuntimeError::Operand)?;
+    pub(crate) fn live_name(
+        &self,
+        token: &str,
+        encoding: ScriptEncoding,
+    ) -> Result<Option<String>, crate::MusicaRuntimeError> {
+        let mut token = crate::embed::decode_sc_literal(token)
+            .map_err(|_| crate::MusicaRuntimeError::Operand)?;
         match token.as_bytes().first() {
             None | Some(b'#') => Ok(None),
             Some(b'@') => Ok(Some(self.unknown.clone())),
@@ -102,11 +136,15 @@ impl MusicaNameResources {
                 if let Some(at) = token.rfind('=') {
                     token.drain(..=at);
                 }
-                let encoded = encoding.encode(&token).ok_or(crate::MusicaRuntimeError::Operand)?;
+                let encoded = encoding
+                    .encode(&token)
+                    .ok_or(crate::MusicaRuntimeError::Operand)?;
                 if encoded.len() > 6 {
                     // Native rendering takes six source bytes, not six characters.
                     // Keep the largest complete code-page prefix within that limit.
-                    let name = (0..=6).rev().find_map(|end| encoding.decode(&encoded[..end]))
+                    let name = (0..=6)
+                        .rev()
+                        .find_map(|end| encoding.decode(&encoded[..end]))
                         .ok_or(crate::MusicaRuntimeError::Operand)?;
                     return Ok((!name.is_empty()).then(|| name.into_owned()));
                 }
@@ -116,8 +154,13 @@ impl MusicaNameResources {
         }
     }
 
-    pub(crate) fn history_name(&self, token: &str, encoding: ScriptEncoding) -> Result<Option<String>, crate::MusicaRuntimeError> {
-        let token = crate::embed::decode_sc_literal(token).map_err(|_| crate::MusicaRuntimeError::Operand)?;
+    pub(crate) fn history_name(
+        &self,
+        token: &str,
+        encoding: ScriptEncoding,
+    ) -> Result<Option<String>, crate::MusicaRuntimeError> {
+        let token = crate::embed::decode_sc_literal(token)
+            .map_err(|_| crate::MusicaRuntimeError::Operand)?;
         match token.as_bytes().first() {
             None => Ok(None),
             Some(b'@' | b'#') => Ok(Some(self.history_unknown.clone())),
@@ -127,7 +170,9 @@ impl MusicaNameResources {
                 name.push('【');
                 name.push_str(&token);
                 name.push('】');
-                encoding.encode(&name).ok_or(crate::MusicaRuntimeError::Operand)?;
+                encoding
+                    .encode(&name)
+                    .ok_or(crate::MusicaRuntimeError::Operand)?;
                 Ok(Some(name))
             }
         }

@@ -81,7 +81,8 @@ fn main() {
     std::fs::write(
         output.join("manager-build-version.json"),
         serde_json::to_vec(&serde_json::json!({ "version": version })).expect("version JSON"),
-    ).expect("Manager compiled version receipt");
+    )
+    .expect("Manager compiled version receipt");
     println!("cargo:rustc-env=SHINKI_EMU_PRODUCT_VERSION={version}");
     write_embedded_core_identities();
     println!("cargo:rerun-if-changed=../../../Assets/Branding/shinkiemu-icon.svg");

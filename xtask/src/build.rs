@@ -211,7 +211,9 @@ pub fn execute(
         .iter()
         .find(|p| p["name"] == package)
         .with_context(|| format!("package {package} absent from {}", manifest.display()))?;
-    let package_id = package_metadata["id"].as_str().context("cargo package id")?;
+    let package_id = package_metadata["id"]
+        .as_str()
+        .context("cargo package id")?;
     let version_inputs = (component == "manager").then(|| {
         [
             std::env::var_os("SHINKI_EMU_PRODUCT_VERSION"),
@@ -524,12 +526,8 @@ mod version_tests {
     #[test]
     fn manager_compile_inputs_reject_conflicting_and_invalid_versions() {
         assert!(
-            manager_product_version(
-                "0.1.0-beta.6",
-                Some("0.1.0-beta.8"),
-                Some("0.1.0-beta.7")
-            )
-            .is_err()
+            manager_product_version("0.1.0-beta.6", Some("0.1.0-beta.8"), Some("0.1.0-beta.7"))
+                .is_err()
         );
         for invalid in ["", "beta.8", "v0.1.0-beta.8", "0.1.0-beta.8 "] {
             assert!(manager_product_version("0.1.0-beta.6", Some(invalid), None).is_err());
