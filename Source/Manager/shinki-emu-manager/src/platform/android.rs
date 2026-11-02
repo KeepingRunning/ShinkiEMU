@@ -9,6 +9,7 @@
 //!   so the rest of the Manager works with plain filesystem paths.
 //! - New directories (patch output) are named under `<data>/exports/` without
 //!   a dialog: app-private storage has no user-visible save location.
+//! - Temporary media files use the app cache directory on every supported API.
 //! - Lifecycle events come from the Slint android-activity poll listener.
 
 use std::{
@@ -94,6 +95,7 @@ pub fn initialize(app: AndroidApp) -> Result<(), String> {
     CONTEXT
         .set(AndroidContext { app, vm })
         .map_err(|_| "SHINKI_EMU_ANDROID_CONTEXT_DUPLICATE".to_owned())?;
+    configure_temporary_directory()?;
     let context = context()?;
     let status = context
         .vm
@@ -112,6 +114,38 @@ pub fn initialize(app: AndroidApp) -> Result<(), String> {
         return Err(format!("KRKR_ANDROID_HOST_INITIALIZATION ({status})"));
     }
     extract_bundled_assets()
+}
+
+fn configure_temporary_directory() -> Result<(), String> {
+    let cache = call_activity("getCacheDir", |env, activity| {
+        let directory = env
+            .call_method(
+                activity,
+                jni_str!("getCacheDir"),
+                jni_sig!("()Ljava/io/File;"),
+                &[],
+            )?
+            .l()?;
+        let path = env
+            .call_method(
+                &directory,
+                jni_str!("getAbsolutePath"),
+                jni_sig!("()Ljava/lang/String;"),
+                &[],
+            )?
+            .l()?;
+        env.cast_local::<JString>(path)?.try_to_string(env)
+    })
+    .map_err(|error| format!("SHINKI_EMU_ANDROID_TEMP_DIRECTORY: {error}"))?;
+    let cache = PathBuf::from(cache);
+    std::fs::create_dir_all(&cache)
+        .map_err(|error| format!("SHINKI_EMU_ANDROID_TEMP_DIRECTORY: {error}"))?;
+    match tempfile::env::override_temp_dir(&cache) {
+        Ok(()) => Ok(()),
+        // Activity recreation keeps the same process-lifetime cache override.
+        Err(previous) if previous == cache => Ok(()),
+        Err(_) => Err("SHINKI_EMU_ANDROID_TEMP_DIRECTORY_CONFLICT".to_owned()),
+    }
 }
 
 fn context() -> Result<&'static AndroidContext, String> {

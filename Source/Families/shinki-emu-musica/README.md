@@ -20,6 +20,8 @@ Android 离屏渲染使用 RoukakuEngine 的原生 Vulkan 策略，实例创建�
 私有 `key.toml` 仍由用户显式选择，游戏内相对路径按游戏根解析，不依赖进程当前目录。
 Android 文件选择器通过 SAF 读取用户选择的游戏目录和密钥，复制到 Manager 私有 `imports/` 后传入普通文件系统路径，不把 `content://` URI 交给核心。单独选择的密钥保存为显式绝对路径；游戏内相对路径仍以游戏根解析。游戏副本内 `.shinki/musica` 需要写权限；核心不扫描系统密钥目录，也不复制密钥到应用包。
 
+Android Manager 初始化时将 `tempfile` 默认目录设为 Activity 的 `getCacheDir()`，供 PAZ 影片解密 spool 使用。Android 9–12 的 Rust 默认临时目录会指向应用不可写的 `/data/local/tmp`；不依赖修改进程环境变量。重复配置相同 cache 按成功处理，冲突目录明确报错。
+
 
 ## 启动和输入
 
