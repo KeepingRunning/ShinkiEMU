@@ -22,9 +22,8 @@ pub(crate) fn game_identity(
     let bytes = serde_json::to_vec(&(
         archive.manifest(),
         archive.script_source_identity()?,
-        // Keep the v1 identity envelope for markerless games. Converted SC
-        // changes script_source_identity instead of a runtime overlay mode.
-        Option::<roukaku_core::Hash256>::None,
+        // None preserves the v1 identity envelope for games without a patch.
+        archive.name_resources.as_ref().and_then(|names| names.resource_identity),
         "replace",
         font,
         subtitles,

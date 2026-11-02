@@ -470,6 +470,7 @@ impl MusicaProvider {
         let encoding = loaded.script.encoding;
         let mut vm = MusicaVm::new(uri, loaded.hash, loaded.script, 0)
             .map_err(|_| error("SHINKI_EMU_MUSICA_VM", "entry script cannot be initialized"))?;
+        vm.set_name_resources(archive.name_resources.clone());
         vm.set_voice_preferences(crate::voice_preferences::VoicePreferences::resolve(
             &config,
         )?);
@@ -495,6 +496,9 @@ impl MusicaProvider {
         )
         .map_err(core_error)?;
         let mut native = crate::native_directory::NativeFiles::open(root, primary_encoding)?;
+        native.set_name_resource_identity(
+            archive.name_resources.as_ref().and_then(|names| names.resource_identity),
+        )?;
         native.import_legacy_progress(root, game)?;
         native.import_legacy_settings(root, game)?;
         let mut settings = vm.config().clone();

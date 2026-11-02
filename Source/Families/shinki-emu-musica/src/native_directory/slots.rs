@@ -25,7 +25,7 @@ impl NativeDirectory {
         encoding: ScriptEncoding,
     ) -> SessionResult<Option<EdenSave>> {
         let stem = self.slot_stem(slot, append_playing)?;
-        let Some(bytes) = read_optional(&self.root.join(format!("{stem}.sav")))? else {
+        let Some(bytes) = read_optional(&self.slot_root.join(format!("{stem}.sav")))? else {
             return Ok(None);
         };
         let edition = EdenEdition::for_title(self.title);
@@ -45,6 +45,19 @@ impl NativeDirectory {
 }
 
 impl NativeFiles {
+    pub(crate) fn set_name_resource_identity(&mut self, identity: Option<Hash256>) -> SessionResult<()> {
+        if let Some(dir) = self.dir.as_mut() {
+            dir.slot_root = match identity {
+                Some(identity) => dir.root.join("name-resources").join(identity.to_hex()),
+                None => dir.root.clone(),
+            };
+            std::fs::create_dir_all(&dir.slot_root).map_err(|_| {
+                error("SHINKI_EMU_MUSICA_SAVE_PATH", "native slot directory cannot be created")
+            })?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn edition(&self) -> Option<EdenEdition> {
         self.dir
             .as_ref()
@@ -76,13 +89,13 @@ impl NativeFiles {
             return Ok(None);
         };
         let stem = dir.slot_stem(slot, append)?;
-        let png = read_optional(&dir.root.join(format!("{stem}.png")))?.ok_or_else(|| {
+        let png = read_optional(&dir.slot_root.join(format!("{stem}.png")))?.ok_or_else(|| {
             error(
                 "SHINKI_EMU_MUSICA_SAVE_THUMBNAIL",
                 "native slot thumbnail is missing",
             )
         })?;
-        let mtime = std::fs::metadata(dir.root.join(format!("{stem}.sav")))
+        let mtime = std::fs::metadata(dir.slot_root.join(format!("{stem}.sav")))
             .and_then(|meta| meta.modified())
             .map_err(|_| {
                 error(
@@ -119,8 +132,8 @@ impl NativeFiles {
         )?;
         let bytes = save.encode().map_err(core_error)?;
         // Native writer persists the bitmap first, then the compressed slot.
-        replace_file(&dir.root, &format!("{stem}.png"), thumbnail_png)?;
-        replace_file(&dir.root, &format!("{stem}.sav"), &bytes)
+        replace_file(&dir.slot_root, &format!("{stem}.png"), thumbnail_png)?;
+        replace_file(&dir.slot_root, &format!("{stem}.sav"), &bytes)
     }
     pub(crate) fn save_edition(&self) -> SessionResult<(EdenEdition, EdenSaveEncoding, u32)> {
         let dir = self.slot_dir()?;
@@ -132,5 +145,42 @@ impl NativeFiles {
     }
     pub(crate) fn is_perseus(&self) -> SessionResult<bool> {
         Ok(self.slot_dir()?.title == MinoriTitle::Perseus)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn patched_slot_namespaces_never_read_or_replace_unpatched_slots() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("eden_en.exe"), b"").unwrap();
+        let source = b".stage front.png 0 0 back.png 0 0\n.panel 1 -\n.message 1  Ren Body\n.end\n";
+        let mut vm = crate::MusicaVm::new(
+            "musica:/scr/test.sc".into(),
+            Hash256::from_sha256(source),
+            crate::parse_sc_with_encoding(source, &crate::ScOpcodeCatalog::observed_musica(), ScriptEncoding::Gbk).unwrap(),
+            0,
+        ).unwrap();
+        while vm.state().message.is_none() {
+            vm.step(vm.state().fixed_tick + 1).unwrap();
+        }
+        let checkpoint = vm.native_checkpoint().unwrap();
+        let mut files = NativeFiles::open(root.path(), ScriptEncoding::Gbk).unwrap();
+        let mut save = EdenSave::from_checkpoint(&checkpoint, EdenEdition::English, EdenSaveEncoding::Gbk, 0, "original".into()).unwrap();
+        files.write_slot(0, &save, b"thumbnail").unwrap();
+        let patch = Hash256::from_sha256(b"names");
+        files.set_name_resource_identity(Some(patch)).unwrap();
+        assert!(files.slot(0).unwrap().is_none());
+        save.comment = "patched".into();
+        files.write_slot(0, &save, b"thumbnail").unwrap();
+        assert_eq!(files.slot(0).unwrap().unwrap().comment, "patched");
+        files.set_name_resource_identity(Some(Hash256::from_sha256(b"other names"))).unwrap();
+        assert!(files.slot(0).unwrap().is_none());
+        files.set_name_resource_identity(None).unwrap();
+        assert_eq!(files.slot(0).unwrap().unwrap().comment, "original");
+        files.set_name_resource_identity(Some(patch)).unwrap();
+        assert_eq!(files.slot(0).unwrap().unwrap().comment, "patched");
     }
 }

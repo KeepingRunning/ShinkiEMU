@@ -27,6 +27,7 @@ impl MusicaVm {
             crate::script_loader::load_script(archive, &uri, encoding).map_err(script_error)?;
         let mut vm =
             Self::new(uri, loaded.hash, loaded.script, session_seed).map_err(runtime_error)?;
+        vm.set_name_resources(archive.name_resources.clone());
         vm.set_config(config).map_err(runtime_error)?;
         let event = vm.restore_eden_save(save, 1)?;
         Ok((vm, event))
@@ -56,6 +57,7 @@ impl MusicaVm {
         candidate
             .set_config(self.config.clone())
             .map_err(runtime_error)?;
+        candidate.set_name_resources(self.state.name_resources.clone());
         candidate.state.launch_mode = self.state.launch_mode;
         candidate.replace_global_variables(self.state.global_variables.clone());
         candidate.state.native_edition = save.edition;
@@ -200,7 +202,7 @@ fn append_native_line(
     let text = crate::parse_musica_message_markup(text)
         .map_err(|_| invalid())?
         .visible_text;
-    let speaker = message::native_speaker_name(speaker).map_err(|_| invalid())?;
+    let speaker = message::history_speaker_name(speaker, state).map_err(|_| invalid())?;
     let voice = if voice_token.is_empty() {
         None
     } else {

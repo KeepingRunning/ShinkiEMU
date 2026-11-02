@@ -40,7 +40,11 @@ Android Manager 通过 `musica_query` 静态注册核心，并启用 `ffmpeg-vcp
 
 字幕时间来自 `movie.position_us`，storage 来自实际解码视频，raster/偏移来自视频 viewport；颜色使用原生 swscale 实际转换的 matrix/range 和 BGRA8 的 SDR 呈现策略，不按分辨率补猜。显式 HDR、未支持转换仍报 `SHINKI_EMU_MUSICA_SUBTITLE_COLOR`。内容变化才上传 Alpha8 mask，位置变化不重传；mask revision 与轨道 serial 避免 ID 冲突，视频双槽 ID 保证单帧不同时释放/重传同一资源。暂停不推进时钟；读档、seek、换片、跳过和结束释放旧轨道。原生 handles 始终在 session 线程创建、使用和销毁。
 
-Yorino 的 15 个带括号姓名是 EXE 历史窗口在 `0x4a1550–0x4a164d` 由实际 SC speaker 生成的 `【speaker】`，并非丢失的 SC 字面量。转换校验每个生成记录与其基础姓名一致，再嵌入基础 SC 姓名。另两个问号姓名常量（文件偏移 `0x112098`、`0x121f18`）以及生成括号（`0x121f24`、`0x121f28`）按等长 GBK 数据修补到独立输出的原始 `yorino.exe` 副本，不改 PE 布局，不执行旧 EXE/DLL，不碰原游戏或存档。
+Yorino 的带括号姓名由核心根据实际 SC speaker 生成。补丁只写资源，`yorino.exe` 原样复制，不再修补 EXE 常量或括号。`script_directory` 下的 `shinki-names.sc` 使用两条原生 SC 命令：`.pragma shinki_name_unknown \u{...}` 和 `.pragma shinki_history_name_unknown \u{...}`，各自携带完整 Unicode scalar 字面量（例如 `\u{ff1f}\u{ff1f}\u{ff1f}` 和 `\u{3010}\u{ff1f}\u{ff1f}\u{ff1f}\u{3011}`）。资源优先；不存在时只读 `yorino.exe` 文件偏移 `0x112098`、`0x121f18` 的原始 CP932 常量。已存在但损坏的资源报错，不隐式回退。其他游戏没有资源和 Yorino EXE 时保留原行为。
+
+静态分析确认实时姓名按原始首字节分类：`@` 显示未知姓名，`#` 不显示姓名，普通名取最后一个 `=` 后缀。历史空名保持空，`@`/`#` 使用完整历史未知姓名，其余保留原始全串并按脚本编码生成 `【speaker】`，不沿用 EXE 的 CP932 括号字节。实时显示、原生存档恢复与 backlog 复用同一组规则。姓名加载结果进入 VM 脚本身份与运行状态；资源 hash 进入 game 身份，支持的原生存档槽隔离到 `name-resources/<hash>/`，未打补丁的槽目录不变。描述符声明 `CAP_NATIVE_NAME_RESOURCES`（512）；Yorino 补丁要求 `256 | 512 = 768`。
+
+普通实时姓名保留空格、Tab 和全角空格；绘制文本按脚本编码限制为前六字节内的完整字符，不切断 GBK/CP932 双字节字符。该截断只影响实时文本，历史和存档保留原始 speaker；ANI 仍使用既有独立规范化姓名匹配，不受未知姓名或历史括号影响。panel 特殊模式与姓名图集继续沿用核心现有实现，本次不扩展其绘制行为。
 
 
 

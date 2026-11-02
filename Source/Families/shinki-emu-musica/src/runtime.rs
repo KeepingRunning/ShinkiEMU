@@ -107,6 +107,10 @@ pub struct MusicaVm {
 }
 
 impl MusicaVm {
+    pub(crate) fn set_name_resources(&mut self, names: Option<crate::MusicaNameResources>) {
+        self.state.name_resources = names;
+    }
+
     pub(crate) fn set_voice_preferences(
         &mut self,
         value: crate::voice_preferences::VoicePreferences,
@@ -130,6 +134,7 @@ impl MusicaVm {
             script_uri,
             script_hash,
             script_encoding: script.encoding,
+            name_resources: None,
             pc_line: 0,
             launch_mode: MusicaLaunchMode::Direct,
             variables: BTreeMap::new(),
@@ -254,6 +259,7 @@ impl MusicaVm {
         if restored.script_uri != self.state.script_uri
             || restored.script_hash != self.state.script_hash
             || restored.script_encoding != self.script.encoding
+            || restored.name_resources != self.state.name_resources
             || restored.session_seed != self.state.session_seed
             || restored.pc_line as usize > self.script.lines.len()
         {
@@ -457,6 +463,11 @@ impl MusicaVm {
         if voice.is_some_and(|(_, level)| level > 1000) {
             return Err(MusicaRuntimeError::State);
         }
+        let speaker = if self.state.name_resources.is_some() {
+            self.state.message.as_ref().and_then(|message| message.animation_speaker.as_deref())
+        } else {
+            speaker
+        };
         let mut changed = false;
         for state in self.state.ani_patches.values_mut() {
             state.elapsed_ns = state

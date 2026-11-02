@@ -57,6 +57,7 @@ struct NativeDirectory {
     title: MinoriTitle,
     game_root: PathBuf,
     root: PathBuf,
+    slot_root: PathBuf,
     prefix: FilePrefix,
 }
 
@@ -75,6 +76,7 @@ impl NativeDirectory {
         Ok(Self {
             title,
             game_root: game_root.to_path_buf(),
+            slot_root: root.clone(),
             root,
             prefix,
         })

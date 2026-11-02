@@ -15,6 +15,8 @@ mod image_container;
 mod localization;
 pub use embed::embed_sc_localization;
 mod message;
+mod name_resources;
+pub use name_resources::MusicaNameResources;
 mod subtitles;
 pub use localization::{MusicaTranslationTable, musica_display_cstr_hash, musica_display_hash};
 mod paz;

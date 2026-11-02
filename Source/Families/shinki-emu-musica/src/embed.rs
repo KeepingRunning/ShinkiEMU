@@ -50,9 +50,12 @@ pub fn embed_sc_localization(
                 let mut operands = Vec::new();
                 operands.extend_from_slice(&raw[..=separators[1]]);
                 if let Some((text, _)) = speaker {
-                    operands.extend_from_slice(
-                        literal(text.strip_prefix(['@', '#']).unwrap_or(text)).as_bytes(),
-                    );
+                    if !text.starts_with(['@', '#']) {
+                        if let Some(prefix @ (b'@' | b'#')) = raw.get(separators[1] + 1) {
+                            operands.push(*prefix);
+                        }
+                    }
+                    operands.extend_from_slice(literal(text).as_bytes());
                     replaced += 1;
                 } else {
                     operands.extend_from_slice(&raw[separators[1] + 1..separators[2]]);

@@ -14,7 +14,7 @@ pub(super) fn execute_message(
         (
             message_id,
             (!tokens[1].is_empty()).then(|| tokens[1].clone()),
-            native_speaker_name(&tokens[2])?,
+            live_speaker_name(&tokens[2], state)?,
             tokens[3..].join(" "),
         )
     } else {
@@ -112,15 +112,20 @@ pub(super) fn execute_message(
     } else if let Some(voice) = state.audio.get_mut(&4) {
         voice.playing = false;
     }
+    let history_speaker = if tokens.len() >= 4 {
+        history_speaker_name(&tokens[2], state)?
+    } else {
+        None
+    };
     super::backlog::append_backlog_entry(
         state,
         MusicaBacklogEntry {
             source: Some(command.span),
             message_id,
             text: text.clone(),
-            speaker: speaker.clone(),
+            speaker: history_speaker.clone(),
             text_hash: Hash256::from_sha256(text.as_bytes()),
-            speaker_hash: speaker
+            speaker_hash: history_speaker
                 .as_ref()
                 .map(|value| Hash256::from_sha256(value.as_bytes())),
             voice_hash: voice
@@ -130,6 +135,11 @@ pub(super) fn execute_message(
         },
     )?;
     state.message = Some(MusicaMessageState {
+        animation_speaker: if state.name_resources.is_some() && tokens.len() >= 4 {
+            native_speaker_name(&tokens[2])?
+        } else {
+            None
+        },
         read_identity: super::read_state::identity(
             state.script_hash,
             command.span,
@@ -307,14 +317,37 @@ pub(super) fn validate_state(state: &MusicaRuntimeState) -> Result<(), MusicaRun
     Ok(())
 }
 
+pub(super) fn live_speaker_name(
+    token: &str,
+    state: &MusicaRuntimeState,
+) -> Result<Option<String>, MusicaRuntimeError> {
+    match &state.name_resources {
+        Some(names) => names.live_name(token, state.script_encoding),
+        None => native_speaker_name(token),
+    }
+}
+
+pub(super) fn history_speaker_name(
+    token: &str,
+    state: &MusicaRuntimeState,
+) -> Result<Option<String>, MusicaRuntimeError> {
+    match &state.name_resources {
+        Some(names) => names.history_name(token, state.script_encoding),
+        None => native_speaker_name(token),
+    }
+}
+
 /// Native speaker handling (sub_447700): a leading `@`/`#` selects a name
 /// display style and is stripped; ideographic spaces (SJIS 0x8140) become
 /// plain spaces and every remaining space is dropped before the name reaches
 /// the name window.
 pub(super) fn native_speaker_name(token: &str) -> Result<Option<String>, MusicaRuntimeError> {
     if token.contains("\\u{") {
-        let literal =
+        let mut literal =
             crate::embed::decode_sc_literal(token).map_err(|_| MusicaRuntimeError::Operand)?;
+        if literal.starts_with(['@', '#']) {
+            literal.remove(0);
+        }
         return Ok((!literal.is_empty()).then_some(literal));
     }
     let stripped = token.strip_prefix(['@', '#']).unwrap_or(token);
