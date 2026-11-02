@@ -26,4 +26,6 @@ cargo test -p shinki-emu-cmvs --locked
 
 核心不依赖 Win32：Windows、Linux、macOS 与 Android 使用同一套文字、MP3 和设置实现。存档仍在原引擎的 `game/save/` 位置和格式。
 
+Android Manager 在 ARM64 与 x86_64 上通过同一静态注册表调用 `cmvs_query`，启用 `video-ffmpeg`。视频解码复用 SDK 的静态 FFmpeg 和 Musica 已用的 API 28 vcpkg triplet、xtask 依赖准备及 APK 打包流程；不提供单独安装的 Android 动态核心。APK 的 `embedded-cores.json` 包含 CMVS，许可证和对应源码随 Manager 打包。Android 实际运行按用户要求未验证。
+
 创建场景的测试需要硬件 GPU。游戏原始文件、密钥和解码产物不进仓库。

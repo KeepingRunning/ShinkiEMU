@@ -165,16 +165,19 @@ def main():
     with zipfile.ZipFile(apk) as archive, tempfile.TemporaryDirectory(prefix='krkr-apk-') as temporary:
         names = set(archive.namelist())
         embedded = json.loads(archive.read('assets/embedded-cores.json'))
-        expected = {'rfvp', 'siglus_rs', 'shinki.emu.musica', 'art3m1s-core',
-                    'impacto', 'renpy', 'kirikiroid2-web'}
         ids = {core['id'] for core in embedded}
-        if ids != expected or len(embedded) != len(expected):
-            raise ValueError(f'APK static consumers differ from seven-core inventory: {sorted(ids)}')
-        if ids != set(selected):
+        if ids != set(selected) or len(embedded) != len(selected):
             raise ValueError('APK static consumers differ from exact product inventory')
         for entry in embedded:
             if 'source' in selected[entry['id']] and entry['source']['rev'] != selected[entry['id']]['source']['rev']:
                 raise ValueError(f'APK fork pin differs from product inventory: {entry["id"]}')
+        cmvs_licenses = {}
+        for relative in selected['shinki.emu.cmvs']['licenses']:
+            content = archive.read('assets/licenses/shinki.emu.cmvs/' + relative)
+            if content != (args.root / relative).read_bytes():
+                raise ValueError(f'APK CMVS license differs from source: {relative}')
+            cmvs_licenses[relative] = hashlib.sha256(content).hexdigest()
+        proof['cmvs_licenses_sha256'] = cmvs_licenses
         bundled = archive.read('assets/bundled.manifest')
         if len(bundled) > 1024 * 1024:
             raise ValueError('APK bundled manifest exceeds the host bound')
@@ -325,6 +328,9 @@ def main():
             linked = symbols(nm, Path(built['library']), external=False)
             if not public.issubset(linked):
                 raise ValueError(f'Manager did not link the actual Krkr query/host: {target}')
+            cmvs_queries = sorted(name for name in linked if 'shinki_emu_cmvs' in name and 'cmvs_query' in name)
+            if not cmvs_queries:
+                raise ValueError(f'Manager did not link the actual CMVS static query: {target}')
             for marker in ('Java_org_shinkirou_shinkiemu_MainActivity_nativeOnPickResult',
                            'shinki_emu_impacto_query', 'shinki_impacto_lua_newstate',
                            'shinki_emu_renpy_query', 'Py_InitializeFromConfig',
@@ -348,6 +354,7 @@ def main():
             proof['abis'][abi] = {'source_commit': built['source_commit'], 'archive': str(library),
                                   'archive_sha256': digest(library), 'private_symbols': len(defined) - len(public),
                                   'packaged_manager_sha256': packaged_sha256,
+                                  'cmvs_static_query_symbols': cmvs_queries,
                                   'compiled_register_natives': registrations, 'spine_runtime_symbols': spine,
                                   'compiled_cocos_jni_implementations': cocos_jni,
                                   'embedded_exit_no_process_fallback': True, 'cocos_getenv_no_cached_environment': True}

@@ -588,6 +588,9 @@ fn import_returns_while_owner_is_busy_and_publishes_only_after_native_work_finis
         })
         .unwrap();
     receiver.recv_timeout(Duration::from_secs(5)).unwrap();
+    // Entering the second factory means the first Ready event is queued.
+    // Drain that metadata update before checking the blocked import's events.
+    app.poll_platform().unwrap();
     let pending = app.add_game_directory(&path).unwrap();
     assert!(pending.library.games.is_empty());
     assert!(app.startup_busy());

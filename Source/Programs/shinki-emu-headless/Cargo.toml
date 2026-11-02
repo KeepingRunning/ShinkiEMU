@@ -18,7 +18,7 @@ shinki-emu-cmvs = { path = "../../Families/shinki-emu-cmvs", optional = true }
 shinki-emu-siglus_rs = { git = "https://github.com/Project-Shinkirou/siglus_rs", rev = "a0aa629fb5ce467e91c83e2be0fffb3320404527", default-features = false, optional = true }
 shinki-emu-manager-core = { path = "../../Manager/shinki-emu-manager-core" }
 shinki-emu-abi = { path = "../../FamilyApi/shinki-emu-abi" }
-roukaku-headless-protocol = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "8392cf161800f7684af7704eb95f7a5526d2015d" }
+roukaku-headless-protocol = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "374a7a20780153766d9d0256e4cf4d7754fd02f9" }
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true

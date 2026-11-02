@@ -19,7 +19,7 @@ Ren’Py にはさらに、固定バージョンの公式 SDK が必要です。
 POSIX SDL 2.0.20 のソースは SDL 公式 GitHub Release から取得します。SHA256 は `c56aba1d7b5b0e7e999e4a7698c70b63a3394ff9704b5f6e1c57e0c16f04dd06` のままで、アーカイブの内容と SDK ABI は変わりません。Android Ren’Py のソースビルドには LLVM 18/Clang 18、LLD、ccache とネイティブ開発パッケージも必要です。CI と Release は同じ既存の依存関係一覧を使います。Android SDK/NDK だけでは足りません。
 
 
-CMVS は Win32 に依存せず、Windows x64、Linux x64、macOS の両アーキテクチャ向けに動的コアとしてビルドします。Android と iOS は Manager への静的組み込みを待っています。RoukakuEngine は公開リビジョン `8392cf161800f7684af7704eb95f7a5526d2015d` に固定されています。
+CMVS は Win32 に依存せず、Windows x64、Linux x64、macOS の両アーキテクチャ向けに動的コアとしてビルドします。Android と iOS は Manager への静的組み込みを待っています。RoukakuEngine は Android オフスクリーン Vulkan バックエンドを含む公開リビジョン `374a7a20780153766d9d0256e4cf4d7754fd02f9` に固定されています。
 
 リポジトリのルートで実行します。
 
@@ -130,10 +130,12 @@ cargo xtask build --target x86_64-linux-android --manager --release
 cargo xtask package --target aarch64-linux-android --manager --version 0.1.0-beta.2 --out .work/android-test
 ```
 
-各ビルドは `cargo ndk-env` のツールチェーン環境を取り込み、Cargo を `--locked` で直接実行します。`static_manager_targets` にそのトリプルを含むコア（RFVP、Siglus、Shinki Musica、Artemis、Impacto、Ren’Py、KiriKiri）を静的リンクし、ビルド記録が指す target ディレクトリの `android-inputs/` に、JNI ランタイムの依存関係、証明書検証用の AAR、メタデータ、ライセンスを集めます。パッケージングには、**両方のトリプル**について同じソースコミットから作られた release のビルド記録が必要です。続いて Gradle が `arm64-v8a`、`x86_64`、`assets/metadata/` を含むユニバーサル APK を生成し、xtask が署名と各ネイティブライブラリの依存関係の閉包を確認します。署名鍵がない場合の出力は `ShinkiEMU-<version>-android-universal-debug-signed.apk` です。これは debug 署名の CI テスト用パッケージで、正式なインストーラーではありません。テスト用の鍵は `GRADLE_USER_HOME` 内に生成されます。
+各ビルドは `cargo ndk-env` のツールチェーン環境を取り込み、Cargo を `--locked` で直接実行します。`static_manager_targets` にそのトリプルを含むコア（RFVP、Siglus、Shinki Musica、CMVS、Artemis、Impacto、Ren’Py、KiriKiri）を静的リンクし、ビルド記録が指す target ディレクトリの `android-inputs/` に、JNI ランタイムの依存関係、証明書検証用の AAR、メタデータ、ライセンスを集めます。パッケージングには、**両方のトリプル**について同じソースコミットから作られた release のビルド記録が必要です。続いて Gradle が `arm64-v8a`、`x86_64`、`assets/metadata/` を含むユニバーサル APK を生成し、xtask が署名と各ネイティブライブラリの依存関係の閉包を確認します。署名鍵がない場合の出力は `ShinkiEMU-<version>-android-universal-debug-signed.apk` です。これは debug 署名の CI テスト用パッケージで、正式なインストーラーではありません。テスト用の鍵は `GRADLE_USER_HOME` 内に生成されます。
+
+CMVS は同じ静的レジストリの `cmvs_query` と `video-ffmpeg` を使います。SDK デコーダーは Musica の API 28 静的 FFmpeg vcpkg triplet と xtask の依存準備を共有します。Manager の `embedded-cores.json`、対応ソース、ライセンスに CMVS を含めます。APK 検証は `assets/licenses/shinki.emu.cmvs/` 内のライセンスをマニフェストの入力とバイト単位で比較します。Android 実機・エミュレーターでの実行はユーザーの指定により未検証です。
 
 Gradle の依存関係を一度ダウンロードしたあとは、`SHINKI_EMU_GRADLE_OFFLINE=1` を設定すると `--offline` が渡されます。パッケージングのたびに新しい出力ディレクトリを使ってください。`cargo xtask ci --target aarch64-linux-android --component manager --report .work/android-ci.json` は両方の ABI をビルドし、実際の APK のパスを報告します。CI は両方のトリプルの依存関係を準備したうえで、このコマンドを 1 回だけ実行します。`matrix --json --ci` が、同じユニバーサル APK を作るだけの `x86_64-linux-android` の Manager 行を除くためです。Release はユニバーサルな release 署名 APK を 1 つだけアップロードし、対応する sources ZIP も公開します。
-後継 Android Manager は KiriKiri を加えた七つのコアを静的登録します。既存の MainActivity と実際の JavaVM を使い、元の SDL/Cocos Java ヘルパーとネイティブ SDL/FFmpeg/JNI 閉包を隔離します。`Tools/verify-krkr-android.py` は新しい HEAD の実 APK に対して両 ABI、DEX/JNI、元のリソース、Spine 閉包を検査します。リソースの上限は 32 MiB で、有界ストリーミングと Impacto の 17,032,620 バイトの元フォントを維持します。debug 署名の証明は正式な公開署名の代わりにはなりません。
+後継 Android Manager は CMVS と KiriKiri を含む八つのコアを静的登録します。既存の MainActivity と実際の JavaVM を使い、元の SDL/Cocos Java ヘルパーとネイティブ SDL/FFmpeg/JNI 閉包を隔離します。`Tools/verify-krkr-android.py` は新しい HEAD の実 APK に対して両 ABI、DEX/JNI、元のリソース、Spine 閉包を検査します。リソースの上限は 32 MiB で、有界ストリーミングと Impacto の 17,032,620 バイトの元フォントを維持します。debug 署名の証明は正式な公開署名の代わりにはなりません。
 
 
 すべての Manager パッケージは `Assets/Branding/shinkiemu-icon.svg` を共通のアイコンソースとして使います。Rust が Windows EXE の ICO リソース、macOS ICNS、iOS の app icon set、Android のアダプティブランチャー mipmap、Linux の hicolor PNG を生成します。Linux ZIP には `share/applications/shinkiemu.desktop` も含まれます。このファイルと `share/icons/hicolor` をアプリケーションとアイコンのディレクトリにインストールしてください。ゲームがウィンドウアイコンを変更した場合、ゲーム終了時に Manager アイコンへ戻ります。

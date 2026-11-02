@@ -18,8 +18,8 @@ static_manager_targets = ["aarch64-linux-android", "x86_64-linux-android", "aarc
 publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/rfvp"
-branch = "shinki-sakura-native"
-rev = "f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03"
+branch = "shinki"
+rev = "cc0cc5c9648d481693cfa353c11e1d61311f6246"
 upstream = "https://github.com/xmoezzz/rfvp"
 release_sequence = 1
 upstream_identity = { repo = "https://github.com/xmoezzz/rfvp", ref_kind = "tag", ref_name = "0.7.0", commit = "99435f22e94eaec27c0c1b9f22cc2a6b1910d7d1" }
@@ -287,13 +287,15 @@ artifact_kind = "rust-cdylib"
 resources = []
 licenses = ["LICENSE-MIT", "LICENSE-APACHE", "Assets/Fonts/OFL-NotoSansJP.txt"]
 supported_targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "aarch64-apple-darwin"]
+static_manager_targets = ["aarch64-linux-android", "x86_64-linux-android"]
+static_features = ["video-ffmpeg"]
 publish_blocked = ""
 [[cores.blocked]]
 target = "aarch64-linux-android"
-reason = "Waiting on Android Manager static embedding; standalone dynamic-core installation is not supported."
+reason = "Statically embedded in the Android Manager; standalone dynamic-core installation is not supported."
 [[cores.blocked]]
 target = "x86_64-linux-android"
-reason = "Waiting on Android Manager static embedding; standalone dynamic-core installation is not supported."
+reason = "Statically embedded in the Android Manager; standalone dynamic-core installation is not supported."
 [[cores.blocked]]
 target = "aarch64-apple-ios"
 reason = "Waiting on Manager static embedding and AppleNative remote mac verification."

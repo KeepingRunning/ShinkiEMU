@@ -192,6 +192,8 @@ impl MusicaSession {
         )?;
         scene.set_text_shadow(self.scene.text_shadow());
         scene.set_configured_font(self.scene.configured_font())?;
+        #[cfg(feature = "ffmpeg-vcpkg")]
+        scene.set_subtitle_catalog(self.scene.subtitle_catalog());
         let message = match &event {
             MusicaVmEvent::Message { text, speaker, .. } => Some((text.clone(), speaker.clone())),
             _ => {
