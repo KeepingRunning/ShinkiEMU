@@ -79,6 +79,8 @@ FriBidi 以 `fribidi-0.dll` 动态链接，随使用字幕的 FVP 与 Musica 核
 
 外部核心的 Rust 适配与 KrKr 头文件均固定 [`Project-Shinkirou/ShinkiEMU`](https://github.com/Project-Shinkirou/ShinkiEMU) 的 `shinki-emu-abi`（C ABI v3），源码路径为 `Source/FamilyApi/shinki-emu-abi`。外部核心在各自 fork 的 manifest 上独立构建；Android Manager 静态链接 RFVP，iOS Manager 静态链接 RFVP、Siglus、Sena、Ethornell 和 ReMinori，通过 `[patch]` 将同一 ABI 来源映射到本地源码。精确核心提交由 `build/cores.toml` 固定。
 
+RFVP 后继统一固定 `cc0cc5c9648d481693cfa353c11e1d61311f6246`（`shinki` 分支），使用发布序号 2。旧公开 `f86a19f5160bfbbdaf58a0b3f541b1d4cac70d03`/序号 1 的目录、tag 和资产保持不变；新身份从实际集成源码重新构建，不复用旧包换标签。
+
 外部核心适配代码保留在各 fork，主仓不保留第二份适配源码。所有 fork 只保留 `shinki` 分支（同时是默认分支），Apple 扩展提交也在该分支上，精确来源见构建清单。plugin ID 等于上游仓库名，适配包命名为 `shinki-emu-<上游仓库名>`。
 
 ### rust-flash-lso
