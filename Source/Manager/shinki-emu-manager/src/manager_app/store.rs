@@ -17,7 +17,13 @@ use shinki_emu_manager_ui_slint::tr;
 const WEB_LOGIN_SUPPORTED: bool = !cfg!(target_env = "ohos");
 
 fn registry() -> provider::Registry {
-    let mut registry = provider::Registry::new();
+    let registry = provider::Registry::new();
+    #[cfg(any(
+        feature = "store-steam",
+        feature = "store-dlsite",
+        feature = "store-dmm"
+    ))]
+    let mut registry = registry;
     #[cfg(feature = "store-steam")]
     registry
         .register(shinki_emu_steam::Provider)
