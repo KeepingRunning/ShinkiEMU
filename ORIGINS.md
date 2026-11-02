@@ -11,6 +11,7 @@ ShinkiEMU starts a new Git history. Its code and data come from repositories by 
 | https://github.com/2018wzh/AstraEMU-metadata (`cores/renpy-20261023`) | `cdf46716b30d35c0ea1ec46b310dec48748e5c5d` | `Metadata/` (now a plain directory) |
 | AstraEngine `Examples/NativeVN/Assets/Fonts`, `Engine/Fixtures/PublicDomainFonts` | as above | `Assets/Fonts` (Noto Sans JP/SC, SIL OFL 1.1) |
 | AstraEngine `Engine/Fixtures/PublicDomainMedia/flower-roar.mp4` | as above | `Fixtures/Media` (derived from MDN interactive-examples media, CC0-1.0) |
+| https://github.com/Project-Shinkirou/Project-Shinkirou.github.io (`main`) | `59853af07f2a6ed32bc21b4ab6d014287f8f3814` | `docs/assets/readme-banner-{dark,light}.png`, rendered from the portal's `MirageScene.astro` night scene, `theme.css` night and dawn tokens, and `LogoMark.astro` mark |
 
 External cores live in organization forks that keep their upstream history and attribution; ShinkiEMU pins them as submodules on their `shinki` branches (`cpal` and `kira` on version maintenance branches).
 
