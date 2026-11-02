@@ -249,9 +249,6 @@ msgstr "Rolled back: the game directory is back to how it was before the run."
 msgid "已回滚：没有生成输出目录。"
 msgstr "Rolled back: no output directory was created."
 
-msgid "原生内嵌译文"
-msgstr "Native embedded text"
-
 msgid "补丁输入目录默认是游戏目录；可选择新目录或原位覆盖。原位覆盖会把修改前的文件保存在游戏目录的 .shinki/backup。"
 msgstr "The patch input directory defaults to the game directory. Choose New directory or In-place overwrite; in-place mode keeps the original files in the game's .shinki/backup."
 
@@ -2362,6 +2359,12 @@ msgstr "Native script save isolation"
 
 msgid "优先使用配置字体"
 msgstr "Prefer configured fonts"
+
+msgid "原生内嵌译文"
+msgstr "Native embedded text"
+
+msgid "原生姓名资源"
+msgstr "Native name resources"
 
 msgid "此转换结果需要更新所选核心"
 msgstr "This conversion result needs the selected core updated"
