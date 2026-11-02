@@ -14,10 +14,11 @@ use crate::{
     ManagerViewModel, ManagerWindow, MatchReview, MatchViewModel, Network, Notices, Onboarding,
     Patch, PatchGame, PatchGameViewModel, PatchState, PatchStateViewModel, PlaySession,
     PlaySessionViewModel, Recipe, RecipeViewModel, Release, ReleaseViewModel, RenderState,
-    RenderViewModel, ResaleNoticeState, SelectedGame, Selection, Session, Settings, Store,
-    StoreAction, StoreDepot, StoreDepotViewModel, StoreGame, StoreGameViewModel, StoreLoadState,
-    StoreLoginState, StoreTransfer, StoreTransferState, StoreTransferViewModel, TranslationForm,
-    TranslationFormViewModel, covers, list_model::ListModel, notices,
+    RenderViewModel, ResaleNoticeState, SelectedGame, Selection, SelfUpdate, SelfUpdateAction,
+    Session, Settings, Store, StoreAction, StoreDepot, StoreDepotViewModel, StoreGame,
+    StoreGameViewModel, StoreLoadState, StoreLoginState, StoreTransfer, StoreTransferState,
+    StoreTransferViewModel, TranslationForm, TranslationFormViewModel, covers,
+    list_model::ListModel, notices,
 };
 
 pub struct SlintManagerAdapter {
@@ -290,6 +291,21 @@ impl SlintManagerAdapter {
         store.on_verify(move || handler(StoreAction::Verify));
     }
 
+    /// Routes the 更新 settings and the new-version banner to one handler.
+    pub fn set_on_self_update_action(&self, handler: impl Fn(SelfUpdateAction) + 'static) {
+        let handler = Rc::new(handler);
+        let update = self.window.global::<SelfUpdate>();
+        let h = handler.clone();
+        update.on_check_now(move || h(SelfUpdateAction::CheckNow));
+        let h = handler.clone();
+        update.on_set_include_prerelease(move |on| h(SelfUpdateAction::SetIncludePrerelease(on)));
+        let h = handler.clone();
+        update.on_open_download(move || h(SelfUpdateAction::OpenDownload));
+        let h = handler.clone();
+        update.on_ignore_version(move || h(SelfUpdateAction::IgnoreVersion));
+        update.on_dismiss(move || handler(SelfUpdateAction::DismissUntilLater));
+    }
+
     pub fn set_session_active(&self, active: bool) {
         self.window.global::<Session>().set_active(active);
     }
@@ -308,6 +324,7 @@ impl SlintManagerAdapter {
         self.apply_cores(model);
         self.apply_notices(model);
         self.apply_settings(model);
+        self.apply_self_update(model);
         self.apply_filters(model);
         self.apply_session(model);
         self.onboarding_roots.update(&model.onboarding.roots);
@@ -334,6 +351,22 @@ impl SlintManagerAdapter {
         network.set_syncing(model.network.syncing);
         network.set_sync_status(model.network.sync_status.as_str().into());
         network.set_source(model.network.source.as_str().into());
+    }
+
+    fn apply_self_update(&self, model: &ManagerViewModel) {
+        let update = self.window.global::<SelfUpdate>();
+        let view = &model.self_update;
+        update.set_current_version(view.current_version.as_str().into());
+        update.set_include_prerelease(view.include_prerelease);
+        update.set_offline(view.offline);
+        update.set_status(view.status.as_str().into());
+        update.set_failure_reason(view.failure_reason.as_str().into());
+        update.set_latest_version(view.latest_version.as_str().into());
+        update.set_notes_summary(view.notes_summary.as_str().into());
+        update.set_download_url(view.download_url.as_str().into());
+        update.set_last_checked(view.last_checked.as_str().into());
+        update.set_ignored_version(view.ignored_version.as_str().into());
+        update.set_banner_visible(view.banner_visible);
     }
 
     fn apply_library(&self, model: &ManagerViewModel) {

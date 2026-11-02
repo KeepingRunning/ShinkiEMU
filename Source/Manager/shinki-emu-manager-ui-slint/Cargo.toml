@@ -36,3 +36,5 @@ rspolib = "=0.1.2"
 
 [dev-dependencies]
 tempfile.workspace = true
+# tests/self_update_screens.rs renders the real ManagerWindow without a display.
+slint = { workspace = true, features = ["renderer-software"] }

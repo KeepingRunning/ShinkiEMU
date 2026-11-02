@@ -22,6 +22,7 @@ pub struct ManagerViewModel {
     pub cores: CoresViewModel,
     pub notices: NoticesViewModel,
     pub settings: SettingsViewModel,
+    pub self_update: SelfUpdateViewModel,
     pub filters: FiltersViewModel,
     pub session: SessionViewModel,
     pub onboarding: OnboardingViewModel,
@@ -109,6 +110,41 @@ pub struct NetworkViewModel {
     pub syncing: bool,
     pub sync_status: String,
     pub source: String,
+}
+
+/// Manager self-update check. ShinkiEMU only detects and announces releases;
+/// it never downloads or installs them.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SelfUpdateViewModel {
+    pub current_version: String,
+    pub include_prerelease: bool,
+    /// Network access is off: no check runs and 立即检查 is disabled.
+    pub offline: bool,
+    /// `"idle"`, `"checking"`, `"up-to-date"`, `"available"` or `"failed"`.
+    pub status: String,
+    /// Localized reason shown under 检查失败 while `status` is `"failed"`.
+    pub failure_reason: String,
+    pub latest_version: String,
+    /// Plain-text release notes excerpt.
+    pub notes_summary: String,
+    /// Release page for this platform, opened by [`SelfUpdateAction::OpenDownload`].
+    pub download_url: String,
+    /// Locale-neutral time of the last finished check; empty if never.
+    pub last_checked: String,
+    pub ignored_version: String,
+    /// The non-blocking new-version banner is shown.
+    pub banner_visible: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelfUpdateAction {
+    CheckNow,
+    SetIncludePrerelease(bool),
+    OpenDownload,
+    /// Never announce `latest_version` again.
+    IgnoreVersion,
+    /// Hide the banner for this session only.
+    DismissUntilLater,
 }
 
 #[derive(Debug, Clone, PartialEq)]
