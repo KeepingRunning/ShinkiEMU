@@ -5,7 +5,7 @@
 
 # ShinkiEMU
 
-ShinkiEMU 让旧引擎制作的视觉小说在现在的电脑和手机上运行。一个 Manager 应用管理游戏库，为每种引擎安装原生核心，从 Bangumi 和 VNDB 获取元数据，还能从 Steam、DLsite、DMM 下载你已购买的游戏。
+ShinkiEMU 让旧引擎制作的视觉小说在现在的电脑和手机上运行。一个 Manager 应用管理游戏库，为每种引擎安装原生核心，从 Bangumi 和 VNDB 获取元数据，还能从 Steam 和 DLsite 下载你已购买的游戏。
 
 [![CI](https://github.com/Project-Shinkirou/ShinkiEMU/actions/workflows/ci.yml/badge.svg)](https://github.com/Project-Shinkirou/ShinkiEMU/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/Project-Shinkirou/ShinkiEMU?include_prereleases&sort=date)](https://github.com/Project-Shinkirou/ShinkiEMU/releases)
@@ -41,7 +41,7 @@ ShinkiEMU 用 11 个核心支持 10 个引擎家族。每个核心保留引擎�
 - **核心以插件形式提供**：核心与 Manager 各自发布和更新。桌面版 Manager 从应用内的核心目录安装和更新核心；Android 与 iOS 版 Manager 静态链接核心。
 - **第三方核心跟随上游**：外部核心是组织 fork 上的薄适配层，存档、密钥和设置沿用上游的位置与格式。现在的核心包以构建所用的上游版本命名，例如 rfvp `0.7.0`、impacto `0.10.8.930`、Ren'Py `8.5.3.26051504`。这类核心包需要 Manager beta.6 或更高版本，旧 Manager 继续使用旧目录。
 - **补丁**：门户[补丁库](https://project-shinkirou.github.io/zh-cn/shinkiemu/patches/)发布经过审核的 Luau 配方，只有在你选中时才会运行。补丁默认输出到新目录，原游戏保持不变；原位覆盖模式会把改动的文件备份到 `<game>/.shinki/backup/`，并可还原最近一次补丁。托管的补丁文件通过 HTTPS 下载，并校验大小和 SHA-256。新补丁可以用[补丁提交](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=patch.yml)表单投稿。
-- **商店下载**：在 Manager 里登录 Steam、DLsite 或 DMM/FANZA，选择账号已拥有的 PC 游戏，下载到游戏库。Steam 下载还能检查更新、校验已安装的文件。登录信息只保存在系统的安全存储里。DRM 和授权检查仍由商店负责。
+- **商店下载**：在 Manager 里登录 Steam 或 DLsite，选择账号已拥有的 PC 游戏，下载到游戏库。Steam 下载还能检查更新、校验已安装的文件。DMM GAMES/FANZA 目前只能登录，下载功能暂未提供。登录信息只保存在系统的安全存储里。DRM 和授权检查仍由商店负责。
 
 各项功能的详细说明见[用户指南](docs/zh-cn/user-guide.md)。
 

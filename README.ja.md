@@ -5,7 +5,7 @@
 
 # ShinkiEMU
 
-ShinkiEMU は、旧来のエンジンで作られたビジュアルノベルを今のパソコンやスマートフォンで動かします。Manager アプリひとつでゲームライブラリを管理し、エンジンごとのネイティブコアをインストールし、Bangumi と VNDB からメタデータを取得し、Steam・DLsite・DMM で購入済みのゲームをダウンロードできます。
+ShinkiEMU は、旧来のエンジンで作られたビジュアルノベルを今のパソコンやスマートフォンで動かします。Manager アプリひとつでゲームライブラリを管理し、エンジンごとのネイティブコアをインストールし、Bangumi と VNDB からメタデータを取得し、Steam と DLsite で購入済みのゲームをダウンロードできます。
 
 [![CI](https://github.com/Project-Shinkirou/ShinkiEMU/actions/workflows/ci.yml/badge.svg)](https://github.com/Project-Shinkirou/ShinkiEMU/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/Project-Shinkirou/ShinkiEMU?include_prereleases&sort=date)](https://github.com/Project-Shinkirou/ShinkiEMU/releases)
@@ -41,7 +41,7 @@ ShinkiEMU は 11 のコアで 10 のエンジンファミリーに対応して�
 - **コアはプラグイン**：コアは Manager とは別にリリース・更新されます。デスクトップ版 Manager はアプリ内のコアカタログからコアをインストール・更新し、Android と iOS の Manager はコアを静的リンクします。
 - **サードパーティのコアは上流に従う**：外部コアは組織のフォークに載せた薄いアダプターで、セーブ、鍵、設定は上流の場所と形式を使います。現在のコアパッケージは、ビルド元の上流リリースにちなんで名付けられています（例：rfvp `0.7.0`、impacto `0.10.8.930`、Ren'Py `8.5.3.26051504`）。これらのパッケージには Manager beta.6 以降が必要で、旧 Manager は従来のカタログを使い続けます。
 - **パッチ**：ポータルの[パッチライブラリ](https://project-shinkirou.github.io/ja/shinkiemu/patches/)では、レビュー済みの Luau レシピを公開しています。レシピは選択したときだけ実行されます。既定では新しいディレクトリに出力し、元のゲームは変更しません。上書きモードでは変更したファイルを `<game>/.shinki/backup/` に退避し、直近のパッチを元に戻せます。ホストされたパッチファイルは HTTPS でダウンロードし、サイズと SHA-256 を検証します。新しいパッチは[パッチの提出](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=patch.yml)フォームから投稿できます。
-- **ストアからのダウンロード**：Manager の中で Steam、DLsite、DMM/FANZA にログインし、アカウントが所有する PC ゲームを選んでライブラリにダウンロードできます。Steam では更新の確認とインストール済みファイルの検証もできます。ログイン情報はプラットフォームの安全な保管領域にだけ保存します。DRM とライセンス確認はストア側の責任です。
+- **ストアからのダウンロード**：Manager の中で Steam または DLsite にログインし、アカウントが所有する PC ゲームを選んでライブラリにダウンロードできます。Steam では更新の確認とインストール済みファイルの検証もできます。DMM GAMES/FANZA はサインインのみに対応し、ダウンロードにはまだ対応していません。ログイン情報はプラットフォームの安全な保管領域にだけ保存します。DRM とライセンス確認はストア側の責任です。
 
 それぞれの詳細は[ユーザーガイド](docs/ja/user-guide.md)にあります。
 

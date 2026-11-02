@@ -5,7 +5,7 @@
 
 # ShinkiEMU
 
-ShinkiEMU plays visual novels made with older engines on today's computers and phones. One Manager app keeps your game library, installs a native core for each engine, fetches metadata from Bangumi and VNDB, and downloads games you own from Steam, DLsite and DMM.
+ShinkiEMU plays visual novels made with older engines on today's computers and phones. One Manager app keeps your game library, installs a native core for each engine, fetches metadata from Bangumi and VNDB, and downloads games you own from Steam and DLsite.
 
 [![CI](https://github.com/Project-Shinkirou/ShinkiEMU/actions/workflows/ci.yml/badge.svg)](https://github.com/Project-Shinkirou/ShinkiEMU/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/Project-Shinkirou/ShinkiEMU?include_prereleases&sort=date)](https://github.com/Project-Shinkirou/ShinkiEMU/releases)
@@ -41,7 +41,7 @@ Recognizing an engine is not a playability result. Results for specific games, p
 - **Cores are plugins.** Cores are released and updated independently of the Manager. Desktop Managers install and update them from the in-app core catalog; Android and iOS Managers link their cores statically.
 - **Third-party cores follow upstream.** External cores are thin adapters on organization forks. Their saves, keys and settings keep upstream locations and formats. Current packages are named after the upstream release they are built from, such as rfvp `0.7.0`, impacto `0.10.8.930` and Ren'Py `8.5.3.26051504`; Manager beta.6 or later reads them, while older Managers keep the legacy catalog.
 - **Patches.** The portal's [patch library](https://project-shinkirou.github.io/en/shinkiemu/patches/) publishes reviewed Luau recipes that run only when you select them. By default a patch writes a new directory and leaves the original game unchanged. In-place mode backs up changed files under `<game>/.shinki/backup/` and can restore the latest patch. Hosted patch files are downloaded over HTTPS and checked against their size and SHA-256. Submit a new patch with the [patch submission](https://github.com/Project-Shinkirou/ShinkiEMU/issues/new?template=patch.yml) form.
-- **Store downloads.** Sign in to Steam, DLsite or DMM/FANZA inside the Manager, pick a PC game your account owns, and download it into your library. Steam downloads can also check for updates and verify installed files. Logins are kept only in the platform's secret store. DRM and license checks remain the store's responsibility.
+- **Store downloads.** Sign in to Steam or DLsite inside the Manager, pick a PC game your account owns, and download it into your library. Steam downloads can also check for updates and verify installed files. DMM GAMES/FANZA supports sign-in only; its downloads are not available yet. Logins are kept only in the platform's secret store. DRM and license checks remain the store's responsibility.
 
 The [user guide](docs/en/user-guide.md) describes each of these in detail.
 
