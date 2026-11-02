@@ -1,13 +1,5 @@
 use super::*;
 impl MusicaSession {
-    pub(crate) fn install_localization(
-        &mut self,
-        table: Option<std::sync::Arc<crate::MusicaTranslationTable>>,
-        mode: crate::TranslationMode,
-    ) {
-        self.translation_table = table;
-        self.translation_mode = mode;
-    }
     pub(super) fn cancel_text(&mut self) -> SessionResult<()> {
         if let Some(service) = &self.replacement {
             service.invalidate();
@@ -20,32 +12,9 @@ impl MusicaSession {
 
     pub(super) fn semantic_event(
         &mut self,
-        mut event: Option<MusicaVmEvent>,
+        event: Option<MusicaVmEvent>,
     ) -> SessionResult<Option<MusicaVmEvent>> {
         if self.pending.is_none() {
-            if let Some(MusicaVmEvent::Message { text, speaker, .. }) = &mut event {
-                if let (Some(table), Some((body_hash, speaker_hash))) =
-                    (&self.translation_table, self.vm.message_display_hashes())
-                {
-                    if let Some((translated, name_hit)) = table.lookup(body_hash) {
-                        if name_hit || self.translation_mode == crate::TranslationMode::Replace {
-                            *text = translated.to_owned();
-                        } else {
-                            self.translation_overlay = Some(translated.to_owned());
-                        }
-                    }
-                    if let Some((translated, name_hit)) =
-                        speaker_hash.and_then(|hash| table.lookup(hash))
-                        && (name_hit || self.translation_mode == crate::TranslationMode::Replace)
-                    {
-                        *speaker = Some(translated.to_owned());
-                    }
-                }
-                self.scene.set_translation_overlay(
-                    self.translation_overlay.clone(),
-                    self.translation_visible,
-                );
-            }
             let enabled = self.replacement.is_some();
             if !enabled
                 || !matches!(
@@ -80,7 +49,9 @@ impl MusicaSession {
                 }
                 MusicaVmEvent::Choice => {
                     labels = self
-                        .localized_choice_labels()?
+                        .vm
+                        .choice_display()
+                        .map_err(vm_error)?
                         .ok_or_else(|| error("SHINKI_EMU_MUSICA_CHOICE", "choice is unavailable"))?
                         .0;
                     labels
@@ -153,38 +124,10 @@ impl MusicaSession {
         {
             return Ok(None);
         }
-        let Some((labels, index)) = self.localized_choice_labels()? else {
+        let Some((labels, index)) = self.vm.choice_display().map_err(vm_error)? else {
             return Ok(None);
         };
         Ok(Some((self.choice_text.clone().unwrap_or(labels), index)))
-    }
-
-    fn localized_choice_labels(&self) -> SessionResult<Option<(Vec<String>, u32)>> {
-        Self::localized_choices_for(
-            &self.vm,
-            self.translation_table.as_deref(),
-            self.translation_mode,
-        )
-    }
-
-    pub(super) fn localized_choices_for(
-        vm: &MusicaVm,
-        table: Option<&crate::MusicaTranslationTable>,
-        mode: crate::TranslationMode,
-    ) -> SessionResult<Option<(Vec<String>, u32)>> {
-        let Some((mut labels, index)) = vm.choice_display().map_err(vm_error)? else {
-            return Ok(None);
-        };
-        if let Some(table) = table {
-            for (label, hash) in labels.iter_mut().zip(vm.choice_display_hashes()) {
-                if let Some((translated, name_hit)) = table.lookup(hash)
-                    && (name_hit || mode == crate::TranslationMode::Replace)
-                {
-                    *label = translated.to_owned();
-                }
-            }
-        }
-        Ok(Some((labels, index)))
     }
 
     pub(super) fn message(&mut self, text: String, speaker: Option<String>) -> SessionResult<()> {

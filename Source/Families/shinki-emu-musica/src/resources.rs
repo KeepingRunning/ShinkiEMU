@@ -16,16 +16,15 @@ pub struct MusicaResourcePaths {
 
 pub(crate) fn game_identity(
     archive: &crate::MusicaMountedVfs,
-    translation: Option<roukaku_core::Hash256>,
-    mode: crate::TranslationMode,
     font: Option<roukaku_core::Hash256>,
     subtitles: Option<roukaku_core::Hash256>,
 ) -> Result<roukaku_core::Hash256, CoreError> {
     let bytes = serde_json::to_vec(&(
         archive.manifest(),
         archive.script_source_identity()?,
-        translation,
-        mode,
+        // None preserves the v1 identity envelope for games without a patch.
+        archive.name_resources.as_ref().and_then(|names| names.resource_identity),
+        "replace",
         font,
         subtitles,
     ))

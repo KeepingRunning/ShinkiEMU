@@ -138,55 +138,6 @@ impl MusicaTextRenderer {
             .map_err(text_error)
     }
 
-    pub(crate) fn overlay_commands(
-        &mut self,
-        text: Option<&str>,
-        width: u32,
-    ) -> Result<Vec<SceneCommand>, String> {
-        let margin = 24_u32.min(width / 4);
-        let mut regions = text
-            .map(|text| {
-                vec![layout_request(
-                    "musica.translation.overlay",
-                    text,
-                    Region {
-                        x: margin as i32,
-                        y: 24,
-                        width: width - margin * 2,
-                        height: 160,
-                        font_size: 26.0,
-                        line_height: 36.0,
-                        max_lines: 4,
-                    },
-                )]
-            })
-            .unwrap_or_default();
-        for region in &mut regions {
-            region.outline = Some(TextOutline {
-                radius: 2,
-                rgba: [0, 0, 0, 224],
-            });
-        }
-        let mut commands = self.frame(&mut regions)?;
-        // TextScene owners have independent residency. Namespace their glyph IDs
-        // so releasing an overlay can never release a base-message glyph.
-        for command in &mut commands {
-            match command {
-                SceneCommand::UploadGlyph { resource_id, .. }
-                | SceneCommand::ReleaseResource { resource_id } => {
-                    resource_id.insert_str(0, "musica.overlay/");
-                }
-                SceneCommand::GlyphRun { glyphs, .. } => {
-                    for glyph in std::sync::Arc::make_mut(glyphs) {
-                        glyph.resource_id.insert_str(0, "musica.overlay/");
-                    }
-                }
-                _ => {}
-            }
-        }
-        Ok(commands)
-    }
-
     pub(crate) fn save_cards(
         &mut self,
         cards: &[(u32, crate::storage::SaveCard)],

@@ -5,7 +5,7 @@ use crate::{
 use roukaku_core::Hash256;
 use shinki_emu_sdk::runtime::SessionResult;
 
-const MAX_SCRIPT_BYTES: usize = 16 * 1024 * 1024;
+pub(crate) const MAX_SCRIPT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_READ_BYTES: usize = 64 * 1024 * 1024;
 const MAX_INCLUDE_DEPTH: usize = 32;
 
@@ -26,8 +26,22 @@ pub(crate) fn load_script(
             tracing::debug!(event = "shinki.emu.musica.script.parse_failed");
             error("SHINKI_EMU_MUSICA_SCRIPT", "script cannot be parsed")
         })?;
+    let hash = if let Some(names) = &archive.name_resources {
+        use sha2::{Digest, Sha256};
+        let mut hash = Sha256::new();
+        hash.update(Hash256::from_sha256(&bytes).as_bytes());
+        hash.update(names.unknown.as_bytes());
+        hash.update([0]);
+        hash.update(names.history_unknown.as_bytes());
+        if let Some(identity) = names.resource_identity {
+            hash.update(identity.as_bytes());
+        }
+        Hash256::from_bytes(hash.finalize().into())
+    } else {
+        Hash256::from_sha256(&bytes)
+    };
     Ok(LoadedScript {
-        hash: Hash256::from_sha256(&bytes),
+        hash,
         script,
     })
 }

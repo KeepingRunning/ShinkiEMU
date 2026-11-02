@@ -8,6 +8,7 @@ use std::{
 };
 
 pub const MUSICA_KEY_SCHEMA: &str = "shinki.emu.musica.keys.v2";
+const LEGACY_MUSICA_KEY_SCHEMA: &str = "astra.emu.musica.keys.v2";
 pub const MUSICA_KEY_FILE: &str = "key.toml";
 pub const MAX_KEY_BYTES: u64 = 1024 * 1024;
 pub const MAX_TEXTURE_OVERRIDES: usize = 256;
@@ -113,10 +114,13 @@ pub fn parse_key_file(bytes: &[u8]) -> Result<MusicaKeyFile, KeyFileError> {
         )
     })?;
     // TOML diagnostics include source lines, which can contain private keys.
-    let key: MusicaKeyFile = toml::from_str(text).map_err(|_| {
+    let mut key: MusicaKeyFile = toml::from_str(text).map_err(|_| {
         invalid("SHINKI_EMU_PROFILE_FORMAT", "select a canonical keys.v2 key.toml with explicit PAZ version, index XOR and RC4 CRC-skip options; convert legacy files with the Musica developer CLI")
     })?;
     key.validate()?;
+    if key.schema != MUSICA_KEY_SCHEMA {
+        key.schema = MUSICA_KEY_SCHEMA.into();
+    }
     Ok(key)
 }
 
@@ -143,7 +147,10 @@ fn key_io_error(cause: std::io::Error) -> KeyFileError {
 impl MusicaKeyFile {
     /// Checks private key metadata and resource path syntax without filesystem IO.
     pub fn validate(&self) -> Result<(), KeyFileError> {
-        if self.schema != MUSICA_KEY_SCHEMA {
+        if !matches!(
+            self.schema.as_str(),
+            MUSICA_KEY_SCHEMA | LEGACY_MUSICA_KEY_SCHEMA
+        ) {
             return Err(invalid(
                 "SHINKI_EMU_MUSICA_PRIVATE_SCHEMA",
                 "select a keys.v2 key.toml; convert legacy schemas with the Musica developer CLI",

@@ -107,6 +107,10 @@ pub struct MusicaVm {
 }
 
 impl MusicaVm {
+    pub(crate) fn set_name_resources(&mut self, names: Option<crate::MusicaNameResources>) {
+        self.state.name_resources = names;
+    }
+
     pub(crate) fn set_voice_preferences(
         &mut self,
         value: crate::voice_preferences::VoicePreferences,
@@ -130,6 +134,7 @@ impl MusicaVm {
             script_uri,
             script_hash,
             script_encoding: script.encoding,
+            name_resources: None,
             pc_line: 0,
             launch_mode: MusicaLaunchMode::Direct,
             variables: BTreeMap::new(),
@@ -190,31 +195,6 @@ impl MusicaVm {
 
     pub fn state(&self) -> &MusicaRuntimeState {
         &self.state
-    }
-    pub(crate) fn message_display_hashes(&self) -> Option<(u32, Option<u32>)> {
-        self.display_command(self.state.message.as_ref()?.source)?
-            .message_display_hashes()
-    }
-
-    pub(crate) fn choice_display_hashes(&self) -> Vec<u32> {
-        self.state
-            .choice
-            .as_ref()
-            .and_then(|choice| self.display_command(choice.source))
-            .map(ScCommand::choice_display_hashes)
-            .unwrap_or_default()
-    }
-
-    fn display_command(&self, span: crate::SourceSpan) -> Option<&ScCommand> {
-        let index = self
-            .script
-            .lines
-            .binary_search_by_key(&span.offset, |line| line.span.offset)
-            .ok()?;
-        match &self.script.lines[index].kind {
-            ScLineKind::Command { command } if command.span == span => Some(command),
-            _ => None,
-        }
     }
 
     #[cfg(test)]
@@ -279,6 +259,7 @@ impl MusicaVm {
         if restored.script_uri != self.state.script_uri
             || restored.script_hash != self.state.script_hash
             || restored.script_encoding != self.script.encoding
+            || restored.name_resources != self.state.name_resources
             || restored.session_seed != self.state.session_seed
             || restored.pc_line as usize > self.script.lines.len()
         {
@@ -482,6 +463,11 @@ impl MusicaVm {
         if voice.is_some_and(|(_, level)| level > 1000) {
             return Err(MusicaRuntimeError::State);
         }
+        let speaker = if self.state.name_resources.is_some() {
+            self.state.message.as_ref().and_then(|message| message.animation_speaker.as_deref())
+        } else {
+            speaker
+        };
         let mut changed = false;
         for state in self.state.ani_patches.values_mut() {
             state.elapsed_ns = state

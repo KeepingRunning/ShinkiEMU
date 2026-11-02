@@ -12,6 +12,8 @@ pub struct MusicaRuntimeState {
     pub script_uri: String,
     pub script_hash: Hash256,
     pub script_encoding: crate::ScriptEncoding,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name_resources: Option<crate::MusicaNameResources>,
     pub pc_line: u32,
     pub launch_mode: MusicaLaunchMode,
     pub variables: BTreeMap<String, i64>,
@@ -112,6 +114,9 @@ pub struct MusicaMessageState {
     pub wait_for_voice: bool,
     pub source: SourceSpan,
     pub message_id: i64,
+    /// Keep ANI matching independent of the masked or bracketed display name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub animation_speaker: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

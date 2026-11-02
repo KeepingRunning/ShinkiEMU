@@ -341,6 +341,37 @@ pub struct RecipeViewModel {
     pub recommended: bool,
 }
 
+/// SHA256 check of one file a patch script downloaded.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PatchVerify {
+    /// Still downloading, or the script gave no expected digest yet.
+    #[default]
+    Pending,
+    Ok,
+    /// SHA256 differed or the file could not be checked; the reason is in `PatchStateViewModel::error`.
+    Failed,
+}
+
+/// One file a patch script downloads during a run.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PatchDownloadViewModel {
+    pub name: String,
+    pub completed: u64,
+    pub total: Option<u64>,
+    /// Expected SHA256 declared by the script; empty when it declared none.
+    pub sha256: String,
+    pub verify: PatchVerify,
+}
+
+/// One verification step a patch script reported, in order.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PatchCheckViewModel {
+    pub label: String,
+    /// `None` while the check is running.
+    pub passed: Option<bool>,
+    pub detail: String,
+}
+
 /// Conversion job state; `step` is 0 before a run, 4 while running or failed, 5 once imported.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PatchStateViewModel {
@@ -350,6 +381,7 @@ pub struct PatchStateViewModel {
     pub completed: u64,
     pub total: Option<u64>,
     pub output: String,
+    /// Failure text; script errors are carried verbatim.
     pub error: String,
     pub can_start: bool,
     pub script: String,
@@ -357,7 +389,10 @@ pub struct PatchStateViewModel {
     pub output_directory: String,
     pub in_place: bool,
     pub has_backup: bool,
-    pub downloading: bool,
+    pub downloads: Vec<PatchDownloadViewModel>,
+    pub checks: Vec<PatchCheckViewModel>,
+    /// The failed run's transaction was rolled back; no game or output files were kept.
+    pub rolled_back: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -376,7 +411,6 @@ pub struct PatchViewModel {
     /// Empty `id` when no game is selected.
     pub game: PatchGameViewModel,
     pub recipes: Vec<RecipeViewModel>,
-    pub artifacts: Vec<RecipeViewModel>,
     pub hint: String,
     pub state: PatchStateViewModel,
 }

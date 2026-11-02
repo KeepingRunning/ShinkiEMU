@@ -18,6 +18,7 @@ fn binary() -> Command {
 }
 
 fn apply(fixture: &PublicOverlay) -> Command {
+    manifest(fixture);
     let mut command = binary();
     command
         .arg("apply")
@@ -30,6 +31,20 @@ fn apply(fixture: &PublicOverlay) -> Command {
         .arg("--output")
         .arg(&fixture.output);
     command
+}
+
+fn manifest(fixture: &PublicOverlay) {
+    let bytes = fs::read(fixture.source.join("unchanged.dat")).unwrap();
+    fs::write(
+        fixture.script.with_extension("patch.json"),
+        serde_json::to_vec(&json!([{
+            "release_id":"r17","vn_id":"v17","title":{"zh-CN":"公开版本","en":"Public edition"},
+            "edition":"download","game_version":null,
+            "fingerprints":[{"path":"unchanged.dat","size":bytes.len(),"sha256":digest(&bytes)}]
+        }]))
+        .unwrap(),
+    )
+    .unwrap();
 }
 
 fn digest(bytes: &[u8]) -> String {
@@ -180,6 +195,7 @@ fn omitted_patch_uses_source_directory() {
     )
     .unwrap();
     let before = fingerprints(&fixture.source);
+    manifest(&fixture);
     let output = binary()
         .arg("apply")
         .arg("--script")
@@ -205,13 +221,31 @@ fn omitted_patch_uses_source_directory() {
 
 fn write_catalog(root: &Path) -> Vec<Value> {
     let records = vec![
-        json!({"id":"invalid-syntax", "title":"Invalid syntax", "script":"invalid.luau", "vn_ids":["v17"], "emulators":["shinki.emu.musica"]}),
-        json!({"id":"would-error", "title":"Erroring script", "script":"error.luau", "vn_ids":["v17", "v18"], "emulators":["rfvp"]}),
-        json!({"id":"not-installed", "title":"Missing script", "script":"missing.luau", "vn_ids":["v19"], "emulators":["rfvp", "shinki.emu.musica"]}),
+        catalog_entry(
+            "invalid-syntax",
+            "Invalid syntax",
+            "invalid.luau",
+            &["v17"],
+            &["shinki.emu.musica"],
+        ),
+        catalog_entry(
+            "would-error",
+            "Erroring script",
+            "error.luau",
+            &["v17", "v18"],
+            &["rfvp"],
+        ),
+        catalog_entry(
+            "not-installed",
+            "Missing script",
+            "missing.luau",
+            &["v19"],
+            &["rfvp", "shinki.emu.musica"],
+        ),
     ];
     fs::write(
-        root.join("catalog.json"),
-        serde_json::to_vec(&records).unwrap(),
+        root.join("patches-v2.json"),
+        serde_json::to_vec(&json!({"schema":"shinki.emu.patches.v2","entries":records})).unwrap(),
     )
     .unwrap();
     fs::write(root.join("invalid.luau"), b"not valid Luau @@@").unwrap();
@@ -221,6 +255,16 @@ fn write_catalog(root: &Path) -> Vec<Value> {
     )
     .unwrap();
     records
+}
+
+fn catalog_entry(id: &str, title: &str, script: &str, works: &[&str], emulators: &[&str]) -> Value {
+    json!({"id":id,"title":{"zh-CN":title,"en":title},"version":"1.0.0","emulators":emulators,
+        "source_url":null,"license":"MIT","authorization_url":null,"summary":{"zh-CN":"公开配方","en":"Public recipe"},
+        "issue_url":null,"downloads":[],"recipe":{"script":script},"releases":works.iter().map(|work| json!({
+            "release_id":format!("r{}",work.strip_prefix('v').unwrap()),"vn_id":work,
+            "title":{"zh-CN":"公开版本","en":"Public edition"},"edition":"download","game_version":null,
+            "fingerprints":[{"path":"game.dat","size":1,"sha256":"a".repeat(64)}]
+        })).collect::<Vec<_>>()})
 }
 
 fn assert_listing(output: Output, records: &[Value]) {
@@ -259,7 +303,7 @@ fn catalog_list_does_not_open_compile_execute_or_probe_scripts() {
 #[test]
 fn default_catalog_is_bundled_metadata_not_current_directory() {
     let root = tempfile::tempdir().unwrap();
-    let scripts = root.path().join("metadata").join("patches");
+    let scripts = root.path().join("metadata");
     let unrelated = root.path().join("unrelated-current-directory");
     fs::create_dir_all(&scripts).unwrap();
     fs::create_dir(&unrelated).unwrap();
@@ -289,12 +333,11 @@ fn invalid_catalog_relative_paths_are_rejected_before_listing() {
         "C:\\absolute.luau",
         "name:stream.luau",
     ] {
+        let record = catalog_entry("unsafe", "Unsafe path", script, &["v17"], &["rfvp"]);
         fs::write(
-            root.path().join("catalog.json"),
-            serde_json::to_vec(&json!([
-                {"id":"unsafe", "title":"Unsafe path", "script":script, "vn_ids":["v17"], "emulators":["rfvp"]},
-            ]))
-            .unwrap(),
+            root.path().join("patches-v2.json"),
+            serde_json::to_vec(&json!({"schema":"shinki.emu.patches.v2","entries":[record]}))
+                .unwrap(),
         )
         .unwrap();
         failure(
@@ -305,7 +348,7 @@ fn invalid_catalog_relative_paths_are_rejected_before_listing() {
                 .output()
                 .unwrap(),
             1,
-            "SHINKI_EMU_PATCH_PATH",
+            "SHINKI_EMU_PATCH_INVALID_REQUEST",
         );
     }
 }

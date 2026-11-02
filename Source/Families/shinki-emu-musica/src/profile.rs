@@ -76,6 +76,8 @@ pub fn mount_musica_with_resources(
     let mut archive =
         MusicaMountedVfs::mount("musica.local", "musica:/", configs, Arc::new(decrypt), hash)?;
     archive.set_script_directory(&root, &resources.script_directory)?;
+    archive.name_resources =
+        crate::MusicaNameResources::load(&root, &resources.script_directory)?;
     Ok((archive, texture_overrides))
 }
 

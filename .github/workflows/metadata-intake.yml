@@ -65,48 +65,67 @@ jobs:
           set -euo pipefail
           cargo xtask metadata intake --kind "$KIND" --event intake-event.json --out .work/intake
           branch="metadata/issue-$NUMBER"
-          path=$(jq -r .path .work/intake/approval.json)
+          jq -e '.paths | type == "array" and length > 0' .work/intake/approval.json
+          jq -r '.paths[]' .work/intake/approval.json > generated-paths.txt
           if git ls-remote --exit-code --heads origin "$branch"; then
             git fetch origin "$branch"
             # Existing branches must belong to this issue and still be based on current main.
             git show "FETCH_HEAD:Metadata/intake/$NUMBER.json" > previous.json
             jq -e --argjson number "$NUMBER" '.issue == $number' previous.json
-            old_path=$(jq -er .path previous.json)
-            [[ "$old_path" =~ ^(compatibility/entries|patches/entries)/[A-Za-z0-9._/-]+\.json$ && "$old_path" != *..* ]]
+            jq -r '.paths // [.path] | .[]' previous.json > previous-generated-paths.txt
+            while IFS= read -r path; do
+              [[ "$path" =~ ^(compatibility/entries|patches/entries)/[A-Za-z0-9._/-]+\.json$ || "$path" =~ ^patches/[A-Za-z0-9._-]+\.luau$ ]]
+              [[ "$path" != *..* ]]
+            done < previous-generated-paths.txt
             git diff --name-only origin/main FETCH_HEAD > previous-paths.txt
             while IFS= read -r changed; do
-              test "$changed" = "Metadata/intake/$NUMBER.json" || test "$changed" = "Metadata/$old_path"
+              if test "$changed" != "Metadata/intake/$NUMBER.json"; then
+                test "${changed#Metadata/}" != "$changed"
+                grep -Fxq -- "${changed#Metadata/}" previous-generated-paths.txt
+              fi
             done < previous-paths.txt
             git merge-base --is-ancestor origin/main FETCH_HEAD
             git switch -c "$branch" FETCH_HEAD
-            if test "$old_path" != "$path"; then
-              if git cat-file -e "origin/main:Metadata/$old_path"; then
-                git restore --source=origin/main --staged --worktree -- "Metadata/$old_path"
-              else
-                git rm -- "Metadata/$old_path"
+            while IFS= read -r path; do
+              if ! grep -Fxq -- "$path" generated-paths.txt; then
+                if git cat-file -e "origin/main:Metadata/$path"; then
+                  git restore --source=origin/main --staged --worktree -- "Metadata/$path"
+                else
+                  git rm -- "Metadata/$path"
+                fi
               fi
-            fi
+            done < previous-generated-paths.txt
           else
             git switch -c "$branch" origin/main
           fi
           # Generated paths have already passed Rust path and identity validation.
-          mkdir -p "$(dirname "Metadata/$path")" Metadata/intake
-          cp ".work/intake/Metadata/$path" "Metadata/$path"
+          mkdir -p Metadata/intake
+          while IFS= read -r path; do
+            [[ "$path" =~ ^(compatibility/entries|patches/entries)/[A-Za-z0-9._/-]+\.json$ || "$path" =~ ^patches/[A-Za-z0-9._-]+\.luau$ ]]
+            [[ "$path" != *..* ]]
+            mkdir -p "$(dirname "Metadata/$path")"
+            cp ".work/intake/Metadata/$path" "Metadata/$path"
+            git add -- "Metadata/$path"
+          done < generated-paths.txt
           cp .work/intake/approval.json "Metadata/intake/$NUMBER.json"
           cargo xtask metadata validate
           gh api "repos/$GH_REPO/issues/$NUMBER" > current.json
           jq -e --slurpfile approved .work/intake/approval.json '.updated_at == $approved[0].updated_at' current.json
           jq -j .body current.json | sha256sum | cut -d ' ' -f 1 > current.sha256
           test "$(cat current.sha256)" = "$(jq -r .body_sha256 .work/intake/approval.json)"
-          git add -- "Metadata/$path" "Metadata/intake/$NUMBER.json"
+          git add -- "Metadata/intake/$NUMBER.json"
           if ! git diff --cached --quiet; then
             git -c user.name=github-actions[bot] -c user.email=41898282+github-actions[bot]@users.noreply.github.com commit -m "metadata: reviewed issue $NUMBER"
             git push origin "HEAD:refs/heads/$branch"
           fi
           gh pr list --head "$branch" --state open --json number > prs.json
+          printf 'Reviewed issue #%s. Approval body hash and updated_at are stored in Metadata/intake/%s.json. Maintainer review is required; this PR is not automatically merged.\n' "$NUMBER" "$NUMBER" > pr-body.txt
           if test "$(jq length prs.json)" = 0; then
-            printf 'Reviewed issue #%s. Approval body hash and updated_at are stored in Metadata/intake/%s.json.\n' "$NUMBER" "$NUMBER" > pr-body.txt
             gh pr create --base main --head "$branch" --title "metadata: reviewed issue $NUMBER" --body-file pr-body.txt > pr-url.txt
+          else
+            jq -r '.[].number' prs.json | while IFS= read -r pr; do
+              gh pr edit "$pr" --body-file pr-body.txt
+            done
           fi
           # GITHUB_TOKEN pushes need not trigger PR workflows: report the same validation now.
           sha=$(git rev-parse HEAD)
@@ -132,10 +151,10 @@ jobs:
           number=$(jq -r .pull_request.number "$GITHUB_EVENT_PATH")
           git fetch origin "refs/pull/$number/head"
           sha=$(git rev-parse FETCH_HEAD)
-          # Read data from the PR, never its code, workflows or scripts.
+          # Use trusted tooling only; Luau submissions are compiled, never executed.
           git diff --name-only origin/main FETCH_HEAD > paths.txt
           while IFS= read -r path; do
-            case "$path" in Metadata/compatibility/entries/*.json|Metadata/patches/entries/*.json|Metadata/engines/cores/*.json|Metadata/engines/presets/*.json|Metadata/intake/*.json) ;; *) echo "Non-data change requires normal product CI: $path"; exit 1;; esac
+            case "$path" in Metadata/compatibility/entries/*.json|Metadata/patches/entries/*.json|Metadata/patches/*.luau|Metadata/engines/cores/*.json|Metadata/engines/presets/*.json|Metadata/intake/*.json) ;; *) echo "Non-data change requires normal product CI: $path"; exit 1;; esac
             if git cat-file -e "FETCH_HEAD:$path"; then
               mode=$(git ls-tree FETCH_HEAD -- "$path" | cut -d ' ' -f 1)
               test "$mode" = 100644
@@ -160,11 +179,18 @@ jobs:
             jq '{issue:.}' live.json > reviewed-event.json
             cargo xtask metadata intake --kind "$kind" --event reviewed-event.json --out .work/reviewed
             cmp "$binding" .work/reviewed/approval.json
-            path=$(jq -r .path "$binding")
-            cmp "Metadata/$path" ".work/reviewed/Metadata/$path"
-            # An approved issue branch may change only its entry and binding.
+            jq -r '.paths[]' "$binding" > approved-paths.txt
+            while IFS= read -r path; do
+              [[ "$path" =~ ^(compatibility/entries|patches/entries)/[A-Za-z0-9._/-]+\.json$ || "$path" =~ ^patches/[A-Za-z0-9._-]+\.luau$ ]]
+              [[ "$path" != *..* ]]
+              cmp "Metadata/$path" ".work/reviewed/Metadata/$path"
+            done < approved-paths.txt
+            # An approved issue branch may change only its generated files and binding.
             while IFS= read -r changed; do
-              test "$changed" = "$binding" || test "$changed" = "Metadata/$path"
+              if test "$changed" != "$binding"; then
+                test "${changed#Metadata/}" != "$changed"
+                grep -Fxq -- "${changed#Metadata/}" approved-paths.txt
+              fi
             done < paths.txt
           fi
           jq -n --arg sha "$sha" '{name:"metadata-review",head_sha:$sha,status:"completed",conclusion:"success",output:{title:"Metadata validated",summary:"Trusted main validator and live approval binding passed."}}' > check.json
@@ -175,5 +201,5 @@ jobs:
             while IFS= read -r changed; do
               case "$changed" in Metadata/engines/cores/*.json) ;; *) echo "Unexpected release catalog change: $changed"; exit 1;; esac
             done < paths.txt
-            gh pr merge "$number" --squash --delete-branch
+            gh pr merge "$number" --merge --delete-branch
           fi

@@ -1,0 +1,202 @@
+{
+  "$defs": {
+    "PatchCatalogEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "authorization_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "downloads": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PatchDownload"
+          },
+          "type": "array"
+        },
+        "emulators": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "issue_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "license": {
+          "type": "string"
+        },
+        "recipe": {
+          "$ref": "#/$defs/PatchRecipe"
+        },
+        "releases": {
+          "items": {
+            "$ref": "#/$defs/PatchRelease"
+          },
+          "type": "array"
+        },
+        "source_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "summary": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "title": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "version",
+        "emulators",
+        "license",
+        "summary",
+        "recipe",
+        "releases"
+      ],
+      "type": "object"
+    },
+    "PatchDownload": {
+      "additionalProperties": false,
+      "properties": {
+        "sha256": {
+          "type": "string"
+        },
+        "size": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "sha256",
+        "size"
+      ],
+      "type": "object"
+    },
+    "PatchFileFingerprint": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "size": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "size",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "PatchRecipe": {
+      "additionalProperties": false,
+      "properties": {
+        "script": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "script"
+      ],
+      "type": "object"
+    },
+    "PatchRelease": {
+      "additionalProperties": false,
+      "properties": {
+        "edition": {
+          "description": "Actual medium/channel label, not a patch category.",
+          "type": "string"
+        },
+        "fingerprints": {
+          "items": {
+            "$ref": "#/$defs/PatchFileFingerprint"
+          },
+          "type": "array"
+        },
+        "game_version": {
+          "description": "The game's own version, when recorded; never the recipe/runtime version.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "release_id": {
+          "pattern": "^r[0-9]{1,63}$",
+          "type": "string"
+        },
+        "title": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "vn_id": {
+          "pattern": "^v[0-9]{1,63}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "release_id",
+        "vn_id",
+        "title",
+        "edition",
+        "fingerprints"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/PatchCatalogEntry"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "pattern": "^shinki\\.emu\\.patches\\.v2$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "entries"
+  ],
+  "title": "PatchCatalog",
+  "type": "object"
+}

@@ -26,8 +26,8 @@ use shinki_emu_manager_ui_slint::{
 };
 use shinki_emu_metadata::{
     BangumiPlayStatus, BangumiPlayUpdate, CompatibilityEntry, CoverAsset,
-    DEFAULT_METADATA_BASE_URL, MetadataProviderId, MetadataRecord, MetadataRelease, MetadataSearchQuery,
-    plain_description, unique_exact_match,
+    DEFAULT_METADATA_BASE_URL, MetadataProviderId, MetadataRecord, MetadataRelease,
+    MetadataSearchQuery, plain_description, unique_exact_match,
 };
 use shinki_emu_translation::{OpenAiApi, SecretResolver, TranslationProfile, TranslationProvider};
 use stage_renderer::{FrameMailbox, ManagerStageRenderer};
@@ -43,7 +43,6 @@ mod cores;
 mod extensions;
 mod family_config;
 mod file_patch;
-mod patch_download;
 mod filters;
 mod input;
 mod library;
@@ -163,9 +162,9 @@ struct ShinkiEmuManagerController {
     action_message: String,
     action_serial: u32,
     patch_job: Option<file_patch::PatchJob>,
-    patch_download: Option<patch_download::PatchDownloadJob>,
     patch_import: Option<file_patch::PendingImport>,
     patch_state: shinki_emu_manager_ui_slint::PatchStateViewModel,
+    patch_release_mismatch: bool,
     patch_game_id: Option<String>,
     patch_query: String,
     patch_sequence: u64,

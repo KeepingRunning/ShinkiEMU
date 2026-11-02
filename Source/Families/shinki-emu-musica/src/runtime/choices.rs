@@ -43,7 +43,11 @@ fn options(command: &ScCommand) -> Result<Vec<(String, String)>, MusicaRuntimeEr
             if display.is_empty() || parsed != target {
                 return Err(MusicaRuntimeError::Operand);
             }
-            Ok((display.to_owned(), target.clone()))
+            Ok((
+                crate::embed::decode_sc_literal(display)
+                    .map_err(|_| MusicaRuntimeError::Operand)?,
+                target.clone(),
+            ))
         })
         .collect()
 }

@@ -243,7 +243,25 @@ export struct PatchState {
     output-directory: string,
     in-place: bool,
     has-backup: bool,
-    downloading: bool,
+    // The failed run's transaction was rolled back.
+    rolled-back: bool,
+}
+
+// A file the patch script downloads. `progress` is -1 while the size is unknown;
+// `verify`: pending | ok | failed (the reason is in PatchState.error).
+export struct PatchDownload {
+    name: string,
+    bytes: string,
+    progress: float,
+    sha256: string,
+    verify: string,
+}
+
+// A verification step the patch script reported. `state`: running | passed | failed.
+export struct PatchCheck {
+    label: string,
+    state: string,
+    detail: string,
 }
 
 export struct PatchGame {
@@ -262,8 +280,9 @@ export global Patch {
     in-out property <PatchGame> game;
     in-out property <image> cover;
     in-out property <[Recipe]> recipes;
-    in-out property <[Recipe]> artifacts;
     in-out property <string> hint;
+    in-out property <[PatchDownload]> downloads;
+    in-out property <[PatchCheck]> checks;
     // Page navigation 1–4; `state` reports running/failed and completion (5).
     in-out property <int> step: 1;
     in-out property <PatchState> state;
@@ -273,8 +292,8 @@ export global Patch {
     callback pick-script();
     // "patch" | "output"
     callback pick-directory(string);
+    // false: new standalone output directory (default); true: in-place overwrite with .shinki/backup.
     callback set-mode(bool);
-    callback download(string);
     callback restore();
     callback start();
     callback cancel();

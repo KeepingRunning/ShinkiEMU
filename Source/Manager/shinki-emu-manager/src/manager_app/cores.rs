@@ -1,23 +1,32 @@
 use super::*;
 use crate::core_package::{self, PendingKind};
 use shinki_emu_manager_core::{FamilyCapability, INDEPENDENT_FAMILY_ABI_FINGERPRINT};
+use shinki_emu_manager_ui_slint::tr;
 use shinki_emu_manager_ui_slint::{CoreViewModel, CoresViewModel, describe_error};
 use shinki_emu_metadata::CoreCatalogEntry;
 use std::io::{self, BufRead, Seek, SeekFrom};
-use shinki_emu_manager_ui_slint::tr;
 
 /// Release platform of this Manager build, e.g. `windows-x86_64`.
 pub(super) fn core_platform() -> String {
     format!("{}-{}", env::consts::OS, env::consts::ARCH)
 }
 
-pub(super) fn embedded_identity(plugin_id: &str) -> Option<&'static shinki_emu_metadata::CoreIdentity> {
-    static IDENTITIES: std::sync::LazyLock<BTreeMap<String, shinki_emu_metadata::CoreIdentity>> = std::sync::LazyLock::new(|| {
-        let identities: BTreeMap<String, shinki_emu_metadata::CoreIdentity> =
-            serde_json::from_str(include_str!(concat!(env!("OUT_DIR"), "/embedded-core-identities.json"))).expect("built core identities");
-        for identity in identities.values() { identity.validate().expect("valid embedded core identity"); }
-        identities
-    });
+pub(super) fn embedded_identity(
+    plugin_id: &str,
+) -> Option<&'static shinki_emu_metadata::CoreIdentity> {
+    static IDENTITIES: std::sync::LazyLock<BTreeMap<String, shinki_emu_metadata::CoreIdentity>> =
+        std::sync::LazyLock::new(|| {
+            let identities: BTreeMap<String, shinki_emu_metadata::CoreIdentity> =
+                serde_json::from_str(include_str!(concat!(
+                    env!("OUT_DIR"),
+                    "/embedded-core-identities.json"
+                )))
+                .expect("built core identities");
+            for identity in identities.values() {
+                identity.validate().expect("valid embedded core identity");
+            }
+            identities
+        });
     IDENTITIES.get(plugin_id)
 }
 
@@ -29,6 +38,8 @@ fn capability_label(capability: FamilyCapability) -> &'static str {
         FamilyCapability::AsyncTextReplacement => tr!("非阻塞翻译"),
         FamilyCapability::NativeScriptIdentity => tr!("原生脚本存档隔离"),
         FamilyCapability::ConfiguredFontPriority => tr!("优先使用配置字体"),
+        FamilyCapability::NativeEmbeddedText => tr!("原生内嵌译文"),
+        FamilyCapability::NativeNameResources => tr!("原生姓名资源"),
     }
 }
 
@@ -45,9 +56,19 @@ impl ShinkiEmuManagerController {
             INDEPENDENT_FAMILY_ABI_FINGERPRINT,
         )
     }
-    pub(super) fn core_release<'a>(&'a self, descriptor: &'a FamilyPluginDescriptor) -> (&'a str, Option<&'a shinki_emu_metadata::CoreIdentity>) {
-        self.registry.core_metadata().find(|meta| meta.descriptor.plugin_id == descriptor.plugin_id)
-            .map_or((descriptor.version.as_str(), None), |meta| (meta.release_version.as_str(), meta.release_identity.as_ref()))
+    pub(super) fn core_release<'a>(
+        &'a self,
+        descriptor: &'a FamilyPluginDescriptor,
+    ) -> (&'a str, Option<&'a shinki_emu_metadata::CoreIdentity>) {
+        self.registry
+            .core_metadata()
+            .find(|meta| meta.descriptor.plugin_id == descriptor.plugin_id)
+            .map_or((descriptor.version.as_str(), None), |meta| {
+                (
+                    meta.release_version.as_str(),
+                    meta.release_identity.as_ref(),
+                )
+            })
     }
 
     /// Loaded, failed, pending and online-available cores in one list, plus each
@@ -78,7 +99,10 @@ impl ShinkiEmuManagerController {
                     id: meta.descriptor.plugin_id.clone(),
                     name: meta.descriptor.display_name.clone(),
                     engine: meta.descriptor.family_name.clone(),
-                    version: installed_identity.map_or_else(|| installed_version.to_owned(), shinki_emu_metadata::CoreIdentity::display_version),
+                    version: installed_identity.map_or_else(
+                        || installed_version.to_owned(),
+                        shinki_emu_metadata::CoreIdentity::display_version,
+                    ),
                     capabilities: meta
                         .descriptor
                         .capabilities
@@ -135,7 +159,12 @@ impl ShinkiEmuManagerController {
                     name,
                     engine,
                     version: manifest
-                        .map(|manifest| manifest.identity.as_ref().map_or_else(|| manifest.version.clone(), shinki_emu_metadata::CoreIdentity::display_version))
+                        .map(|manifest| {
+                            manifest.identity.as_ref().map_or_else(
+                                || manifest.version.clone(),
+                                shinki_emu_metadata::CoreIdentity::display_version,
+                            )
+                        })
                         .unwrap_or_default(),
                     state: "pending-install".into(),
                     source: "user".into(),

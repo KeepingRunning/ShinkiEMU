@@ -32,7 +32,7 @@ end
 
 return {
     id = "renpy-himanatsu",
-    version = 2,
+    version = 3,
     title = "HimaNatsu 标准 Ren'Py 资源",
     apply = function(ctx)
         local version = ctx.open("source", "game/script_version.txt")

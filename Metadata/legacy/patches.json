@@ -1,0 +1,145 @@
+{
+  "schema": "shinki.emu.patches.v1",
+  "entries": [
+    {
+      "id": "fvp-sakura-cn",
+      "title": {
+        "zh-CN": "樱花萌放旧补丁离线转换",
+        "en": "Sakura Moyu legacy patch offline conversion"
+      },
+      "version": "0.2.0",
+      "vn_ids": [
+        "v22313"
+      ],
+      "release_ids": [],
+      "emulators": [
+        "rfvp"
+      ],
+      "kind": "recipe",
+      "source_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/patches/fvp-sakura-cn.luau",
+      "license": "MIT OR Apache-2.0",
+      "authorization_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/LICENSE",
+      "summary": {
+        "zh-CN": "将本地旧补丁离线转换为原生 GBK HCB；统一游戏首选字体，隔离旧存档和既读，不使用外挂翻译。",
+        "en": "Converts local legacy inputs into native GBK HCB with a consistent game font and isolated save/read identity; no runtime translation table."
+      },
+      "issue_url": null,
+      "artifact": null,
+      "recipe": {
+        "script": "legacy/fvp-sakura-cn.luau"
+      }
+    },
+    {
+      "id": "musica-eden-cn",
+      "title": {
+        "zh-CN": "eden 中文姓名资源",
+        "en": "eden Chinese name resources"
+      },
+      "version": "0.1.0",
+      "vn_ids": [
+        "v1286"
+      ],
+      "release_ids": [],
+      "emulators": [
+        "shinki.emu.musica"
+      ],
+      "kind": "recipe",
+      "source_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/patches/musica-eden-cn.luau",
+      "license": "MIT OR Apache-2.0",
+      "authorization_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/LICENSE",
+      "summary": {
+        "zh-CN": "eden 中文姓名资源；使用本地资源执行配方。",
+        "en": "eden Chinese name resources. Recipe uses locally supplied resources."
+      },
+      "issue_url": null,
+      "artifact": null,
+      "recipe": {
+        "script": "legacy/musica-eden-cn.luau"
+      }
+    },
+    {
+      "id": "musica-ef-first-cn",
+      "title": {
+        "zh-CN": "ef first 中文姓名资源",
+        "en": "ef first Chinese name resources"
+      },
+      "version": "0.1.0",
+      "vn_ids": [
+        "v88"
+      ],
+      "release_ids": [],
+      "emulators": [
+        "shinki.emu.musica"
+      ],
+      "kind": "recipe",
+      "source_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/patches/musica-ef-first-cn.luau",
+      "license": "MIT OR Apache-2.0",
+      "authorization_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/LICENSE",
+      "summary": {
+        "zh-CN": "ef first 中文姓名资源；使用本地资源执行配方。",
+        "en": "ef first Chinese name resources. Recipe uses locally supplied resources."
+      },
+      "issue_url": null,
+      "artifact": null,
+      "recipe": {
+        "script": "legacy/musica-ef-first-cn.luau"
+      }
+    },
+    {
+      "id": "musica-perseus-cn",
+      "title": {
+        "zh-CN": "夏空的英仙座旧补丁离线转换",
+        "en": "Natsuzora no Perseus legacy patch offline conversion"
+      },
+      "version": "0.1.0",
+      "vn_ids": [
+        "v10597"
+      ],
+      "release_ids": [],
+      "emulators": [
+        "shinki.emu.musica"
+      ],
+      "kind": "recipe",
+      "source_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/patches/musica-perseus-cn.luau",
+      "license": "MIT OR Apache-2.0",
+      "authorization_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/LICENSE",
+      "summary": {
+        "zh-CN": "夏空的英仙座旧补丁离线转换；使用本地资源执行配方。",
+        "en": "Natsuzora no Perseus legacy patch offline conversion. Recipe uses locally supplied resources."
+      },
+      "issue_url": null,
+      "artifact": null,
+      "recipe": {
+        "script": "legacy/musica-perseus-cn.luau"
+      }
+    },
+    {
+      "id": "renpy-himanatsu",
+      "title": {
+        "zh-CN": "HimaNatsu RPA 索引归一化",
+        "en": "HimaNatsu RPA index normalization"
+      },
+      "version": "0.1.0",
+      "vn_ids": [
+        "v10557"
+      ],
+      "release_ids": ["r161088"],
+      "emulators": [
+        "renpy"
+      ],
+      "kind": "recipe",
+      "source_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/patches/renpy-himanatsu.luau",
+      "license": "MIT OR Apache-2.0",
+      "authorization_url": "https://github.com/Project-Shinkirou/ShinkiEMU/blob/main/Metadata/LICENSE",
+      "summary": {
+        "zh-CN": "HimaNatsu RPA 索引归一化；使用本地资源执行配方。",
+        "en": "HimaNatsu RPA index normalization. Recipe uses locally supplied resources."
+      },
+      "issue_url": null,
+      "artifact": null,
+      "recipe": {
+        "script": "legacy/renpy-himanatsu.luau"
+      }
+    }
+  ]
+}

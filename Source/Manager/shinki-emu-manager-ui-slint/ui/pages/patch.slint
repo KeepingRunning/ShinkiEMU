@@ -2,7 +2,7 @@ import {
     MaterialPalette, MaterialText, MaterialTypography, SmallAppBar, ScrollView, FilledButton, TonalButton,
     OutlineButton, TextButton, TextField, LinearProgressIndicator, Icon,
 } from "@material";
-import { App, Library, Patch, PatchGame } from "../globals.slint";
+import { App, Library, Patch, PatchGame, PatchDownload, PatchCheck } from "../globals.slint";
 import { Icons } from "../icons.slint";
 import { Theme } from "../theme.slint";
 import { CoverDemand } from "../components/cover-card.slint";
@@ -239,6 +239,271 @@ component PatchGameRow {
         clicked => {
             focus.focus();
             root.activated();
+        }
+    }
+}
+
+// Catalog recipe row. The title names the release the recipe is bound to, so it wraps instead of eliding.
+component RecipeTile {
+    in property <string> text;
+    in property <bool> selected;
+    in property <bool> recommended;
+    callback clicked();
+
+    min-height: max(Theme.touch-target, body.min-height);
+    preferred-height: max(Theme.touch-target, body.preferred-height);
+    accessible-role: list-item;
+    accessible-label: root.recommended ? @tr("{0}，{1}", root.text, @tr("推荐")) : root.text;
+    accessible-item-selectable: true;
+    accessible-item-selected: root.selected;
+    accessible-action-default => { root.clicked(); }
+    forward-focus: focus;
+
+    focus := FocusScope {
+        x: 0px;
+        width: 0px;
+        key-pressed(event) => {
+            if event.text == " " || event.text == "\n" {
+                root.clicked();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    Rectangle {
+        border-radius: 12px;
+        background: root.selected ? MaterialPalette.secondary-container
+            : touch.has-hover ? MaterialPalette.on-surface.with-alpha(MaterialPalette.state-layer-opacity-hover)
+            : transparent;
+        border-width: focus.has-focus ? 2px : 0px;
+        border-color: MaterialPalette.primary;
+    }
+
+    body := HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: Theme.space-sm;
+        MaterialText {
+            horizontal-stretch: 1;
+            text: root.text;
+            style: MaterialTypography.body-large;
+            color: root.selected ? MaterialPalette.on-secondary-container : MaterialPalette.on-surface;
+            vertical-alignment: center;
+            wrap: word-wrap;
+            overflow: clip;
+        }
+        if root.recommended : VerticalLayout {
+            alignment: center;
+            Pill { text: @tr("推荐"); }
+        }
+    }
+
+    touch := TouchArea {
+        clicked => {
+            focus.focus();
+            root.clicked();
+        }
+    }
+}
+
+// Shown while in-place overwrite is selected: the run modifies the game directory itself.
+component InPlaceNotice {
+    in property <bool> has-backup;
+
+    min-height: notice.min-height;
+    accessible-role: text;
+    accessible-label: title.text + "\n" + body.text;
+
+    Rectangle {
+        border-radius: 8px;
+        background: MaterialPalette.tertiary-container;
+    }
+
+    notice := HorizontalLayout {
+        padding: Theme.space-md;
+        spacing: Theme.space-sm;
+        VerticalLayout {
+            alignment: start;
+            Icon {
+                width: 20px;
+                source: Icons.warning;
+                colorize: MaterialPalette.on-tertiary-container;
+            }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: 4px;
+            title := MaterialText {
+                text: @tr("原位覆盖会直接修改原游戏目录");
+                style: MaterialTypography.title-small;
+                color: MaterialPalette.on-tertiary-container;
+                wrap: word-wrap;
+                overflow: clip;
+            }
+            body := MaterialText {
+                text: (root.has-backup ? @tr("这个游戏目录已有一次原位覆盖的备份。") + "\n" : "")
+                    + @tr("写入前会把要改动的原文件备份到游戏目录的 .shinki/backup。之后可以在本页点击“还原最近一次补丁”恢复原文件。");
+                style: MaterialTypography.body-medium;
+                color: MaterialPalette.on-tertiary-container;
+                wrap: word-wrap;
+                overflow: clip;
+            }
+        }
+    }
+}
+
+// The selected local patch file or .zip package; it did not come from the reviewed catalog.
+component LocalPatchTile {
+    in property <string> path;
+
+    min-height: max(Theme.touch-target, body.min-height);
+    preferred-height: max(Theme.touch-target, body.preferred-height);
+    accessible-role: list-item;
+    accessible-label: @tr("{0}，{1}", root.path, @tr("本地 · 未经目录审核"));
+    accessible-item-selectable: true;
+    accessible-item-selected: true;
+
+    Rectangle {
+        border-radius: 12px;
+        background: MaterialPalette.secondary-container;
+    }
+
+    body := VerticalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 6px;
+        HorizontalLayout {
+            alignment: start;
+            Pill {
+                text: @tr("本地 · 未经目录审核");
+                background: MaterialPalette.tertiary-container;
+                foreground: MaterialPalette.on-tertiary-container;
+            }
+        }
+        MaterialText {
+            text: root.path;
+            style: MaterialTypography.body-large;
+            color: MaterialPalette.on-secondary-container;
+            wrap: word-wrap;
+            overflow: clip;
+        }
+    }
+}
+
+// Files the patch script downloaded, with their SHA256 result.
+component DownloadRow {
+    in property <PatchDownload> item;
+
+    property <bool> failed: root.item.verify == "failed";
+
+    accessible-role: list-item;
+    accessible-label: @tr("{0}，{1}", root.item.name, root.item.bytes);
+
+    VerticalLayout {
+        spacing: 4px;
+        HorizontalLayout {
+            spacing: Theme.space-sm;
+            MaterialText {
+                horizontal-stretch: 1;
+                text: root.item.name;
+                style: MaterialTypography.body-medium;
+                color: MaterialPalette.on-surface;
+                wrap: word-wrap;
+                overflow: clip;
+            }
+            MaterialText {
+                horizontal-stretch: 0;
+                text: root.item.bytes;
+                style: MaterialTypography.label-medium;
+                color: MaterialPalette.on-surface-variant;
+            }
+        }
+        LinearProgressIndicator {
+            progress: root.item.progress >= 0 ? root.item.progress : 0;
+            indeterminate: root.item.progress < 0 && root.item.verify == "pending";
+        }
+        MaterialText {
+            text: root.item.verify == "ok" ? @tr("SHA256 校验通过：{}", root.item.sha256)
+                : root.failed ? @tr("SHA256 校验失败：{}", root.item.sha256)
+                : root.item.sha256 != "" ? @tr("预期 SHA256：{}", root.item.sha256)
+                : @tr("脚本未提供 SHA256");
+            style: MaterialTypography.body-small;
+            color: root.failed ? MaterialPalette.error : MaterialPalette.on-surface-variant;
+            wrap: word-wrap;
+            overflow: clip;
+        }
+    }
+}
+
+// Verification steps the patch script reported, in order.
+component CheckRow {
+    in property <PatchCheck> item;
+
+    accessible-role: list-item;
+    accessible-label: root.item.detail != "" ? @tr("{0}，{1}", root.item.label, root.item.detail) : root.item.label;
+
+    HorizontalLayout {
+        spacing: Theme.space-sm;
+        VerticalLayout {
+            alignment: start;
+            Icon {
+                width: 18px;
+                source: root.item.state == "passed" ? Icons.check : root.item.state == "failed" ? Icons.error : Icons.schedule;
+                colorize: root.item.state == "failed" ? MaterialPalette.error
+                    : root.item.state == "passed" ? MaterialPalette.primary
+                    : MaterialPalette.on-surface-variant;
+            }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: 2px;
+            MaterialText {
+                text: root.item.label;
+                style: MaterialTypography.body-medium;
+                color: MaterialPalette.on-surface;
+                wrap: word-wrap;
+                overflow: clip;
+            }
+            if root.item.detail != "" : MaterialText {
+                text: root.item.detail;
+                style: MaterialTypography.body-small;
+                color: root.item.state == "failed" ? MaterialPalette.error : MaterialPalette.on-surface-variant;
+                wrap: word-wrap;
+                overflow: clip;
+            }
+        }
+    }
+}
+
+// What the patch script did in this run: downloads and verification steps.
+component ScriptActivity {
+    min-height: body.min-height;
+    preferred-height: body.preferred-height;
+
+    body := VerticalLayout {
+        spacing: Theme.space-md;
+        if Patch.downloads.length > 0 : VerticalLayout {
+            spacing: Theme.space-sm;
+            MaterialText {
+                text: @tr("脚本下载的文件");
+                style: MaterialTypography.title-small;
+                color: MaterialPalette.on-surface;
+            }
+            for item in Patch.downloads : DownloadRow { item: item; }
+        }
+        if Patch.checks.length > 0 : VerticalLayout {
+            spacing: Theme.space-sm;
+            MaterialText {
+                text: @tr("校验步骤");
+                style: MaterialTypography.title-small;
+                color: MaterialPalette.on-surface;
+            }
+            for item in Patch.checks : CheckRow { item: item; }
         }
     }
 }
@@ -554,7 +819,12 @@ export component PatchPage {
             if root.step == 2 : Panel {
                 SectionTitle {
                     text: @tr("选择补丁");
-                    description: @tr("下面列出补丁目录中适用于这部作品和当前模拟器的补丁；也可以使用本地的 Luau 转换脚本。");
+                    description: @tr("补丁都是 Luau 脚本，可以在线获取，也可以加载本地文件。在线补丁的标题注明适用的发行版本，应用前会核对游戏的发行版本，不一致时拒绝执行。");
+                }
+                MaterialText {
+                    text: @tr("在线补丁");
+                    style: MaterialTypography.title-small;
+                    color: MaterialPalette.on-surface;
                 }
                 if Patch.hint != "" || Patch.recipes.length == 0 : MaterialText {
                     text: Patch.hint != "" ? Patch.hint : @tr("补丁目录中没有适用于这部作品的补丁。");
@@ -565,21 +835,14 @@ export component PatchPage {
                 }
                 if Patch.recipes.length > 0 : VerticalLayout {
                     spacing: 2px;
-                    for recipe in Patch.recipes : SelectableTile {
+                    for recipe in Patch.recipes : RecipeTile {
                         text: recipe.title;
                         selected: recipe.id == Patch.state.script;
+                        recommended: recipe.recommended;
                         clicked => { Patch.select-recipe(recipe.id); }
-                        if recipe.recommended : VerticalLayout {
-                            alignment: center;
-                            Pill { text: @tr("推荐"); }
-                        }
                     }
                 }
-                if root.local-script : SelectableTile {
-                    text: @tr("本地脚本");
-                    supporting-text: Patch.state.script;
-                    selected: true;
-                }
+                if root.local-script : LocalPatchTile { path: Patch.state.script; }
                 if Patch.state.error != "" : MaterialText {
                     text: Patch.state.error;
                     style: MaterialTypography.body-small;
@@ -592,27 +855,10 @@ export component PatchPage {
                     color: MaterialPalette.on-surface-variant;
                     wrap: word-wrap;
                 }
-                if Patch.artifacts.length > 0 : VerticalLayout {
-                    spacing: Theme.space-sm;
-                    for artifact in Patch.artifacts : HorizontalLayout {
-                        alignment: start;
-                        spacing: Theme.space-sm;
-                        MaterialText {
-                            horizontal-stretch: 1;
-                            text: artifact.title;
-                            style: MaterialTypography.body-medium;
-                            color: MaterialPalette.on-surface;
-                        }
-                        TextButton {
-                            text: @tr("下载补丁");
-                            clicked => { Patch.download(artifact.id); }
-                        }
-                    }
-                }
                 HorizontalLayout {
                     alignment: start;
                     TextButton {
-                        text: @tr("选择本地脚本…");
+                        text: @tr("加载本地补丁…");
                         icon: Icons.upload-file;
                         clicked => { Patch.pick-script(); }
                     }
@@ -637,6 +883,7 @@ export component PatchPage {
                         clicked => { Patch.set-mode(true); }
                     }
                 }
+                if Patch.state.in-place : InPlaceNotice { has-backup: Patch.state.has-backup; }
                 DirectoryPicker {
                     label: @tr("补丁输入目录");
                     value: Patch.state.patch-directory;
@@ -650,22 +897,42 @@ export component PatchPage {
                     hint: @tr("选择父目录；将在其中新建输出目录（重名时自动加编号，不覆盖现有文件）");
                     pick => { Patch.pick-directory("output"); }
                 }
+                if root.failed : MaterialText {
+                    text: Patch.state.error;
+                    style: MaterialTypography.body-small;
+                    color: MaterialPalette.error;
+                    wrap: word-wrap;
+                    overflow: clip;
+                }
             }
 
             if root.step == 4 : Panel {
                 SectionTitle {
                     text: root.locked ? @tr("正在转换") : root.failed ? @tr("转换失败") : @tr("开始转换");
-                    description: root.locked || root.failed ? "" : Patch.state.in-place ? @tr("原文件备份到 .shinki/backup；取消前不会修改游戏文件。") : @tr("确认下面的设置后开始。转换期间可以随时取消，取消时不会生成输出目录。");
+                    description: root.locked || root.failed ? "" : Patch.state.in-place ? @tr("原文件备份到 .shinki/backup；取消前不会修改游戏文件。") : @tr("确认下面的设置后开始。开始前会核对游戏的发行版本；转换期间可以随时取消，取消时不会生成输出目录。");
                 }
 
                 if !root.locked : VerticalLayout {
                     spacing: 4px;
-                    MaterialText {
-                        text: @tr("补丁：{}", root.has-script ? (root.local-script ? Patch.state.script : @tr("已从补丁目录选择")) : @tr("未选择"));
+                    if root.local-script || !root.has-script : MaterialText {
+                        text: !root.has-script ? @tr("补丁：{}", @tr("未选择"))
+                            : @tr("补丁：{}", Patch.state.script) + "\n" + @tr("本地 · 未经目录审核");
                         style: MaterialTypography.body-medium;
                         color: MaterialPalette.on-surface;
                         wrap: word-wrap;
                         overflow: clip;
+                    }
+                    // The selected catalog recipe; its title carries the release it applies to.
+                    if !root.local-script && root.has-script : VerticalLayout {
+                        for recipe in Patch.recipes : VerticalLayout {
+                            if recipe.id == Patch.state.script : MaterialText {
+                                text: @tr("补丁：{}", recipe.title);
+                                style: MaterialTypography.body-medium;
+                                color: MaterialPalette.on-surface;
+                                wrap: word-wrap;
+                                overflow: clip;
+                            }
+                        }
                     }
                     MaterialText {
                         text: @tr("补丁输入目录：{}", Patch.state.patch-directory != "" ? Patch.state.patch-directory : @tr("游戏目录"));
@@ -681,6 +948,7 @@ export component PatchPage {
                         wrap: word-wrap;
                         overflow: clip;
                     }
+                    if Patch.state.in-place : InPlaceNotice { has-backup: Patch.state.has-backup; }
                 }
 
                 if root.locked : VerticalLayout {
@@ -708,6 +976,8 @@ export component PatchPage {
                     }
                 }
 
+                if (root.locked || root.failed) && (Patch.downloads.length > 0 || Patch.checks.length > 0) : ScriptActivity { }
+
                 if root.failed && !root.locked : Rectangle {
                     border-radius: 8px;
                     background: MaterialPalette.error-container;
@@ -723,13 +993,23 @@ export component PatchPage {
                                 colorize: MaterialPalette.on-error-container;
                             }
                         }
-                        MaterialText {
+                        VerticalLayout {
                             horizontal-stretch: 1;
-                            text: Patch.state.error;
-                            style: MaterialTypography.body-medium;
-                            color: MaterialPalette.on-error-container;
-                            wrap: word-wrap;
-                            overflow: clip;
+                            spacing: 4px;
+                            MaterialText {
+                                text: Patch.state.error;
+                                style: MaterialTypography.body-medium;
+                                color: MaterialPalette.on-error-container;
+                                wrap: word-wrap;
+                                overflow: clip;
+                            }
+                            if Patch.state.rolled-back : MaterialText {
+                                text: Patch.state.in-place ? @tr("已回滚：游戏目录已恢复到运行前的状态。") : @tr("已回滚：没有生成输出目录。");
+                                style: MaterialTypography.body-small;
+                                color: MaterialPalette.on-error-container;
+                                wrap: word-wrap;
+                                overflow: clip;
+                            }
                         }
                     }
                 }

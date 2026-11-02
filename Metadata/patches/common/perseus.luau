@@ -181,8 +181,8 @@ function M.apply(ctx, edition)
     if profile:size() == 0 or profile:size() > 1024 * 1024 then
         fail(ctx, "BOUNDS", "Perseus requires a bounded canonical private key.toml")
     end
-    local key = ctx.toml.decode(ctx.encoding.decode(profile:read(0, profile:size()), "utf8"))
-    if key.schema ~= "shinki.emu.musica.keys.v2" or key.paz_version ~= 2
+    local key = ctx.musica_profile(profile:read(0, profile:size()))
+    if key.paz_version ~= 2
         or not key.archive_keys or not key.archive_keys.sys then
         fail(ctx, "UNSUPPORTED_INPUT", "Perseus requires the canonical native version-two profile")
     end

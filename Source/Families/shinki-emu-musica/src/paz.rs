@@ -362,6 +362,7 @@ pub struct MusicaMountedVfs {
     decrypt_provider: Arc<MusicaPazDecryptProvider>,
     cache: Option<PlaintextCache>,
     pub(crate) loose_scripts: BTreeMap<String, (PathBuf, String)>,
+    pub(crate) name_resources: Option<crate::MusicaNameResources>,
 }
 
 impl MusicaMountedVfs {
@@ -632,6 +633,7 @@ impl MusicaMountedVfs {
             decrypt_provider,
             cache,
             loose_scripts: BTreeMap::new(),
+            name_resources: None,
         })
     }
 

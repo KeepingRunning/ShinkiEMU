@@ -28,9 +28,9 @@ Android Manager 通过 `musica_query` 静态注册核心，并启用 `ffmpeg-vcp
 
 正文替换是可选服务；禁用时直接显示原文。启用时只暂停当前消息推进，效果和音频继续。请求具有 session/generation identity，加载和关闭取消旧请求。失败、15 秒 timeout、错误 response 或无法排版的替换保留原文，不自动重试。正文和错误 payload 不写日志。
 
-原生本地化通过 `translation_table`（游戏目录内 v2 JSON）和 `translation_mode=replace|overlay` 配置，默认无表、替换模式。表必须包含 `version:2`、`source_encoding:"gbk"|"cp932"`、`hash_collision_policy:"first_record"`，以及保留原顺序的 `names`、`dialogue` 数组；每条为 `{source_hash,source_sha256,text}`，目标为 UTF-8。名字查找先于正文，同一 31-bit hash 只使用第一条；SHA-256 只作审计，不消歧或丢弃重复记录。hash 来自解码前的实际 authored display 字节（含尚未处理的消息控制），采用 131 rolling、记录侧跳过 NUL、运行时 C 字符串在首个 NUL 结束；不会重哈希 UTF-8，也不改变 VM 变量、选择目标或文件名。原生结果先交给既有 text hook，重试保留同一请求 ID。
+本地化补丁由 Manager 离线写入原生 SC，核心不再读取 `translation_table` 或 `translation_mode`，也没有补丁 overlay/Tab 切换分支。转换复用原生 PAZ/SC 解码器，只改消息姓名、正文和选项的显示操作数，分支目标、语音资源和原脚本控制保持不变。旧字典的有序 first-record/131 rolling hash 仅在转换时使用，不会随游戏安装运行时翻译表。
 
-`overlay` 保留原正文，名字仍按名字表替换；正文命中更新独立文字层，未命中保留已缓存字幕。Tab 松开切换该层可见性，按下和重复按键不切换。核心槽保存该层文本和可见性，身份包含表原始字节、显示模式、实际 loose SC 字节和配置字体。`font_path` 为空时沿用既有打包字体；配置时读取游戏目录内实际字体的首个 face、内部 family 和 Unicode coverage，交给同一个 Cosmic provider。缺失、损坏字体或缺字明确失败，不把系统同名字体当成替代文件。
+原生 SC 的显示操作数支持 `\u{hex}` Unicode scalar 字面转义：译文中的空格、冒号、反斜杠和 `\a`、`\v` 等字符不会变成分词、选择目标或 VM 控制。新格式要求真实 descriptor 声明 `CAP_NATIVE_EMBEDDED_TEXT`（256），Manager 在导入和启动前检查。译文直接进入 VM 消息、历史和原生存档；恢复不把已经显示的文本重新解析为脚本。`font_path` 为空时沿用打包字体；配置时读取实际字体的首个 face、内部 family 和 Unicode coverage，交给同一个 Cosmic provider，缺失、损坏或缺字明确失败。
 
 `scr_archive`、`sys_archive` 可给出游戏目录内物理 PAZ 别名，密钥 role 与 `musica:/scr/`、`musica:/sys/` URI 不变。`script_directory` 选择同目录内标准 loose SC，脚本与 include 均先 loose、再当前输出根的 PAZ；既有逐脚本编码探测保留未替换的 Title。PNG 替换继续使用 key.toml 的 `texture_overrides`。这些路径不需要 Lua parser 或运行时解包器。
 
@@ -40,7 +40,11 @@ Android Manager 通过 `musica_query` 静态注册核心，并启用 `ffmpeg-vcp
 
 字幕时间来自 `movie.position_us`，storage 来自实际解码视频，raster/偏移来自视频 viewport；颜色使用原生 swscale 实际转换的 matrix/range 和 BGRA8 的 SDR 呈现策略，不按分辨率补猜。显式 HDR、未支持转换仍报 `SHINKI_EMU_MUSICA_SUBTITLE_COLOR`。内容变化才上传 Alpha8 mask，位置变化不重传；mask revision 与轨道 serial 避免 ID 冲突，视频双槽 ID 保证单帧不同时释放/重传同一资源。暂停不推进时钟；读档、seek、换片、跳过和结束释放旧轨道。原生 handles 始终在 session 线程创建、使用和销毁。
 
-Yorino 的可选日文 overlay 目标按原始显示路径保留 `\a`、`\N` 和 ruby 花括号等字面字符，不把目标再次交给 VM 控制解析；原始脚本控制与选择/文件目标保持不变。十五个未完全映射的名字使用点不靠猜测改解码或删表，完整有序名字记录照常保留。
+Yorino 的带括号姓名由核心根据实际 SC speaker 生成。补丁只写资源，`yorino.exe` 原样复制，不再修补 EXE 常量或括号。`script_directory` 下的 `shinki-names.sc` 使用两条原生 SC 命令：`.pragma shinki_name_unknown \u{...}` 和 `.pragma shinki_history_name_unknown \u{...}`，各自携带完整 Unicode scalar 字面量（例如 `\u{ff1f}\u{ff1f}\u{ff1f}` 和 `\u{3010}\u{ff1f}\u{ff1f}\u{ff1f}\u{3011}`）。资源优先；不存在时只读 `yorino.exe` 文件偏移 `0x112098`、`0x121f18` 的原始 CP932 常量。已存在但损坏的资源报错，不隐式回退。其他游戏没有资源和 Yorino EXE 时保留原行为。
+
+静态分析确认实时姓名按原始首字节分类：`@` 显示未知姓名，`#` 不显示姓名，普通名取最后一个 `=` 后缀。历史空名保持空，`@`/`#` 使用完整历史未知姓名，其余保留原始全串并按脚本编码生成 `【speaker】`，不沿用 EXE 的 CP932 括号字节。实时显示、原生存档恢复与 backlog 复用同一组规则。姓名加载结果进入 VM 脚本身份与运行状态；资源 hash 进入 game 身份，支持的原生存档槽隔离到 `name-resources/<hash>/`，未打补丁的槽目录不变。描述符声明 `CAP_NATIVE_NAME_RESOURCES`（512）；Yorino 补丁要求 `256 | 512 = 768`。
+
+普通实时姓名保留空格、Tab 和全角空格；绘制文本按脚本编码限制为前六字节内的完整字符，不切断 GBK/CP932 双字节字符。该截断只影响实时文本，历史和存档保留原始 speaker；ANI 仍使用既有独立规范化姓名匹配，不受未知姓名或历史括号影响。panel 特殊模式与姓名图集继续沿用核心现有实现，本次不扩展其绘制行为。
 
 
 
@@ -48,9 +52,11 @@ Yorino 的可选日文 overlay 目标按原始显示路径保留 `\a`、`\N` 和
 
 `mount_musica(game_root, profile_path)` 只读取不超过 1 MiB 的 UTF-8 TOML，按原始文件字节 SHA-256 绑定私有配置身份。`MusicaKeyFile` 使用 `shinki.emu.musica.keys.v2`，必须明确声明 `paz_version`、`index_size_xor`、`rc4_skip_crc` 和八个固定 role 的 `archive_keys`。`rc4_skip_crc` 控制 PAZ v2 的 entry CRC32 skip，缺失算法参数直接拒绝，不补默认值。配置包含私有解密信息，不进 Git、日志或报告；读取失败不写文件。
 
+原生 reader 同时接受旧 schema 标识 `astra.emu.musica.keys.v2`，仅在内存中规范化为 `shinki.emu.musica.keys.v2`，不改写用户的原始 `key.toml`，配置身份仍绑定原始文件字节。Manager 读取和补丁转换共用该 reader，无需用户手动转换这个 v2 schema 标识；新生成的 key 使用 canonical schema。
+
 每个 `MusicaArchiveKey` 声明偶数长度的 `index_key_hex` 和 `data_key_hex`，接受大小写十六进制；mov 允许空 data key。可选字段保留各 role 的 `type_passwords`、`archive_xor` 和 256 字节 `video_key_hex`，`texture_overrides` 仍是整份配置的可选映射。`MusicaKeyFile::validate` 纯校验 schema、算法参数、密钥和路径语法；`load_musica_key_file` 有界读取普通文件并校验，不初始化游戏或设备。TOML 错误不回显源行、密钥或路径。
 
-PAZ 探测只识别引擎，不能据此得出密钥已安装。Manager 只选择现有 key.toml，并将明确路径保存到当前游戏的 `profile_file`；JSON profile、GARbro 方案和旧 `keys.v1` TOML 的转换只由开发 CLI 提供。运行时没有导入器、兼容解析或格式回退。转换说明见 [CLI](../../Programs/shinki-emu-musica-cli/README.md)；原游戏、密钥与存档保持不变。
+PAZ 探测只识别引擎，不能据此得出密钥已安装。Manager 只选择现有 key.toml，并将明确路径保存到当前游戏的 `profile_file`；JSON profile、GARbro 方案和旧 `keys.v1` TOML 的转换只由开发 CLI 提供。运行时不导入这些不同格式；上述两个 v2 schema 标识由同一原生 parser 读取，不做格式猜测。转换说明见 [CLI](../../Programs/shinki-emu-musica-cli/README.md)；原游戏、密钥与存档保持不变。
 
 同一 key.toml 可以可选地声明 `texture_overrides`。它是 `musica:/` 原资源 URI 到游戏目录内安全相对 PNG 路径的显式映射，例如 `musica:/bg/BG.png` 到 `hd/BG.png`。启动先验证原资源、帧数和映射路径，首次使用先解码原资源；逻辑尺寸与 ANI 原点始终来自原资源，替换图只提供物理像素。静态 PNG 与单帧 ANI 支持 PNG 替换；多帧 ANI、SQZ、缺失文件、非法路径、尺寸超限和解码失败都明确报错，不回退原图。原生和替换纹理共用 SDK `TextureCache`，通过不同 cache identity 区分。高清素材放在 ignored 私有目录，不进入仓库、日志或存档。
 

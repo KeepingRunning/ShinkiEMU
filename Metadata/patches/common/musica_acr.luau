@@ -74,6 +74,28 @@ function M.read(ctx, source)
     return records
 end
 
+-- Native SC resource declarations; no executable bytes are rewritten.
+function M.name_resource(ctx, names, path)
+    local function literal(row)
+        local record = names[row + 1]
+        if not record then fail(ctx, "INTEGRITY", "Name resource record is missing") end
+        local text = ctx.encoding.decode(record.replacement, "gbk")
+        if text == "" or string.find(text, "[%z\r\n]") then
+            fail(ctx, "INTEGRITY", "Name resource constant is empty or contains a control delimiter")
+        end
+        local output = {}
+        for _, codepoint in utf8.codes(text) do table.insert(output, string.format("\\u{%x}", codepoint)) end
+        return table.concat(output)
+    end
+    local directory = string.match(path, "^(.*)/[^/]+$")
+    if directory then ctx.mkdir(directory) end
+    local output = ctx.create(path)
+    output:write(0, buffer.fromstring(".pragma shinki_name_unknown " .. literal(27)
+        .. "\n.pragma shinki_history_name_unknown " .. literal(43) .. "\n"))
+    output:close()
+end
+
+
 -- ACR stores the original raw bytes, so its own index establishes byte identity.
 -- This does not establish which native display endpoints can produce those bytes.
 -- Preserve every ordered row; the native lookup uses the first hash match, while

@@ -2,7 +2,7 @@
 -- Standard PAZ/GBK/SC/font behavior remains the native Musica load path.
 return {
     id = "musica-eden-cn",
-    version = 1,
+    version = 2,
     title = "eden 中文姓名资源",
     apply = function(ctx)
         return ctx.load("common/musica.luau").apply_names(ctx, {

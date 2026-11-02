@@ -1,13 +1,17 @@
-name: Patch submission
-description: Submit a recipe or authorized patch link; no automatic execution
+name: Luau patch submission / Luau 补丁投稿 / Luau パッチ投稿
+description: Submit a Luau patch for maintainer review / 提交 Luau 补丁供维护者审核 / Luau パッチをレビューに提出
 body:
   - type: markdown
     attributes:
-      value: Do not include keys, game text, commercial assets or saves. Reports require maintainer review.
+      value: |
+        中文：粘贴完整 Luau 脚本，声明适用作品、VNDB 发行 rID、许可、来源及下载文件。不要上传游戏正文、密钥、商业素材或存档。自动检查只校验字段和 Luau 语法，不执行脚本、不下载文件；通过后只创建审核 PR，由维护者决定是否合并。
+        English: Paste the complete Luau script and declare supported works, VNDB release rIDs, license, source and downloads. Do not include game text, keys, commercial assets or saves. Checks validate fields and Luau syntax without executing scripts or downloading files. Successful checks create a review PR; maintainers decide whether to merge.
+        日本語：Luau スクリプト全文、対象作品、VNDB リリース rID、ライセンス、出典、ダウンロード一覧を記入してください。ゲーム本文、鍵、商用素材、セーブデータは添付しないでください。自動検査は項目と Luau 構文のみを確認し、スクリプト実行やファイル取得は行いません。検査後はレビュー PR を作成し、マージはメンテナーが判断します。
   - type: input
     id: id
     attributes:
       label: Patch id
+      description: "Stable ASCII identifier / 稳定的 ASCII 标识 / 固定の ASCII 識別子"
     validations:
       required: true
   - type: input
@@ -26,52 +30,46 @@ body:
     id: version
     attributes:
       label: Version
+      description: "Script semantic version / 脚本语义版本 / スクリプトのセマンティックバージョン"
     validations:
       required: true
-  - type: input
-    id: vn_ids
-    attributes:
-      label: VNDB vIDs
-    validations:
-      required: true
-  - type: input
-    id: release_ids
-    attributes:
-      label: VNDB rIDs
-    validations:
-      required: false
   - type: input
     id: emulators
     attributes:
       label: Cores
+      description: "Comma-separated core IDs / 逗号分隔的核心 ID / コア ID をコンマ区切りで記入"
     validations:
       required: true
-  - type: dropdown
-    id: kind
+  - type: textarea
+    id: releases
     attributes:
-      label: Kind
-      options:
-        - recipe
-        - external
-        - hosted
+      label: Release bindings (JSON)
+      description: |
+        中文：适用作品 vn_id（vID）、发行 release_id（rID）、中英文 title、edition、game_version（字符串或 null）和源文件 fingerprints [{path,size,sha256}] 的非空数组。不要上传原文件。
+        English: Nonempty array of supported work vn_id (vID), release_id (rID), zh-CN/en title, edition, game_version (string or null), and source fingerprints [{path,size,sha256}]. Do not upload source files.
+        日本語：対象作品 vn_id（vID）、release_id（rID）、中英 title、edition、game_version（文字列または null）、元ファイル fingerprints [{path,size,sha256}] の空でない配列。元ファイルは添付しないでください。
+      placeholder: '[{"release_id":"r123","vn_id":"v123","title":{"zh-CN":"盒装版","en":"Boxed edition"},"edition":"boxed","game_version":null,"fingerprints":[{"path":"game.dat","size":1,"sha256":"<64 lowercase hex characters>"}]}]'
     validations:
       required: true
   - type: input
     id: source
     attributes:
       label: Source URL
+      description: "Source/project URL / 来源或项目地址 / 出典・プロジェクト URL"
     validations:
-      required: false
+      required: true
   - type: input
     id: license
     attributes:
       label: License
+      description: "Required license for the script and submitted resources / 脚本和投稿资源的许可，必填 / スクリプトと提出素材のライセンス、必須"
     validations:
       required: true
   - type: input
     id: authorization
     attributes:
       label: Authorization URL
+      description: "Permission or authorization reference, where applicable / 适用时填写授权依据链接 / 該当する場合は許諾根拠の URL"
     validations:
       required: false
   - type: textarea
@@ -86,33 +84,24 @@ body:
       label: Summary (en)
     validations:
       required: true
-  - type: input
-    id: artifact
+  - type: textarea
+    id: downloads
     attributes:
-      label: Artifact URL
+      label: Downloads (JSON)
+      description: |
+        中文：脚本下载文件的完整声明，每项必须包含 HTTPS url、64 位小写十六进制 sha256 和字节数 size。无下载填 []。投稿检查不访问这些 URL。
+        English: Declare every script download with an HTTPS url, 64-character lowercase hex sha256, and size in bytes. Use [] for none. Submission checks do not access these URLs.
+        日本語：各ダウンロードの HTTPS url、64 桁の小文字十六進 sha256、バイト数 size を宣言してください。なければ []。投稿検査では URL へ接続しません。
+      placeholder: '[{"url":"https://example.org/resource.bin","sha256":"<64 lowercase hex characters>","size":123}]'
     validations:
-      required: false
-  - type: input
-    id: sha256
-    attributes:
-      label: SHA256
-    validations:
-      required: false
-  - type: input
-    id: size
-    attributes:
-      label: Size (bytes)
-    validations:
-      required: false
-  - type: input
-    id: file_name
-    attributes:
-      label: File name
-    validations:
-      required: false
-  - type: input
+      required: true
+  - type: textarea
     id: script
     attributes:
-      label: Recipe script
+      label: Luau script
+      description: |
+        中文：粘贴完整脚本，可使用 luau 代码块。只编译检查语法，不执行脚本；实际应用时使用同一宿主沙箱，禁止进程、任意联网、路径逃逸及符号链接。
+        English: Paste the complete script, optionally in a luau fence. Submission checks compile syntax without execution. Application uses the shared host sandbox; processes, arbitrary networking, path escapes and symlinks are forbidden.
+        日本語：スクリプト全文を記入してください（luau コードブロック可）。投稿検査はコンパイルによる構文確認のみで実行しません。適用時は共通のホストサンドボックスを使い、プロセス実行、任意の通信、パス逸脱、シンボリックリンクを禁止します。
     validations:
-      required: false
+      required: true

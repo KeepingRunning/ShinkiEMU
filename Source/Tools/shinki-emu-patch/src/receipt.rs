@@ -57,6 +57,7 @@ impl Write for CancelledWriter<'_> {
 
 pub(crate) fn write(
     root: &AuthorizedRoot,
+    source: &AuthorizedRoot,
     execution: &Execution,
     cancelled: Arc<AtomicBool>,
     progress: &(impl Fn(PatchProgress) + Send + Sync),
@@ -83,11 +84,31 @@ pub(crate) fn write(
                     let mut file = TaskFile::new(root.open_read(&path)?, false, cancelled.clone())?;
                     let size = file.size()?;
                     let sha256 = file.sha256()?;
+                    if std::path::Path::new(&path)
+                        .extension()
+                        .and_then(|extension| extension.to_str())
+                        .is_some_and(|extension| extension.eq_ignore_ascii_case("exe"))
+                    {
+                        let original = source.open_read(&path).map_err(|_| {
+                            PatchError::new(
+                                PatchErrorKind::InvalidRequest,
+                                "resource patches cannot create replacement executables",
+                            )
+                        })?;
+                        let mut original = TaskFile::new(original, false, cancelled.clone())?;
+                        if original.size()? != size || original.sha256()? != sha256 {
+                            return Err(PatchError::new(
+                                PatchErrorKind::InvalidRequest,
+                                format!("resource patches must preserve executable bytes: {path}"),
+                            ));
+                        }
+                    }
                     outputs.push(OutputRecord { path, size, sha256 });
                     progress(PatchProgress {
                         phase: "verifying output".into(),
                         completed: outputs.len() as u64,
                         total: None,
+                        ..Default::default()
                     });
                 }
                 _ => {

@@ -1,6 +1,8 @@
 use super::*;
-use crate::metadata_cache::tests::{compatibility_json, files, index, sample_catalog, patch_catalog_json};
-use shinki_emu_manager_core::{ExternalIdentityRecord, FamilyProbeReport, INDEPENDENT_FAMILY_ABI_FINGERPRINT};
+use crate::metadata_cache::tests::{compatibility_json, files, index, patch_catalog_json};
+use shinki_emu_manager_core::{
+    ExternalIdentityRecord, FamilyProbeReport, INDEPENDENT_FAMILY_ABI_FINGERPRINT,
+};
 use shinki_emu_manager_ui_slint::tr;
 
 const MUSICA: &str = "shinki.emu.musica";
@@ -123,7 +125,10 @@ fn several_releases_without_a_pin_are_undecided() {
     let mut app = controller(root.path());
     app.metadata_catalog = Some(catalog_with(
         root.path(),
-        &[entry("r1", MUSICA, "perfect"), entry("r2", MUSICA, "flawed")],
+        &[
+            entry("r1", MUSICA, "perfect"),
+            entry("r2", MUSICA, "flawed"),
+        ],
         "",
     ));
     linked_game(&mut app, "game", Some(MUSICA));
@@ -147,7 +152,11 @@ fn several_releases_without_a_pin_are_undecided() {
 fn report_url_carries_release_emulator_and_versions() {
     let root = tempfile::tempdir().unwrap();
     let mut app = controller(root.path());
-    app.metadata_catalog = Some(catalog_with(root.path(), &[entry("r1", SENA, "flawed")], ""));
+    app.metadata_catalog = Some(catalog_with(
+        root.path(),
+        &[entry("r1", SENA, "flawed")],
+        "",
+    ));
     linked_game(&mut app, "game", Some(SENA));
     let url = app.report_url("game", &identities(&app, "game"));
     let (platform, architecture, variant) = host_compatibility_target();
@@ -158,16 +167,17 @@ fn report_url_carries_release_emulator_and_versions() {
             shinki_emu_manager::version()
         )
     );
-    app.library.add_game(&GameRecord {
-        game_id: "unlinked".into(),
-        title: "Unlinked".into(),
-        user_title: None,
-        location: "fixtures/unlinked".into(),
-        family_id: None,
-        content_fingerprint: None,
-        added_at_unix_ms: 1,
-    })
-    .unwrap();
+    app.library
+        .add_game(&GameRecord {
+            game_id: "unlinked".into(),
+            title: "Unlinked".into(),
+            user_title: None,
+            location: "fixtures/unlinked".into(),
+            family_id: None,
+            content_fingerprint: None,
+            added_at_unix_ms: 1,
+        })
+        .unwrap();
     let view = app.compat_view("unlinked", &[], 2);
     assert!(view.report_url.is_empty());
     assert_eq!(view.hint, tr!("先关联 VNDB 作品"));
@@ -193,7 +203,7 @@ fn patch_recipes_match_the_vndb_work_and_an_emulator_of_the_game() {
     let mut app = controller(root.path());
     let directory = root.path().join("catalog");
     let mut tree = files(compatibility_json(""), "");
-    tree.retain(|(path, _)| !path.starts_with("patches/") && path != "patches.json");
+    tree.retain(|(path, _)| !path.starts_with("patches/") && path != "patches-v2.json");
     tree.push((
         "patches/catalog.json".into(),
         format!(
@@ -204,10 +214,11 @@ fn patch_recipes_match_the_vndb_work_and_an_emulator_of_the_game() {
         .into_bytes(),
     ));
     let catalog = patch_catalog_json(&tree.last().unwrap().1);
-    tree.push(("patches.json".into(), catalog));
+    tree.push(("patches-v2.json".into(), catalog));
     tree.push(("patches/a.luau".into(), b"return {}".to_vec()));
     crate::metadata_cache::tests::write_tree(&directory, 1, &tree);
-    app.metadata_catalog = Some(MetadataCatalog::load(&directory, MetadataSource::Bundled).unwrap());
+    app.metadata_catalog =
+        Some(MetadataCatalog::load(&directory, MetadataSource::Bundled).unwrap());
     linked_game(&mut app, "game", Some(MUSICA));
     let ids = |app: &ShinkiEmuManagerController| {
         app.patch_recipes("game", "v17")
@@ -223,9 +234,14 @@ fn patch_recipes_match_the_vndb_work_and_an_emulator_of_the_game() {
     assert_eq!(ids(&app), ["musica", "sena"]);
     app.probe_choices.clear();
     assert!(ids(&app).is_empty());
-    let (recipes, hint) = app.patch_choices("game", &identities(&app, "game")).unwrap();
+    let (recipes, hint) = app
+        .patch_choices("game", &identities(&app, "game"))
+        .unwrap();
     assert!(recipes.is_empty());
-    assert_eq!(hint, tr!("补丁目录中没有适用于这部作品和当前模拟器的补丁，可以选择本地脚本。"));
+    assert_eq!(
+        hint,
+        tr!("补丁目录中没有适用于这部作品和当前模拟器的补丁，可以选择本地脚本。")
+    );
     let (recipes, hint) = app.patch_choices("game", &[]).unwrap();
     assert!(recipes.is_empty());
     assert_eq!(hint, tr!("先在 游戏设置→作品资料 关联 VNDB 作品"));
@@ -269,7 +285,10 @@ fn rejected_update_keeps_the_previous_catalog_and_sync_record() {
             files: tampered,
         })
         .unwrap_err();
-    assert!(error.starts_with("SHINKI_EMU_METADATA_HASH_MISMATCH"), "{error}");
+    assert!(
+        error.starts_with("SHINKI_EMU_METADATA_HASH_MISMATCH"),
+        "{error}"
+    );
     let kept = app.metadata_catalog.as_ref().unwrap();
     assert_eq!(kept.index.generated_at_unix_ms, 1);
     assert!(kept.compatibility.entries.is_empty());
@@ -294,36 +313,43 @@ fn rejected_update_keeps_the_previous_catalog_and_sync_record() {
 fn reports_on_another_target_are_not_reused() {
     let root = tempfile::tempdir().unwrap();
     let mut app = controller(root.path());
-    let mut foreign: serde_json::Value = serde_json::from_str(&entry("r1", MUSICA, "perfect")).unwrap();
-    foreign["platform"] = if host_compatibility_target().0 == "windows" { "linux" } else { "windows" }.into();
+    let mut foreign: serde_json::Value =
+        serde_json::from_str(&entry("r1", MUSICA, "perfect")).unwrap();
+    foreign["platform"] = if host_compatibility_target().0 == "windows" {
+        "linux"
+    } else {
+        "windows"
+    }
+    .into();
     foreign["variant"] = "desktop".into();
     app.metadata_catalog = Some(catalog_with(root.path(), &[foreign.to_string()], ""));
     linked_game(&mut app, "game", Some(MUSICA));
     let linked = identities(&app, "game");
-    assert_eq!(app.compatibility_match("game", &linked), CompatibilityMatch::NoRecord { release_id: "r1".into() });
+    assert_eq!(
+        app.compatibility_match("game", &linked),
+        CompatibilityMatch::NoRecord {
+            release_id: "r1".into()
+        }
+    );
     assert!(app.compat_view("game", &linked, 2).status.is_empty());
 }
 
 #[test]
-fn external_patch_is_information_only_and_cannot_be_selected_as_a_recipe() {
+fn unbound_patch_catalog_is_rejected_before_selection() {
     let root = tempfile::tempdir().unwrap();
+    let directory = root.path().join("catalog");
+    let mut tree = files(compatibility_json(""), "");
+    let file = tree
+        .iter_mut()
+        .find(|(path, _)| path == "patches-v2.json")
+        .unwrap();
+    let mut catalog: serde_json::Value = serde_json::from_slice(&file.1).unwrap();
+    catalog["entries"][0]["releases"] = serde_json::json!([]);
+    file.1 = serde_json::to_vec(&catalog).unwrap();
+    crate::metadata_cache::tests::write_tree(&directory, 1, &tree);
+    assert!(MetadataCatalog::load(&directory, MetadataSource::Bundled).is_err());
     let mut app = controller(root.path());
-    let mut catalog = sample_catalog(root.path());
-    let patch: shinki_emu_metadata::PatchCatalogEntry = serde_json::from_value(serde_json::json!({
-        "id":"external-public", "title":{"zh-CN":"外部补丁","en":"External patch"}, "version":"1.0.0",
-        "vn_ids":["v17"], "release_ids":[], "emulators":[MUSICA], "kind":"external",
-        "source_url":"https://example.org/public-patch", "license":"MIT",
-        "authorization_url":"https://example.org/license",
-        "summary":{"zh-CN":"手动查看说明","en":"Read the instructions manually"}
-    })).unwrap();
-    patch.validate().unwrap();
-    catalog.patches.entries.push(patch);
-    app.metadata_catalog = Some(catalog);
     linked_game(&mut app, "game", Some(MUSICA));
     app.patch_game_id = Some("game".into());
-    let (recipes, details) = app.patch_choices("game", &identities(&app, "game")).unwrap();
-    assert!(!recipes.iter().any(|r| r.id == "external-public"));
-    assert!(details.contains("https://example.org/public-patch"));
-    assert!(details.contains("发行版本未限定"));
-    assert!(app.select_patch_recipe("external-public").is_err());
+    assert!(app.select_patch_recipe("musica-eden-cn").is_err());
 }

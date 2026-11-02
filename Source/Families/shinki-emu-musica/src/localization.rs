@@ -1,7 +1,7 @@
 use crate::{CoreError, ScCommand};
 use roukaku_core::Hash256;
-use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, path::Path};
+use serde::Deserialize;
+use std::collections::BTreeMap;
 
 /// Original DLL's 131-rolling identity. Embedded NUL bytes in table records are skipped.
 pub fn musica_display_hash(bytes: &[u8]) -> u32 {
@@ -16,13 +16,6 @@ pub fn musica_display_hash(bytes: &[u8]) -> u32 {
 /// The display endpoint receives a C string, so runtime input ends at its first NUL.
 pub fn musica_display_cstr_hash(bytes: &[u8]) -> u32 {
     musica_display_hash(bytes.split(|byte| *byte == 0).next().unwrap_or_default())
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum TranslationMode {
-    #[default]
-    Replace,
-    Overlay,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -84,15 +77,11 @@ impl MusicaTranslationTable {
             dialogue,
         })
     }
-    pub fn load(root: &Path, path: &str) -> Result<Self, CoreError> {
-        Self::from_json(&crate::resources::read_resource(
-            root,
-            path,
-            64 * 1024 * 1024,
-        )?)
-    }
     pub fn identity(&self) -> Hash256 {
         self.identity
+    }
+    pub(crate) fn has_dialogue(&self) -> bool {
+        !self.document.dialogue.is_empty()
     }
     /// Names precede and bypass dialogue at the original display endpoint.
     pub fn lookup(&self, hash: u32) -> Option<(&str, bool)> {
@@ -141,20 +130,6 @@ impl ScCommand {
             }
         }
         Some((hash & 0x7fff_ffff, speaker))
-    }
-    pub(crate) fn choice_display_hashes(&self) -> Vec<u32> {
-        if self.opcode != "select" {
-            return Vec::new();
-        }
-        self.raw_operands
-            .split(|byte| matches!(byte, b' ' | b'\t'))
-            .filter(|token| !token.is_empty())
-            .map(|token| {
-                musica_display_cstr_hash(
-                    token.split(|byte| *byte == b':').next().unwrap_or_default(),
-                )
-            })
-            .collect()
     }
 }
 

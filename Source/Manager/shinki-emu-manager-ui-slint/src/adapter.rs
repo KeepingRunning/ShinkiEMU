@@ -12,7 +12,8 @@ use crate::{
     EngineAction, EngineActionViewModel, Excluded, ExcludedViewModel, Filters, GameCard,
     GameCardViewModel, GameSettings, GamepadBinding, GamepadBindingViewModel, Library,
     ManagerViewModel, ManagerWindow, MatchReview, MatchViewModel, Network, Notices, Onboarding,
-    Patch, PatchGame, PatchGameViewModel, PatchState, PatchStateViewModel, PlaySession,
+    Patch, PatchCheck, PatchCheckViewModel, PatchDownload, PatchDownloadViewModel, PatchGame,
+    PatchGameViewModel, PatchState, PatchStateViewModel, PatchVerify, PlaySession,
     PlaySessionViewModel, Recipe, RecipeViewModel, Release, ReleaseViewModel, RenderState,
     RenderViewModel, ResaleNoticeState, SelectedGame, Selection, SelfUpdate, SelfUpdateAction,
     Session, Settings, Store, StoreAction, StoreDepot, StoreDepotViewModel, StoreGame,
@@ -36,7 +37,8 @@ pub struct SlintManagerAdapter {
     game_fields: Rc<VecModel<ConfigField>>,
     game_bindings: ListModel<GamepadBindingViewModel, GamepadBinding>,
     recipes: ListModel<RecipeViewModel, Recipe>,
-    artifacts: ListModel<RecipeViewModel, Recipe>,
+    patch_downloads: ListModel<PatchDownloadViewModel, PatchDownload>,
+    patch_checks: ListModel<PatchCheckViewModel, PatchCheck>,
     cores: ListModel<CoreViewModel, CoreInfo>,
     default_fields: Rc<VecModel<ConfigField>>,
     default_render_options: ListModel<ChoiceViewModel, Choice>,
@@ -82,7 +84,8 @@ impl SlintManagerAdapter {
             game_fields: Rc::new(VecModel::default()),
             game_bindings: ListModel::new(binding),
             recipes: ListModel::new(recipe),
-            artifacts: ListModel::new(recipe),
+            patch_downloads: ListModel::new(patch_download),
+            patch_checks: ListModel::new(patch_check),
             cores: ListModel::new(core_info),
             default_fields: Rc::new(VecModel::default()),
             default_render_options: ListModel::new(choice),
@@ -144,7 +147,8 @@ impl SlintManagerAdapter {
         let patch = window.global::<Patch>();
         patch.set_games(ModelRc::from(self.patch_games.clone()));
         patch.set_recipes(self.recipes.model());
-        patch.set_artifacts(self.artifacts.model());
+        patch.set_downloads(self.patch_downloads.model());
+        patch.set_checks(self.patch_checks.model());
 
         let cores = window.global::<Cores>();
         cores.set_items(self.cores.model());
@@ -485,7 +489,8 @@ impl SlintManagerAdapter {
             self.patch_games.refresh(&self.window);
         }
         self.recipes.update(&view.recipes);
-        self.artifacts.update(&view.artifacts);
+        self.patch_downloads.update(&view.state.downloads);
+        self.patch_checks.update(&view.state.checks);
         patch.set_hint(view.hint.as_str().into());
         patch.set_state(patch_state(&view.state));
     }
@@ -923,7 +928,42 @@ fn patch_state(value: &PatchStateViewModel) -> PatchState {
         output_directory: value.output_directory.as_str().into(),
         in_place: value.in_place,
         has_backup: value.has_backup,
-        downloading: value.downloading,
+        rolled_back: value.rolled_back,
+    }
+}
+
+fn patch_download(value: &PatchDownloadViewModel) -> PatchDownload {
+    let bytes = match value.total {
+        Some(total) => format!("{} / {}", byte_text(value.completed), byte_text(total)),
+        None => byte_text(value.completed),
+    };
+    PatchDownload {
+        name: value.name.as_str().into(),
+        bytes: bytes.into(),
+        progress: match value.total {
+            Some(total) if total > 0 => (value.completed as f32 / total as f32).clamp(0.0, 1.0),
+            _ => -1.0,
+        },
+        sha256: value.sha256.as_str().into(),
+        verify: match value.verify {
+            PatchVerify::Pending => "pending",
+            PatchVerify::Ok => "ok",
+            PatchVerify::Failed => "failed",
+        }
+        .into(),
+    }
+}
+
+fn patch_check(value: &PatchCheckViewModel) -> PatchCheck {
+    PatchCheck {
+        label: value.label.as_str().into(),
+        state: match value.passed {
+            None => "running",
+            Some(true) => "passed",
+            Some(false) => "failed",
+        }
+        .into(),
+        detail: value.detail.as_str().into(),
     }
 }
 
@@ -1015,5 +1055,47 @@ mod store_tests {
         assert_eq!(transfer.files, "");
         assert_eq!(transfer.speed, "");
         assert_eq!(transfer.progress, -1.0);
+    }
+}
+
+#[cfg(test)]
+mod patch_tests {
+    use super::*;
+
+    #[test]
+    fn script_downloads_show_size_progress_and_verification() {
+        let partial = patch_download(&PatchDownloadViewModel {
+            name: "fonts.zip".into(),
+            completed: 7_759_462,
+            total: Some(18_874_368),
+            sha256: "4b1d".into(),
+            verify: PatchVerify::Pending,
+        });
+        assert_eq!(partial.bytes, "7.4 MB / 18.0 MB");
+        assert!((partial.progress - 0.411).abs() < 0.001);
+        assert_eq!(partial.verify, "pending");
+
+        let unknown = patch_download(&PatchDownloadViewModel {
+            completed: 2048,
+            verify: PatchVerify::Failed,
+            ..Default::default()
+        });
+        assert_eq!(unknown.bytes, "2.0 KB");
+        assert_eq!(unknown.progress, -1.0);
+        assert_eq!(unknown.verify, "failed");
+    }
+
+    #[test]
+    fn script_checks_map_to_running_passed_failed() {
+        let state = |passed| {
+            patch_check(&PatchCheckViewModel {
+                passed,
+                ..Default::default()
+            })
+            .state
+        };
+        assert_eq!(state(None), "running");
+        assert_eq!(state(Some(true)), "passed");
+        assert_eq!(state(Some(false)), "failed");
     }
 }

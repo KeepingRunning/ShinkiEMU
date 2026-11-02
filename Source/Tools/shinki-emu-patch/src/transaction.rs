@@ -34,10 +34,18 @@ pub(crate) struct Transaction {
 
 impl Transaction {
     pub(crate) fn new(request: &PatchRequest) -> Result<Self, PatchError> {
+        Self::with_source_check(request, |_| Ok(()))
+    }
+
+    pub(crate) fn with_source_check(
+        request: &PatchRequest,
+        check: impl FnOnce(&Dir) -> Result<(), PatchError>,
+    ) -> Result<Self, PatchError> {
         let source = Dir::open_ambient_dir(&request.source, ambient_authority())
             .map_err(|e| path_error("cannot open source directory", e))?;
         let patch = Dir::open_ambient_dir(&request.patch, ambient_authority())
             .map_err(|e| path_error("cannot open patch directory", e))?;
+        check(&source)?;
         if matches!(request.mode, PatchMode::InPlace) {
             let state_missing = source
                 .symlink_metadata(crate::GAME_STATE_DIR)

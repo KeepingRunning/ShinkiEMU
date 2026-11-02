@@ -295,6 +295,14 @@ fn commit_inner(
                 .get(&path)
                 .map(String::as_str)
                 .unwrap_or(ABSENT);
+            if new == ABSENT
+                && std::path::Path::new(&path)
+                    .extension()
+                    .and_then(|extension| extension.to_str())
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case("exe"))
+            {
+                return None;
+            }
             (old != new).then_some(Entry {
                 relpath: path,
                 original_sha256: old.into(),
@@ -396,6 +404,7 @@ fn commit_inner(
                 phase: "committing patch".into(),
                 completed: (index + 1) as u64,
                 total: Some(manifest.entries.len() as u64),
+                ..Default::default()
             });
             if fail_after == Some(index + 1) {
                 return Err(PatchError::new(
@@ -422,7 +431,7 @@ fn commit_inner(
         } else {
             drop(backup_parent);
         }
-        return Err(error);
+        return Err(error.recovered());
     }
     drop(backup_root);
     drop(backup);
@@ -599,6 +608,7 @@ pub fn restore_latest(
                 phase: "restoring patch backup".into(),
                 completed: (index + 1) as u64,
                 total: Some(manifest.entries.len() as u64),
+                ..Default::default()
             });
         }
         Ok(())
