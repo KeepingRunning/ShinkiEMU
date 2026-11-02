@@ -56,6 +56,10 @@ build 必须在 `--manager`、`--core`、`--all-cores` 中选一项。check 选�
 
 每个核心的 `build.rs` 校验本核心的目标和输入，在 Cargo `OUT_DIR` 写入 `core-build.json`。C++ 适配通过它驱动真实 CMake 构建，纯 Rust 核心仍由 Cargo 编译。构建脚本不递归运行 Cargo，也不发布 Release。xtask 从 `compiler-artifact` 和 `build-script-executed` JSON 读取真实产物，不猜测 target 路径。各组件使用 `.work/target/<target>/<component>`，构建记录写入 `.work/build/`。Artemis 在所有平台统一使用 Luau，Android 静态嵌入时与 Manager 共用运行时。
 
+Manager 只按当前目标的 `static_manager_targets` 收集嵌入构建清单，并匹配准确的 Cargo package ID。仅作为资源读取器使用的核心依赖不算静态注册。所选清单仍须通过 plugin、目标、profile 和产物种类校验，缺失、歧义或重复记录会使构建失败。
+
+Windows 已验收的图形依赖组合是 wgpu-hal 30.0.1、gpu-allocator 0.28.0，两者共用 windows 0.62.2 类型。其他消费者可以保留旧 windows crate，但不能让 D3D12 边界跨版本；合并分支锁文件时须保留已验收的 allocator 依赖边。
+
 编译指定版本的 Manager 前，先将 `SHINKI_EMU_PRODUCT_VERSION` 设为与 `package`/`release` 相同的 SemVer。未设置时，xtask 使用 CI 已有的 `SHINKI_EMU_CI_VERSION`；两者同时存在必须一致。都未设置的开发构建才使用 Manager package version，不为发行标签修改 `Cargo.toml`。Manager 构建脚本写出 `OUT_DIR/manager-build-version.json`，xtask 核对实际编译身份，并在 build/package/release 记录中保存 `product_version`。缺失、错版或 Android 两个 ABI 版本不同都会拒绝打包；应以目标版本正常重建，不能给旧 receipt 改标签。Apple cross 容器转发同一个产品版本变量。
 
 beta.7 已知问题：官方 Windows 二进制内部自报 `0.1.0-beta.6`，而发行包标签为 beta.7。旧 tag 和资产保持不变。上述编译注入与 receipt 校验用于后续构建，下一版 Manager 发布说明保留这项已知问题记录。

@@ -50,6 +50,10 @@ build では `--manager`、`--core`、`--all-cores` のいずれか 1 つを必�
 
 各コアの `build.rs` は自身のターゲットと入力を検証し、Cargo の `OUT_DIR` に `core-build.json` を書き出します。C++ のアダプターはこれを通じて実際の CMake ビルドを駆動し、純粋な Rust コアはこれまでどおり Cargo がコンパイルします。ビルドスクリプトが Cargo を再帰的に実行したり、Release を公開したりすることはありません。xtask は `compiler-artifact` と `build-script-executed` の JSON から実際の成果物を読み取り、target のパスを推測しません。各コンポーネントは `.work/target/<target>/<component>` を使い、ビルド記録は `.work/build/` に書き込まれます。Artemis はすべてのプラットフォームで Luau を使用し、Android への静的組み込みでは Manager とランタイムを共有します。
 
+Manager は現在のターゲットの `static_manager_targets` と正確な Cargo package ID に基づいて組み込みマニフェストを収集します。リソースの読み取りに使うだけのコア依存は静的登録ではありません。選択した記録の plugin、ターゲット、profile、成果物の種類は引き続き厳密に照合し、欠落・曖昧・重複する記録ではビルドを失敗させます。
+
+検証済みの Windows グラフィックス構成は wgpu-hal 30.0.1 と gpu-allocator 0.28.0 が同じ windows 0.62.2 の型を使います。別の依存先には古い windows crate を残せますが、D3D12 の境界で型を分裂させてはいけません。ブランチの lockfile を統合するときも、検証済みの allocator の依存先を維持してください。
+
 版を指定して Manager をコンパイルする前に、`SHINKI_EMU_PRODUCT_VERSION` を `package`/`release` と同じ SemVer に設定します。未設定なら CI の既存の `SHINKI_EMU_CI_VERSION` を使い、両方ある場合は一致が必要です。どちらもない開発ビルドだけが Manager の package version を使います。リリース名のために `Cargo.toml` を変更しません。Manager の build script が書く `OUT_DIR/manager-build-version.json` を xtask が照合し、build/package/release 記録の `product_version` に保持します。版が不明・不一致の場合や Android の両 ABI で版が異なる場合は拒否します。古い receipt のラベルを変えず、目的の版で通常の再ビルドを行ってください。Apple cross コンテナも同じ製品版の変数を転送します。
 
 beta.7 の既知の問題：公式 Windows バイナリは内部の版を `0.1.0-beta.6` と報告しますが、配布パッケージのラベルは beta.7 です。既存タグと添付ファイルは変更しません。上記のコンパイル時注入と receipt 検証で後続ビルドを修正し、次の Manager リリースノートにもこの問題を記載します。

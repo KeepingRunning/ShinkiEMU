@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use shinki_emu_build::CoreBuildManifest;
 use std::{
+    collections::BTreeMap,
     fs,
     io::{BufRead, BufReader},
     path::{Path, PathBuf},
@@ -156,6 +157,43 @@ pub fn cargo_metadata(inv: &Inventory, target: &str) -> Result<serde_json::Value
         ]),
     )?)?)
 }
+fn embedded_core_packages<'a>(
+    inv: &'a Inventory,
+    target: &str,
+    metadata: &'a serde_json::Value,
+) -> Result<BTreeMap<&'a str, &'a str>> {
+    let packages = metadata["packages"].as_array().context("cargo packages")?;
+    let mut selected = BTreeMap::new();
+    for core in &inv.cores {
+        if !core
+            .static_manager_targets
+            .iter()
+            .any(|triple| triple == target)
+        {
+            continue;
+        }
+        let mut matches = packages
+            .iter()
+            .filter(|package| package["name"] == core.package);
+        let package = matches.next().with_context(|| {
+            format!(
+                "static core package {} absent from Cargo metadata",
+                core.package
+            )
+        })?;
+        if matches.next().is_some() {
+            bail!("ambiguous static core package {}", core.package);
+        }
+        let id = package["id"]
+            .as_str()
+            .context("static core Cargo package id")?;
+        if selected.insert(id, core.id.as_str()).is_some() {
+            bail!("static cores share Cargo package {id}");
+        }
+    }
+    Ok(selected)
+}
+
 pub fn execute(
     inv: &Inventory,
     target: &str,
@@ -192,19 +230,33 @@ pub fn execute(
         .unwrap_or("shinki-emu-manager");
     let features = core.map(|c| c.features.clone()).unwrap_or_default();
     let target_dir = target_directory(inv, target, component)?;
-    let metadata: serde_json::Value = serde_json::from_slice(&dependencies::capture(
-        Command::new("cargo")
-            .current_dir(&inv.root)
-            .args([
-                "metadata",
-                "--locked",
-                "--format-version",
-                "1",
-                "--no-deps",
-                "--manifest-path",
-            ])
-            .arg(&manifest),
-    )?)?;
+    let metadata: serde_json::Value = if component == "manager"
+        && inv.cores.iter().any(|core| {
+            core.static_manager_targets
+                .iter()
+                .any(|triple| triple == target)
+        }) {
+        cargo_metadata(inv, target)?
+    } else {
+        serde_json::from_slice(&dependencies::capture(
+            Command::new("cargo")
+                .current_dir(&inv.root)
+                .args([
+                    "metadata",
+                    "--locked",
+                    "--format-version",
+                    "1",
+                    "--no-deps",
+                    "--manifest-path",
+                ])
+                .arg(&manifest),
+        )?)?
+    };
+    let embedded_packages = if component == "manager" {
+        embedded_core_packages(inv, target, &metadata)?
+    } else {
+        BTreeMap::new()
+    };
     let package_metadata = metadata["packages"]
         .as_array()
         .context("cargo packages")?
@@ -329,8 +381,12 @@ pub fn execute(
         {
             eprint!("{s}");
         }
+        let expected_embedded = value["package_id"]
+            .as_str()
+            .and_then(|id| embedded_packages.get(id))
+            .copied();
         if value["reason"] == "build-script-executed"
-            && (value["package_id"] == package_id || component == "manager")
+            && (value["package_id"] == package_id || expected_embedded.is_some())
             && let Some(dir) = value["out_dir"].as_str()
         {
             if value["package_id"] == package_id
@@ -350,7 +406,14 @@ pub fn execute(
                         serde_json::from_slice::<CoreBuildManifest>(&bytes)
                             .map_err(anyhow::Error::from)
                     }) {
-                    Ok(m) => manifests.push(m),
+                    Ok(m) if expected_embedded.is_none_or(|id| m.plugin_id == id) => {
+                        manifests.push(m);
+                    }
+                    Ok(_) => {
+                        parse_error = Some(anyhow::anyhow!(
+                            "core build manifest belongs to a different static core package"
+                        ));
+                    }
                     Err(e) => parse_error = Some(e),
                 }
             }
@@ -411,6 +474,9 @@ pub fn execute(
                     manifest.artifact_kind.as_str(),
                     "native-static" | "rust-cdylib"
                 )
+                || embedded_core_builds
+                    .iter()
+                    .any(|accepted: &CoreBuildManifest| accepted.plugin_id == manifest.plugin_id)
             {
                 bail!(
                     "native build manifest does not match embedded core {}",
@@ -418,6 +484,9 @@ pub fn execute(
                 );
             }
             embedded_core_builds.push(manifest);
+        }
+        if embedded_core_builds.len() != embedded_packages.len() {
+            bail!("Cargo did not report every selected static core build manifest");
         }
     }
     libraries.sort();
@@ -522,6 +591,37 @@ pub fn tests(inv: &Inventory, core: Option<&str>, manager: bool) -> Result<()> {
 #[cfg(test)]
 mod version_tests {
     use super::*;
+
+    #[test]
+    fn reader_dependencies_are_not_embedded_without_target_registration() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let mut inv = Inventory::load(root).unwrap();
+        inv.cores.retain(|core| core.id == "shinki.emu.musica");
+        inv.cores[0].static_manager_targets = vec!["aarch64-linux-android".into()];
+        let mut metadata = serde_json::json!({
+            "packages": [
+                {"name": "shinki-emu-musica", "id": "reader-package"},
+                {"name": "shinki-emu-patch", "id": "patch-package"}
+            ]
+        });
+        assert!(
+            embedded_core_packages(&inv, "x86_64-unknown-linux-gnu", &metadata)
+                .unwrap()
+                .is_empty()
+        );
+        let selected = embedded_core_packages(&inv, "aarch64-linux-android", &metadata).unwrap();
+        assert_eq!(selected.get("reader-package"), Some(&"shinki.emu.musica"));
+        assert!(!selected.contains_key("patch-package"));
+        metadata["packages"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({
+                "name": "shinki-emu-musica", "id": "other-version"
+            }));
+        assert!(embedded_core_packages(&inv, "aarch64-linux-android", &metadata).is_err());
+        metadata["packages"] = serde_json::json!([]);
+        assert!(embedded_core_packages(&inv, "aarch64-linux-android", &metadata).is_err());
+    }
 
     #[test]
     fn manager_compile_inputs_reject_conflicting_and_invalid_versions() {

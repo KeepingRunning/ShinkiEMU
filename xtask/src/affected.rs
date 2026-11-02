@@ -289,11 +289,9 @@ mod tests {
         assert!(musica.iter().any(|(component, _)| component == "manager"));
         assert!(!musica.contains(&("manager".into(), "x86_64-pc-windows-msvc".into())));
         let cmvs = changed(&inv, &["Source/Families/shinki-emu-cmvs/Cargo.toml"]);
-        assert!(!cmvs.is_empty());
-        assert!(
-            cmvs.iter()
-                .all(|(component, _)| component == "shinki.emu.cmvs")
-        );
+        assert_eq!(cmvs, core_rows(&inv, "shinki.emu.cmvs"));
+        assert!(cmvs.contains(&("manager".into(), "aarch64-linux-android".into())));
+        assert!(!cmvs.contains(&("manager".into(), "x86_64-pc-windows-msvc".into())));
     }
 
     #[test]
