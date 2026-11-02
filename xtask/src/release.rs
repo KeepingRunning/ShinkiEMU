@@ -342,11 +342,6 @@ pub fn resolve_version(inv: &Inventory, component: &str, supplied: &str) -> Resu
     {
         let identity = source.identity();
         let version = identity.version();
-        crate::metadata::require_release_sequence(
-            &inv.root.join("Metadata"),
-            component,
-            &identity,
-        )?;
         if !supplied.is_empty() && supplied != version {
             bail!(
                 "external core version is derived from its verified upstream/adapter pins; omit --version or use {version}"
@@ -384,6 +379,9 @@ fn identity(inv: &Inventory, component: &str, version: &str) -> Result<Identity>
             .as_ref()
             .map(crate::cores::CoreSource::identity)
     };
+    if let Some(identity) = &external {
+        crate::metadata::require_release_sequence(&inv.root.join("Metadata"), component, identity)?;
+    }
     let (tag, core_source) = if component == "manager" {
         (format!("manager-v{version}"), Value::Null)
     } else {
@@ -894,6 +892,45 @@ mod tests {
         let published =
             json!({"tag_name":"manager-v1.0.0","draft":false,"target_commitish":commit});
         assert!(release_target(&[published], Some(&commit), &commit).is_err());
+    }
+
+    #[test]
+    fn historical_external_pins_build_but_cannot_be_republished_as_new_releases() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let mut inv = Inventory::load(root).unwrap();
+        let source = inv.core("rfvp").unwrap().source.as_ref().unwrap();
+        let frozen_version = source.identity().version();
+        let mut published = source.identity();
+        published.release_sequence += 1;
+        let published_version = published.version();
+        let tag = format!("core-rfvp-{published_version}");
+        let entry = json!({
+            "plugin_id":"rfvp", "display_name":"RFVP", "family_name":"RealLive",
+            "platform":"windows-x86_64", "abi":"shinki.emu.native.c.v3",
+            "license":"MIT", "identity":published, "version":published_version,
+            "release_tag":tag,
+            "url":format!("https://github.com/Project-Shinkirou/ShinkiEMU/releases/download/{tag}/core.zip"),
+            "sha256":"a".repeat(64), "size":1,
+        });
+        let temp = tempfile::tempdir().unwrap();
+        let catalog = temp
+            .path()
+            .join("Metadata/engines/cores/rfvp/windows-x86_64");
+        fs::create_dir_all(&catalog).unwrap();
+        fs::write(
+            catalog.join("published.json"),
+            serde_json::to_vec(&entry).unwrap(),
+        )
+        .unwrap();
+        inv.root = temp.path().to_owned();
+        assert_eq!(resolve_version(&inv, "rfvp", "").unwrap(), frozen_version);
+        let error = identity(&inv, "rfvp", "").err().unwrap();
+        assert!(
+            error
+                .to_string()
+                .contains("external release_sequence must increase"),
+            "{error:#}"
+        );
     }
 
     #[test]

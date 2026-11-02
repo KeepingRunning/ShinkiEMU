@@ -89,8 +89,12 @@ cargo xtask ci --target x86_64-unknown-linux-gnu --component CORE --report .work
 
 Ren'Py のパッケージには SDK ランタイムとインストール済みの `Resources` が含まれます。Impacto と KiriKiri2 のパッケージには、固定されたネイティブ共有ライブラリの依存閉包が含まれます。各パッケージの `build.json` はシステムの SONAME 要件を記録します。
 
+Linux のネイティブビルドディレクトリ内の SONAME シンボリックリンクは、同じディレクトリ内の通常ファイルに限り解決します。パッケージにはローダーが要求する名前で内容をコピーし、リンク自体は保存しません。ディレクトリ外へのリンク、壊れたリンク、循環リンク、依存ファイルの内容衝突はエラーになります。リソースやライセンスなどの一般入力では引き続きリンクを拒否します。
+
+Linux Manager の Bangumi provider は vendored の静的 OpenSSL で native-tls をビルドし、ビルド環境の `libssl.so.3`/`libcrypto.so.3` に依存しません。ネイティブコアが OpenSSL を必要とする場合は、引き続き固定済みの依存ライブラリを同梱します。
+
 Linux の Manager 向け `deps` は、ディストリビューションが提供する開発ライブラリを確認するだけで、`apt` は呼び出しません。コア向けの `deps` は、ターゲットごとに独立したディレクトリでロックされた vcpkg のネイティブライブラリを準備し、パッケージング用に再配置可能な共有ライブラリの通常ファイルを生成します。パッケージのディレクトリで `./shinki-emu-manager` を実行してください。パッケージングでは ELF のアーキテクチャ、ローダーのパス、依存関係の閉包を確認し、ライセンス表記とオフラインのメタデータスナップショットを同梱します。`ci` が報告する ZIP では実行権限が保持されます。CI とリリースのジョブは、同じ依存関係と xtask コマンドを使います。コアが利用できるかどうかは引き続き `matrix` に従い、blocked と宣言されたコアにはバイナリの添付ファイルが作られません。
-Linux パッケージは、ディストリビューションが提供する glibc、libstdc++、OpenSSL 3、fontconfig、udev、ALSA の ABI ライブラリに加え、ストアの Web サインイン用に GTK 3 と WebKitGTK 4.1 を使います。導入先のシステムには対応するランタイムパッケージ（Ubuntu では GTK 3 も一緒に入る `libwebkit2gtk-4.1-0`）をインストールし、グラフィックドライバーを備えた X11 または Wayland のデスクトップを用意してください。
+Linux パッケージは、ディストリビューションが提供する glibc、libstdc++、fontconfig、udev、ALSA の ABI ライブラリに加え、ストアの Web サインイン用に GTK 3 と WebKitGTK 4.1 を使います。導入先のシステムには対応するランタイムパッケージ（Ubuntu では GTK 3 も一緒に入る `libwebkit2gtk-4.1-0`）をインストールし、グラフィックドライバーを備えた X11 または Wayland のデスクトップを用意してください。
 Impacto の Linux VA-API ライブラリは、システムのグラフィックススタックに含まれる `libdrm.so.2`（Ubuntu パッケージ `libdrm2`）も必要とし、コアには同梱しません。
 KiriKiri2 は、ディストリビューションの OpenGL ディスパッチライブラリ `libGL.so.1`、`libGLX.so.0`、`libOpenGL.so.0`（Ubuntu パッケージ `libgl1 libglx0 libopengl0`）も使います。
 X11 と OpenMP には、ディストリビューションの `libX11.so.6` と `libgomp.so.1`（Ubuntu パッケージ `libx11-6 libgomp1`）を使います。
@@ -204,6 +208,8 @@ cargo xtask ci --target x86_64-pc-windows-msvc --component rfvp --report .work/r
 ```
 
 未対応の組み合わせは `blocked`、`artifact: null` を報告します。OHOS Manager のローカル署名ビルドは、同じコミットの成功したリモート CI と結合してから公開します。対応対象のビルド失敗は `failed` を返します。`publish_blocked` は配布上の制限を別に記録します。
+
+通常の CI/package は、カタログに新しいリリース番号があっても固定済みの外部コア pin を再ビルドできます。バージョンはその pin から導出します。Release の dry-run・準備・公開では、リリース成果物の作成前に番号の単調増加を確認します。古い pin をビルドできても、新規リリースとしての公開は許可されません。
 
 GitHub Actions が正式な CI であり、ホストされたプラットフォームのリリース成果物をビルドします。DevEco が必要な OHOS HAP は、以下のゲート付きローカル引き渡しで追加します。
 OHOS Manager を含むリリースでは、release ブランチを push し、同じコミットの `ci.yml` の成功を確認します。`components=manager` で `release.yml` を実行します。このワークフローは全ホスト行の成功を要求し、Manager の公開はローカル引き渡しに残します。実行中の `release-files-manager@*` artifact をすべてダウンロードし、その `<tag>/<target>/` を同じコミットのクリーンな checkout の `.work/release/<tag>/` に配置します。DevEco と checkout 外の署名ディレクトリを設定して、次を実行します。

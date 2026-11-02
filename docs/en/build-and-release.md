@@ -107,8 +107,12 @@ cargo xtask ci --target x86_64-unknown-linux-gnu --component CORE --report .work
 
 The Ren'Py package includes its SDK runtime and installed `Resources`; Impacto and KiriKiri2 include the pinned native shared-library closure. Each core package records system SONAME requirements in `build.json`.
 
+Linux SONAME symlinks in explicitly selected native build directories are resolved to regular files within that same directory. Packages copy their bytes under the loader-requested name, never store symlinks, and reject escaping, broken or cyclic links and conflicting dependency contents. General resource and license inputs still reject symlinks.
+
+The Manager's Linux Bangumi provider builds native-tls with vendored, static OpenSSL, so its executable does not depend on the build host's `libssl.so.3`/`libcrypto.so.3`. Native core packages still bundle their own pinned OpenSSL closure when required.
+
 Linux Manager `deps` checks the distribution's development libraries; it does not run `apt`. Core `deps` prepares the pinned vcpkg native libraries in target-specific roots and materializes relocatable shared-library files for packaging. Run `./shinki-emu-manager` from the packaged directory. Packaging validates ELF architecture, loader paths and the dependency closure, includes notices and the offline metadata snapshot, and preserves executable permissions in the ZIP reported by `ci`. The same prerequisites and xtask commands run in CI and release jobs. Core availability remains defined by `matrix`; declared blocked cores produce no binary artifact.
-The Linux package uses the distribution's glibc, libstdc++, OpenSSL 3, fontconfig, udev and ALSA ABI libraries, plus GTK 3 and WebKitGTK 4.1 for store web sign-in. Install their runtime packages (on Ubuntu `libwebkit2gtk-4.1-0`, which pulls in GTK 3) on the destination system and provide an X11 or Wayland desktop with a graphics driver.
+The Linux package uses the distribution's glibc, libstdc++, fontconfig, udev and ALSA ABI libraries, plus GTK 3 and WebKitGTK 4.1 for store web sign-in. Install their runtime packages (on Ubuntu `libwebkit2gtk-4.1-0`, which pulls in GTK 3) on the destination system and provide an X11 or Wayland desktop with a graphics driver.
 Impacto's Linux VA-API libraries also require the distribution's `libdrm.so.2`
 (Ubuntu package `libdrm2`), which remains part of the system graphics stack.
 KiriKiri2 also uses the distribution's OpenGL dispatch libraries `libGL.so.1`,
@@ -314,6 +318,8 @@ cargo xtask ci --target x86_64-pc-windows-msvc --component rfvp --report .work/r
 ```
 
 Unsupported combinations report `blocked` with `artifact: null`. The OHOS Manager is supported for experimental test-signed packaging only; its local-only build is joined to a successful exact-head GitHub CI run before publication. A supported build failure reports `failed` and exits nonzero. `publish_blocked` denotes distribution restrictions independently of build availability.
+
+Ordinary CI/package builds may rebuild a frozen external-core pin even when the catalog contains a newer release sequence. The version still derives from that pin. Release dry-run, preparation and publication enforce sequence monotonicity before creating release artifacts; building an older pin does not authorize publishing it as a new release.
 
 GitHub Actions is the CI of record and builds the hosted-platform release assets. The DevEco-only OHOS HAP is prepared and uploaded in the gated local handoff below.
 For a Manager release containing a local-only OHOS target, push the release branch and require `ci.yml` to finish successfully at the exact release commit. Dispatch `release.yml` for that commit with `components=manager` and the version; its `publish (manager)` job checks all hosted build rows and leaves publication to the local handoff. In a clean checkout of that exact commit, download every `release-files-manager@*` artifact from the release run into `.work/release/` (`gh run download <release-run-id> -R Project-Shinkirou/ShinkiEMU -p 'release-files-manager@*' -D <scratch>`; copy each artifact's `<tag>/<target>/` directory into `.work/release/<tag>/`). Then, with DevEco and the signing directory set, run:

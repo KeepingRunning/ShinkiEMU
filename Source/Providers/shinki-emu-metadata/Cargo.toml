@@ -33,6 +33,11 @@ vn.workspace = true
 [target.'cfg(not(any(target_os = "android", target_env = "ohos")))'.dependencies]
 bangumi-api.workspace = true
 
+# Desktop Linux packages must not inherit the build host's shared OpenSSL ABI
+# through bangumi-api's native-tls feature. Ship its statically built provider.
+[target.'cfg(all(target_os = "linux", not(target_env = "ohos")))'.dependencies]
+native-tls = { version = "=0.2.18", features = ["vendored"] }
+
 [dev-dependencies]
 parking_lot = "0.13.0"
 rcgen.workspace = true

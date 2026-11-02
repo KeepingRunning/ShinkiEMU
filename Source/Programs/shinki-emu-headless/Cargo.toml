@@ -15,7 +15,7 @@ static-siglus = ["dep:shinki-emu-siglus_rs"]
 shinki-emu-manager-ui-slint = { path = "../../Manager/shinki-emu-manager-ui-slint", optional = true }
 slint = { workspace = true, optional = true, features = ["std", "compat-1-2", "renderer-software"] }
 shinki-emu-cmvs = { path = "../../Families/shinki-emu-cmvs", optional = true }
-shinki-emu-siglus_rs = { git = "https://github.com/Project-Shinkirou/siglus_rs", rev = "c5ee2bc37e91116e11795aa985c6cd394d590ab6", default-features = false, optional = true }
+shinki-emu-siglus_rs = { git = "https://github.com/Project-Shinkirou/siglus_rs", rev = "a0aa629fb5ce467e91c83e2be0fffb3320404527", default-features = false, optional = true }
 shinki-emu-manager-core = { path = "../../Manager/shinki-emu-manager-core" }
 shinki-emu-abi = { path = "../../FamilyApi/shinki-emu-abi" }
 roukaku-headless-protocol = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "8392cf161800f7684af7704eb95f7a5526d2015d" }

@@ -450,9 +450,29 @@ pub(crate) fn system(name: &str, target: &str) -> bool {
     ]
     .contains(&name)
 }
+/// Resolve Linux SONAME links only within their explicitly selected build directory.
+/// Package entries keep the requested loader name but copy the regular file's bytes.
+pub(crate) fn runtime_source(path: &Path, directory: &Path, target: &str) -> Result<PathBuf> {
+    crate::package::plain(directory)?;
+    if target == "x86_64-unknown-linux-gnu" && fs::symlink_metadata(path)?.is_symlink() {
+        let root = fs::canonicalize(directory)?;
+        let source = fs::canonicalize(path)?;
+        if !source.starts_with(&root) || !source.is_file() {
+            bail!(
+                "runtime link escapes its build directory: {}",
+                path.display()
+            );
+        }
+        crate::package::plain(&source)?;
+        return Ok(source);
+    }
+    crate::package::plain(path)?;
+    Ok(path.to_owned())
+}
+
 /// Resolve exclusively against explicitly distributable trees, never PATH/System32.
-pub fn closure(library: &Path, search: &[PathBuf], target: &str) -> Result<Vec<PathBuf>> {
-    let mut found = BTreeMap::<String, PathBuf>::new();
+pub fn closure(library: &Path, search: &[PathBuf], target: &str) -> Result<Vec<(PathBuf, String)>> {
+    let mut found = BTreeMap::<String, (PathBuf, String)>::new();
     let mut visited = BTreeSet::new();
     let mut pending = vec![library.to_owned()];
     let root_name = library
@@ -493,18 +513,17 @@ pub fn closure(library: &Path, search: &[PathBuf], target: &str) -> Result<Vec<P
                         .to_string_lossy()
                         .eq_ignore_ascii_case(leaf)
                     {
-                        matches.push(entry.path());
+                        matches.push(runtime_source(&entry.path(), dir, target)?);
                     }
                 }
             }
             let resolved=matches.first().with_context(|| format!("{}: missing redistributable dependency {dep}; run cargo xtask deps or provide its build tree",path.display()))?;
-            crate::package::plain(resolved)?;
             for other in matches.iter().skip(1) {
                 if crate::package::sha256(other)? != crate::package::sha256(resolved)? {
                     bail!("conflicting dependency {dep}");
                 }
             }
-            found.insert(key, resolved.clone());
+            found.insert(key, (resolved.clone(), leaf.to_owned()));
             pending.push(resolved.clone());
         }
     }

@@ -227,7 +227,7 @@ fn real_binary_dependency_arch_and_export_validation() {
     );
     assert!(binary::closure(&f.library, &[], &f.target).is_err());
     let closure = binary::closure(&f.library, &[f._dir.path().to_owned()], &f.target).unwrap();
-    assert!(closure.contains(&f.dependency));
+    assert!(closure.iter().any(|(source, _)| source == &f.dependency));
     assert!(binary::inspect(&f.dependency, &f.target, true).is_err());
     let wrong = if f.target.starts_with("x86_64") {
         f.target.replacen("x86_64", "aarch64", 1)
@@ -276,7 +276,8 @@ fn delay_imports_participate_in_dependency_closure() {
     assert!(
         binary::closure(&library, &[f._dir.path().to_owned()], &f.target)
             .unwrap()
-            .contains(&f.dependency)
+            .iter()
+            .any(|(source, _)| source == &f.dependency)
     );
 }
 
@@ -768,6 +769,59 @@ fn sectionless_elf(needed: &str, rpath: &str) -> Vec<u8> {
 }
 
 #[test]
+fn linux_soname_links_copy_regular_bytes_and_reject_escape_and_conflicts() {
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink as symlink_file;
+    #[cfg(windows)]
+    use std::os::windows::fs::symlink_file;
+
+    let temp = tempfile::tempdir().unwrap();
+    let build = temp.path().join("build");
+    fs::create_dir(&build).unwrap();
+    let library = temp.path().join("libcore.so");
+    fs::write(&library, sectionless_elf("libSDL3.so.0", "$ORIGIN")).unwrap();
+    let actual = build.join("libSDL3.so.0.4.0");
+    fs::write(&actual, sectionless_elf("libc.so.6", "$ORIGIN")).unwrap();
+    let soname = build.join("libSDL3.so.0");
+    let unversioned = build.join("libSDL3.so");
+    symlink_file("libSDL3.so.0.4.0", &soname).unwrap();
+    symlink_file("libSDL3.so.0", &unversioned).unwrap();
+    let target = "x86_64-unknown-linux-gnu";
+    assert_eq!(
+        binary::runtime_source(&unversioned, &build, target).unwrap(),
+        fs::canonicalize(&actual).unwrap()
+    );
+    assert!(plain(&soname).is_err());
+    let entries = binary::closure(&library, std::slice::from_ref(&build), target).unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].1, "libSDL3.so.0");
+    let packaged = temp.path().join("packaged");
+    fs::create_dir(&packaged).unwrap();
+    copy_entries(&entries, &packaged).unwrap();
+    let bundled = packaged.join("libSDL3.so.0");
+    assert!(!fs::symlink_metadata(&bundled).unwrap().is_symlink());
+    assert_eq!(sha256(&bundled).unwrap(), sha256(&actual).unwrap());
+    binary::closure(&library, &[packaged], target).unwrap();
+
+    let conflicting = temp.path().join("conflicting");
+    fs::create_dir(&conflicting).unwrap();
+    fs::write(conflicting.join("libSDL3.so.0"), b"different library").unwrap();
+    assert!(binary::closure(&library, &[build.clone(), conflicting], target).is_err());
+
+    fs::remove_file(&soname).unwrap();
+    let outside = temp.path().join("outside.so");
+    fs::write(&outside, sectionless_elf("libc.so.6", "$ORIGIN")).unwrap();
+    symlink_file("../outside.so", &soname).unwrap();
+    assert!(binary::closure(&library, std::slice::from_ref(&build), target).is_err());
+    fs::remove_file(&soname).unwrap();
+    symlink_file("missing.so", &soname).unwrap();
+    assert!(binary::closure(&library, std::slice::from_ref(&build), target).is_err());
+    fs::remove_file(&soname).unwrap();
+    symlink_file("libSDL3.so", &soname).unwrap();
+    assert!(binary::closure(&library, &[build], target).is_err());
+}
+
+#[test]
 fn elf_dynamic_segments_resolve_needed_and_runpath_without_section_headers() {
     let temp = tempfile::tempdir().unwrap();
     let library = temp.path().join("libsynthetic.so");
@@ -847,7 +901,7 @@ fn macho_runtime_bundles_keep_architecture_dependency_and_query_checks() {
     .unwrap();
     assert_eq!(
         binary::closure(&module, &[temp.path().into()], "x86_64-apple-darwin").unwrap(),
-        vec![dependency]
+        vec![(dependency, "libpython3.12.dylib".into())]
     );
     bytes[12..16].copy_from_slice(&object::macho::MH_OBJECT.0.to_le_bytes());
     fs::write(&module, bytes).unwrap();

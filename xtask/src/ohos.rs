@@ -192,12 +192,7 @@ fn stage_inputs(
         &package::search_dirs(inv, result)?,
         &result.target,
     )? {
-        let name = dependency
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
-        native.push((dependency, name));
+        native.push(dependency);
     }
     fs::create_dir_all(libs.join(ABI))?;
     copy_entries(&native, &libs.join(ABI))?;
