@@ -380,11 +380,7 @@ fn identity(inv: &Inventory, component: &str, version: &str) -> Result<Identity>
             .map(crate::cores::CoreSource::identity)
     };
     if let Some(identity) = &external {
-        crate::metadata::require_release_sequence(
-            &inv.root.join("Metadata"),
-            component,
-            identity,
-        )?;
+        crate::metadata::require_release_sequence(&inv.root.join("Metadata"), component, identity)?;
     }
     let (tag, core_source) = if component == "manager" {
         (format!("manager-v{version}"), Value::Null)
@@ -914,7 +910,9 @@ mod tests {
             "sha256":"a".repeat(64), "size":1,
         });
         let temp = tempfile::tempdir().unwrap();
-        let catalog = temp.path().join("Metadata/engines/cores/rfvp/windows-x86_64");
+        let catalog = temp
+            .path()
+            .join("Metadata/engines/cores/rfvp/windows-x86_64");
         fs::create_dir_all(&catalog).unwrap();
         fs::write(
             catalog.join("published.json"),
