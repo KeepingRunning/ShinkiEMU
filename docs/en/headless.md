@@ -50,7 +50,9 @@ C ABI v3 gives the core ownership of its game clock and producer thread. It does
 
 ## Replay
 
-`--script replay.json` loads a JSON array of existing protocol `InputMessage` records. Sequence numbers strictly increase, ticks never decrease and session stays constant. Pointer coordinates use the protocol's normalized 0..65535 range, mapped to the core's logical game surface. A click is move + press + release:
+`--script replay.json` loads a JSON array of existing protocol `InputMessage` records. Sequence numbers strictly increase, ticks never decrease and session stays constant. Pointer coordinates use the protocol's normalized 0..65535 range. A click is move + press + release:
+
+Known limitation: the current source maps pointer coordinates using logical dimensions, but C ABI v3 requires raster dimensions. Clicks are misplaced when those dimensions differ, for example logical 1920×1080 versus raster 1280×720. Pointer replay is not validated for that case; a separate correction is pending. This source-only runner is not included in Manager beta.7.
 
 ```json
 [

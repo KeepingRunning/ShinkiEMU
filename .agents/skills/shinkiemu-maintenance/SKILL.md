@@ -227,7 +227,9 @@ shinki-emu-headless ui --page library|cores|patches|settings --language zh-CN|en
 
 **退出码。** 0 成功；1 运行、输入、文件、ABI 错误或没出帧；2 命令行语法错误（仅独立二进制）；3 基线或回放断言失败。
 
-**脚本。** JSON 数组，每项一条 `InputMessage`：`sequence` 严格递增，`tick` 不减，`session` 不变。指针坐标是归一化的 0..65535，映射到核心的逻辑画面。一次点击是 move + press + release，按键的按下和抬起都要显式写：
+**脚本。** JSON 数组，每项一条 `InputMessage`：`sequence` 严格递增，`tick` 不减，`session` 不变。指针坐标是归一化的 0..65535。一次点击是 move + press + release，按键的按下和抬起都要显式写：
+
+已知限制：当前 runner 按 logical 尺寸映射指针，而 C ABI v3 要求 raster 尺寸；两者不同时会点偏，不能报告为该场景回放已验证。修复由独立提交完成，runner 仅在源码中提供，不属于 beta.7 下载包。
 
 ```json
 [

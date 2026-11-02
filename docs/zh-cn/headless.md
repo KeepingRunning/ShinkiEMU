@@ -40,6 +40,8 @@ C ABI v3 由核心持有游戏时钟，没有确定性单步接口。`--frames` 
 
 脚本是 `InputMessage` JSON 数组，每项包括 `schema`、固定 `session`、递增 `sequence`、不下降的 `tick` 和 `event`。支持 `resume`、`focus`、`keyboard`、`ime_commit`、`pointer_move`、`pointer_button`、`wheel`、`advance_ticks`、`await`、`checkpoint`。点击由移动、按下和释放组成；指针坐标是归一化的 0..65535。按键使用 `Enter`、`KeyA`、`ControlLeft` 等物理名称，按下与释放分别记录。
 
+已知限制：当前源码按 logical 尺寸映射指针坐标，而 C ABI v3 要求 raster 尺寸。两者不同时会点偏，例如 logical 1920×1080、raster 1280×720；不能将这种场景写成指针回放已验证。修复另行提交，这个仅源码的运行器不在 Manager beta.7 包中。
+
 `checkpoint` 的 `id` 同时用作截图名和基线文件名，不能重复或使用保留的 `frame-` 前缀。`await` 支持观察 `frame` 是否存在，以及 `frame.sha256` 是否等于 `value_hash`，在 `timeout_ticks` 内未满足即断言失败。`continue_at_match` 必须为 false；原生时钟无法回退。等待期间仍按计划截图。时间线要留够加载与断言的时间。
 
 ## 输出约定
