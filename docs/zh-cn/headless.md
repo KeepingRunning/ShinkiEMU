@@ -22,6 +22,8 @@ shinki-emu-headless compare --actual artifacts/compare/frame-000180.png --baseli
 
 `--core` 接受 ZIP、解压目录、动态库或宿主静态注册的核心 ID。`--no-default-features` 可构建不带 Manager UI 的核心运行器；`--features static-cmvs` 提供静态 `shinki.emu.cmvs`，`--features static-siglus` 提供与 Manager 同 pin 的静态 `siglus_rs`。Manager 对应命令为 `shinki-emu-manager headless ...`，与图形界面共用 `static_cores::STATIC_CORES` 清单。
 
+用 `cargo build -p shinki-emu-manager --features static-cmvs` 构建 Manager，才能在其 GUI owner 和 `shinki-emu-manager headless --core shinki.emu.cmvs ...` 中注册 CMVS。单独启用独立运行器的 feature 不会替 Manager 注册核心。桌面版本未启用该可选 feature 时，仍使用原有的动态核心发现。
+
 运行器先把整个游戏复制到独立临时目录，再把副本路径交给核心。游戏目录内的存档与配置写入只影响副本；不把原存档目录作为可写路径传给核心。大游戏需要足够的临时空间。符号链接和特殊文件会被拒绝。核心是本机可执行代码，这不是操作系统沙箱；配置中明确指向游戏目录外的路径应改为临时路径。
 
 核心在单独子进程中启动，HOME、AppData、XDG、缓存与 TEMP 指向临时位置，原生线程启动后不再修改进程环境。核心声明字符串 `save_root` 时，运行器始终把它绑定到独立临时存档目录，覆盖传入值。输出目录不能位于源游戏内，也不能与基线目录相同。
@@ -40,7 +42,7 @@ C ABI v3 由核心持有游戏时钟，没有确定性单步接口。`--frames` 
 
 脚本是 `InputMessage` JSON 数组，每项包括 `schema`、固定 `session`、递增 `sequence`、不下降的 `tick` 和 `event`。支持 `resume`、`focus`、`keyboard`、`ime_commit`、`pointer_move`、`pointer_button`、`wheel`、`advance_ticks`、`await`、`checkpoint`。点击由移动、按下和释放组成；指针坐标是归一化的 0..65535。按键使用 `Enter`、`KeyA`、`ControlLeft` 等物理名称，按下与释放分别记录。
 
-已知限制：当前源码按 logical 尺寸映射指针坐标，而 C ABI v3 要求 raster 尺寸。两者不同时会点偏，例如 logical 1920×1080、raster 1280×720；不能将这种场景写成指针回放已验证。修复另行提交，这个仅源码的运行器不在 Manager beta.7 包中。
+归一化指针先映射到当前显示帧的光栅像素，再由核心转换为逻辑坐标；逻辑尺寸与光栅尺寸不同时，运行器不重复缩放。
 
 `checkpoint` 的 `id` 同时用作截图名和基线文件名，不能重复或使用保留的 `frame-` 前缀。`await` 支持观察 `frame` 是否存在，以及 `frame.sha256` 是否等于 `value_hash`，在 `timeout_ticks` 内未满足即断言失败。`continue_at_match` 必须为 false；原生时钟无法回退。等待期间仍按计划截图。时间线要留够加载与断言的时间。
 

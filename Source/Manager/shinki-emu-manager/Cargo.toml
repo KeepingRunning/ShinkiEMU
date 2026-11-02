@@ -19,12 +19,14 @@ default = ["store-steam", "store-dlsite", "store-dmm"]
 store-steam = ["dep:shinki-emu-steam"]
 store-dlsite = ["dep:shinki-emu-dlsite"]
 store-dmm = ["dep:shinki-emu-dmm"]
+static-cmvs = ["dep:shinki-emu-cmvs"]
 
 [dependencies]
 shinki-emu-manager-core = { path = "../shinki-emu-manager-core" }
 shinki-emu-headless = { path = "../../Programs/shinki-emu-headless" }
 shinki-emu-manager-ui-slint = { path = "../shinki-emu-manager-ui-slint" }
 shinki-emu-abi = { path = "../../FamilyApi/shinki-emu-abi" }
+shinki-emu-cmvs = { path = "../../Families/shinki-emu-cmvs", optional = true }
 shinki-emu-patch = { path = "../../Tools/shinki-emu-patch" }
 shinki-emu-musica-keys = { path = "../../Families/shinki-emu-musica-keys" }
 mlua.workspace = true

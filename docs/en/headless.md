@@ -19,6 +19,8 @@ cargo clippy -p shinki-emu-headless --all-targets -- -D warnings
 
 `--no-default-features` builds the core runner without the Manager UI. `--features static-cmvs` embeds CMVS under `shinki.emu.cmvs`; `--features static-siglus` embeds the same pinned Siglus core used by Manager under `siglus_rs`. Manager shares the runner through `shinki-emu-manager headless ...` and `shinki-emu-manager headless-ui ...`; its embedded core IDs come from the same `static_cores::STATIC_CORES` inventory used by the graphical owner. The library's `run_cli(arguments, STATIC_CORES)` entry accepts any host's linked inventory.
 
+Build Manager with `cargo build -p shinki-emu-manager --features static-cmvs` to register `shinki.emu.cmvs` in both its GUI owner and `shinki-emu-manager headless --core shinki.emu.cmvs ...`. Enabling the standalone runner's feature alone does not register CMVS in Manager. Desktop builds without this optional feature keep their dynamic-core discovery.
+
 ## Core acceptance and captures
 
 ```powershell
@@ -50,9 +52,7 @@ C ABI v3 gives the core ownership of its game clock and producer thread. It does
 
 ## Replay
 
-`--script replay.json` loads a JSON array of existing protocol `InputMessage` records. Sequence numbers strictly increase, ticks never decrease and session stays constant. Pointer coordinates use the protocol's normalized 0..65535 range. A click is move + press + release:
-
-Known limitation: the current source maps pointer coordinates using logical dimensions, but C ABI v3 requires raster dimensions. Clicks are misplaced when those dimensions differ, for example logical 1920×1080 versus raster 1280×720. Pointer replay is not validated for that case; a separate correction is pending. This source-only runner is not included in Manager beta.7.
+`--script replay.json` loads a JSON array of existing protocol `InputMessage` records. Sequence numbers strictly increase, ticks never decrease and session stays constant. Pointer coordinates use the protocol's normalized 0..65535 range, mapped to the displayed frame's raster pixels as required by the native ABI. The core maps raster to logical coordinates; the runner must not apply that scaling twice. A click is move + press + release:
 
 ```json
 [

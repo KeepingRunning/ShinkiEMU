@@ -11198,6 +11198,7 @@ dependencies = [
  "shinki-emu-ReMinori",
  "shinki-emu-abi",
  "shinki-emu-art3m1s-core",
+ "shinki-emu-cmvs",
  "shinki-emu-dlsite",
  "shinki-emu-dmm",
  "shinki-emu-ethornell-rs",
