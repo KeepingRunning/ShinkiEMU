@@ -173,7 +173,7 @@ def main():
                 raise ValueError(f'APK fork pin differs from product inventory: {entry["id"]}')
         cmvs_licenses = {}
         for relative in selected['shinki.emu.cmvs']['licenses']:
-            content = archive.read('assets/' + relative)
+            content = archive.read('assets/licenses/shinki.emu.cmvs/' + relative)
             if content != (args.root / relative).read_bytes():
                 raise ValueError(f'APK CMVS license differs from source: {relative}')
             cmvs_licenses[relative] = hashlib.sha256(content).hexdigest()

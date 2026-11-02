@@ -127,7 +127,7 @@ cargo xtask package --target aarch64-linux-android --manager --version 0.1.0-bet
 
 每次构建先读取 `cargo ndk-env` 的工具链环境，再直接调用 `Cargo --locked` 编译，静态链接 `static_manager_targets` 含该三元组的核心（RFVP、Siglus、Shinki Musica、CMVS、Artemis、Impacto、Ren’Py、KiriKiri），并在构建记录所指 target 目录的 `android-inputs/` 中收集 JNI 运行依赖、元数据和许可。打包需要**两个三元组**来自同一源码提交的 release 构建记录。Gradle 随后生成含 `arm64-v8a`、`x86_64` 和 `assets/metadata/` 的通用 APK；xtask 检查签名及每个原生库的依赖闭包。没有签名密钥时，输出为 `ShinkiEMU-<version>-android-universal-debug-signed.apk`，这是 debug 签名的 CI 测试包，不是正式安装包。测试密钥生成在 `GRADLE_USER_HOME` 中。证书验证器的 Kotlin 组件由 Gradle 从官方 Maven archive 获取，版本与 `Cargo.lock` 中的 Android shim 同步，不再从 Cargo 源码目录复制 AAR。
 
-CMVS 通过同一静态注册表调用 `cmvs_query`，启用 `video-ffmpeg`，SDK 解码器复用 Musica 的 API 28 静态 FFmpeg vcpkg triplet 和 xtask 依赖通路。Manager 包的 `embedded-cores.json`、对应源码和许可证包含 CMVS。Android 实际运行按用户要求未验证。
+CMVS 通过同一静态注册表调用 `cmvs_query`，启用 `video-ffmpeg`，SDK 解码器复用 Musica 的 API 28 静态 FFmpeg vcpkg triplet 和 xtask 依赖通路。Manager 包的 `embedded-cores.json`、对应源码和许可证包含 CMVS。APK 验证会逐字节比对 `assets/licenses/shinki.emu.cmvs/` 中的许可证与清单输入。Android 实际运行按用户要求未验证。
 
 首次下载 Gradle 依赖后，可设置 `SHINKI_EMU_GRADLE_OFFLINE=1` 传入 `--offline`；每次打包都使用新的输出目录。`cargo xtask ci --target aarch64-linux-android --component manager --report .work/android-ci.json` 构建两个 ABI，并报告实际 APK 路径。CI 先为两个三元组准备依赖，只运行一次该命令：`matrix --json --ci` 去掉了 `x86_64-linux-android` 的 Manager 行，那一行生成的是同一个通用 APK。Release 发布一个通用的 release 签名 APK，并保留对应的 sources ZIP。
 八核共用现有 MainActivity。KiriKiri 的原始 SDL/Cocos Java 辅助类使用私有包名，原生闭包隔离 SDL、FFmpeg 与 JNI 符号；宿主在注册查询前初始化真实 JavaVM、Activity 和资源目录。`Tools/verify-krkr-android.py` 检查实际双 ABI APK 的 DEX/JNI、原始资源和 Spine 闭包。资源解压与打包检查保持 32 MiB 单文件上限及有界流式处理，包含 Impacto 原始 17,032,620 字节字体。debug 签名证明不能代替正式发布签名。
