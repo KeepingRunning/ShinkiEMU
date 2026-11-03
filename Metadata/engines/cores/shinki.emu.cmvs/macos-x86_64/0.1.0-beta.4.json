@@ -1,0 +1,13 @@
+{
+  "abi": "shinki.emu.native.c.v3",
+  "display_name": "Shinki CMVS",
+  "family_name": "CMVS",
+  "license": "MIT OR Apache-2.0",
+  "platform": "macos-x86_64",
+  "plugin_id": "shinki.emu.cmvs",
+  "release_tag": "core-shinki-emu-cmvs-v0.1.0-beta.4",
+  "sha256": "012c311e716c9cd81d4b6319296be8efa0b98c818259f4e342e7c78c5e4fea7a",
+  "size": 26172810,
+  "url": "https://github.com/Project-Shinkirou/ShinkiEMU/releases/download/core-shinki-emu-cmvs-v0.1.0-beta.4/shinki-emu-core-shinki-emu-cmvs-0.1.0-beta.4-macos-x86_64.zip",
+  "version": "0.1.0-beta.4"
+}

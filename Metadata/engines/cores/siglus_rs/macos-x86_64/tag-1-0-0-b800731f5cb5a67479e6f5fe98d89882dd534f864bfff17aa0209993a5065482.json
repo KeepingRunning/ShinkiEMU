@@ -1,0 +1,27 @@
+{
+  "abi": "shinki.emu.native.c.v3",
+  "display_name": "siglus-rs",
+  "family_name": "SiglusEngine",
+  "identity": {
+    "adapter": {
+      "branch": "fix/main-ci-android",
+      "commit": "a0aa629fb5ce467e91c83e2be0fffb3320404527",
+      "repo": "https://github.com/Project-Shinkirou/siglus_rs"
+    },
+    "release_sequence": 2,
+    "upstream": {
+      "commit": "5f358ef1360b0439e92aed2b749e8f25d8721954",
+      "ref_kind": "tag",
+      "ref_name": "1.0.0",
+      "repo": "https://github.com/xmoezzz/siglus_rs"
+    }
+  },
+  "license": "MPL-2.0",
+  "platform": "macos-x86_64",
+  "plugin_id": "siglus_rs",
+  "release_tag": "core-siglus-rs-tag-1-0-0-b800731f5cb5a67479e6f5fe98d89882dd534f864bfff17aa0209993a5065482",
+  "sha256": "1c847e6fe16524650fad2add3bc9740807a976c044c294f15f35ae2ddc412cf4",
+  "size": 13109508,
+  "url": "https://github.com/Project-Shinkirou/ShinkiEMU/releases/download/core-siglus-rs-tag-1-0-0-b800731f5cb5a67479e6f5fe98d89882dd534f864bfff17aa0209993a5065482/shinki-emu-core-siglus-rs-tag-1-0-0-b800731f5cb5a67479e6f5fe98d89882dd534f864bfff17aa0209993a5065482-macos-x86_64.zip",
+  "version": "tag-1-0-0-b800731f5cb5a67479e6f5fe98d89882dd534f864bfff17aa0209993a5065482"
+}
