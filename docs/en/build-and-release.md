@@ -58,6 +58,8 @@ cargo xtask test
 
 Select exactly one of `--manager`, `--core` and `--all-cores` for build. Check takes one Manager/core selection; tests run on the host and have no `--target` flag. Test without a selection runs xtask and build-helper tests. Native regressions may require real GPU/audio devices and public fixtures.
 
+xtask resolves the system temporary root before creating scratch files and directories. On macOS this supports the default `/var/folders/...` path and a symlinked `TMPDIR` without changing that variable. Package inputs still reject links and special files; atomic publication stages beside the destination on the same filesystem.
+
 Each core owns a real `build.rs`. It validates target inputs and records `core-build.json` in Cargo's `OUT_DIR`. C++ adapters drive their native CMake builds; pure Rust cores are compiled by Cargo. Build scripts do not recursively run Cargo or publish releases. xtask reads `compiler-artifact` and `build-script-executed` JSON, not guessed target paths. Components build independently under `.work/target/<target>/<component>`; receipts are under `.work/build/`. Artemis uses Luau on every platform and shares Manager's runtime when statically embedded on Android.
 
 Manager collects embedded build manifests only from the current target's `static_manager_targets`, matched to exact Cargo package IDs. A core used merely as a resource reader is not a static registration. Selected manifests still require matching plugin, target, profile and artifact kind; missing, ambiguous or duplicate records fail the build.

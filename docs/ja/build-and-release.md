@@ -48,6 +48,8 @@ cargo xtask test
 
 build では `--manager`、`--core`、`--all-cores` のいずれか 1 つを必ず指定します。check は Manager または単一のコアを選びます。test はホスト上で実行され、`--target` 引数はありません。選択なしの test は xtask とビルド補助ライブラリのテストを実行します。ネイティブ挙動の回帰テストには、実際の GPU、音声デバイス、公開フィクスチャーが必要な場合があります。
 
+xtask は一時ファイルやディレクトリを作成する前に、システムの一時ディレクトリの実体パスを解決します。macOS の既定の `/var/folders/...` やシンボリックリンクを含む `TMPDIR` を、環境変数の変更なしで使用できます。パッケージ入力のリンクや特殊ファイルは引き続き拒否し、アトミックな公開用の作業領域は出力先と同じファイルシステム上の隣接ディレクトリに置きます。
+
 各コアの `build.rs` は自身のターゲットと入力を検証し、Cargo の `OUT_DIR` に `core-build.json` を書き出します。C++ のアダプターはこれを通じて実際の CMake ビルドを駆動し、純粋な Rust コアはこれまでどおり Cargo がコンパイルします。ビルドスクリプトが Cargo を再帰的に実行したり、Release を公開したりすることはありません。xtask は `compiler-artifact` と `build-script-executed` の JSON から実際の成果物を読み取り、target のパスを推測しません。各コンポーネントは `.work/target/<target>/<component>` を使い、ビルド記録は `.work/build/` に書き込まれます。Artemis はすべてのプラットフォームで Luau を使用し、Android への静的組み込みでは Manager とランタイムを共有します。
 
 Manager は現在のターゲットの `static_manager_targets` と正確な Cargo package ID に基づいて組み込みマニフェストを収集します。リソースの読み取りに使うだけのコア依存は静的登録ではありません。選択した記録の plugin、ターゲット、profile、成果物の種類は引き続き厳密に照合し、欠落・曖昧・重複する記録ではビルドを失敗させます。

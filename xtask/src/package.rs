@@ -1107,7 +1107,7 @@ pub(crate) fn android_inputs(inv: &Inventory, result: &BuildResult, stage: &Path
         .find(|(target, _)| *target == result.target)
         .map(|(_, abi)| *abi)
         .context("unsupported Android ABI")?;
-    let temp = tempfile::tempdir()?;
+    let temp = crate::temporary::directory()?;
     let metadata = metadata_entries(inv, temp.path())?;
     let mut entries = vec![(
         result.library.clone(),
@@ -1228,7 +1228,7 @@ fn package_android(
         prepare_android_debug_key()?;
     }
     let private_key = if let Some(encoded) = encoded {
-        let key = tempfile::NamedTempFile::new()?;
+        let key = crate::temporary::file()?;
         fs::write(
             key.path(),
             base64::engine::general_purpose::STANDARD.decode(encoded.trim())?,
@@ -1257,7 +1257,7 @@ fn package_android(
                 bail!("both Android ABIs require release builds from the same source commit");
             }
             built.require_product_version(version)?;
-            let inputs = tempfile::tempdir()?;
+            let inputs = crate::temporary::directory()?;
             android_inputs(inv, &built, inputs.path())?;
             // Shared metadata/license bytes must be identical for both ABIs.
             for (source, name) in tree(inputs.path())? {
@@ -1387,7 +1387,7 @@ fn verify_android_apk(apk: &Path, staged: &Path) -> Result<()> {
             .args(["verify", "--verbose", "--print-certs"])
             .arg(apk),
     )?;
-    let extracted = tempfile::tempdir()?;
+    let extracted = crate::temporary::directory()?;
     let mut archive = zip::ZipArchive::new(fs::File::open(apk)?)?;
     let mut metadata = false;
     for i in 0..archive.len() {

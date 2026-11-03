@@ -54,7 +54,7 @@ fn event(directory: &Path, fields: &BTreeMap<String, String>) -> PathBuf {
 }
 
 fn reject(fields: &BTreeMap<String, String>, message: &str) {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let event = event(temp.path(), fields);
     let out = temp.path().join("review");
     let error = intake(IntakeKind::Patch, &event, &out).unwrap_err();
@@ -68,7 +68,7 @@ fn reject(fields: &BTreeMap<String, String>, message: &str) {
 
 #[test]
 fn valid_luau_submission_generates_entry_script_and_approval_tree() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let mut fields = submission();
     let download = json!({"url":"https://example.org/data","sha256":digest(b"x"),"size":1});
     fields.insert("Downloads (JSON)".into(), json!([download]).to_string());
@@ -182,7 +182,7 @@ fn syntax_check_never_executes_submission() {
         "Luau script".into(),
         "error('intake must compile without executing this script')".into(),
     );
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let event = event(temp.path(), &fields);
     intake(IntakeKind::Patch, &event, &temp.path().join("accepted")).unwrap();
 }
