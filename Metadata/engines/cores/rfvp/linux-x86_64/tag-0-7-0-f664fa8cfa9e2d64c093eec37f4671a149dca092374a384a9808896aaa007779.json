@@ -1,0 +1,27 @@
+{
+  "abi": "shinki.emu.native.c.v3",
+  "display_name": "RFVP",
+  "family_name": "FVP",
+  "identity": {
+    "adapter": {
+      "branch": "shinki",
+      "commit": "cc0cc5c9648d481693cfa353c11e1d61311f6246",
+      "repo": "https://github.com/Project-Shinkirou/rfvp"
+    },
+    "release_sequence": 2,
+    "upstream": {
+      "commit": "99435f22e94eaec27c0c1b9f22cc2a6b1910d7d1",
+      "ref_kind": "tag",
+      "ref_name": "0.7.0",
+      "repo": "https://github.com/xmoezzz/rfvp"
+    }
+  },
+  "license": "MPL-2.0",
+  "platform": "linux-x86_64",
+  "plugin_id": "rfvp",
+  "release_tag": "core-rfvp-tag-0-7-0-f664fa8cfa9e2d64c093eec37f4671a149dca092374a384a9808896aaa007779",
+  "sha256": "47415b0dda0d1aa0bf21afb65e613545b9e907a8ee4146c7beef20fc7da35b18",
+  "size": 28597579,
+  "url": "https://github.com/Project-Shinkirou/ShinkiEMU/releases/download/core-rfvp-tag-0-7-0-f664fa8cfa9e2d64c093eec37f4671a149dca092374a384a9808896aaa007779/shinki-emu-core-rfvp-tag-0-7-0-f664fa8cfa9e2d64c093eec37f4671a149dca092374a384a9808896aaa007779-linux-x86_64.zip",
+  "version": "tag-0-7-0-f664fa8cfa9e2d64c093eec37f4671a149dca092374a384a9808896aaa007779"
+}
