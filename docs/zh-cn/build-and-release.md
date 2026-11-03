@@ -62,7 +62,7 @@ Windows 已验收的图形依赖组合是 wgpu-hal 30.0.1、gpu-allocator 0.28.0
 
 编译指定版本的 Manager 前，先将 `SHINKI_EMU_PRODUCT_VERSION` 设为与 `package`/`release` 相同的 SemVer。未设置时，xtask 使用 CI 已有的 `SHINKI_EMU_CI_VERSION`；两者同时存在必须一致。都未设置的开发构建才使用 Manager package version，不为发行标签修改 `Cargo.toml`。Manager 构建脚本写出 `OUT_DIR/manager-build-version.json`，xtask 核对实际编译身份，并在 build/package/release 记录中保存 `product_version`。缺失、错版或 Android 两个 ABI 版本不同都会拒绝打包；应以目标版本正常重建，不能给旧 receipt 改标签。Apple cross 容器转发同一个产品版本变量。
 
-beta.7 已知问题：官方 Windows 二进制内部自报 `0.1.0-beta.6`，而发行包标签为 beta.7。旧 tag 和资产保持不变。上述编译注入与 receipt 校验用于后续构建，下一版 Manager 发布说明保留这项已知问题记录。
+beta.7 已知问题：官方 Windows 二进制内部自报 `0.1.0-beta.6`，而发行包标签为 beta.7。旧 tag 和资产保持不变。上述编译注入与 receipt 校验用于后续构建，[Manager beta.8 发布说明](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.8)已保留这项已知问题记录。
 
 Manager 在创建网络客户端和工作线程前，仅初始化一次进程级 Rustls 加密实现，选择与 reqwest 0.13 和平台证书校验栈一致的 AWS-LC。VNDB 当前使用的 reqwest 0.12 还会启用 ring，不能依靠 feature 自动判断默认实现。Steam 等 provider 自身不安装进程级默认实现。
 
@@ -290,7 +290,18 @@ Sena 按已批准的上游分发策略保留 MS PGothic 字体。包内 `license
 
 Manager 与自研 CMVS/Musica 保留各自的 SemVer 和 `manager-v<semver>`、`core-<slug>-v<semver>` 标签，仍需 `--version`。RFVP、Artemis 等第三方核心从 `build/cores.toml` 计算版本，不传 `--version`。`cargo xtask release --component <id> --dry-run` 只核验上游 ref、完整提交与适配分支 pin，不构建或发布；`release --target <三元组>` 在 `.work/release/<tag>/<目标>/` 写入二进制 ZIP、源码 ZIP 和 `release.json`。被阻止的目标及 `publish_blocked` 核心不产生文件。
 
-Manager [0.1.0-beta.7](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.7) 已从 `fd9c78a4cabf1d80430744e4bb5d140c2a837bb9` 公开全部九个目标。同提交的 CI、托管准备和 OHOS 交接均成功，每份安装包及对应源码都属于该产品提交。Android 内置七核，使用既有正式发行证书 `c415bd462d26574758ed455055ff528a3bd6036e39d5ac6887308f8cf69e97fc`。iOS 保持 RFVP、Siglus、Shinki Musica、Sena、Ethornell、ReMinori 六核，设备和模拟器包仍为测试产物；OHOS 保持 SDK debug-test-PKI 测试签名边界。来自 `fef31a82104a371aa919641f1fe08c65285e5267` 的 beta.6 及更早公开 tag、资产不改写。后续仅源码中的功能和核心 pin 更新不属于 beta.7 下载包。
+**当前版本：Manager 0.1.0-beta.8。** tag [`manager-v0.1.0-beta.8`](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.8) 指向源码提交 [`051a05bceff139e60ef6f973781ffa1f093fb2fc`](https://github.com/Project-Shinkirou/ShinkiEMU/commit/051a05bceff139e60ef6f973781ffa1f093fb2fc)。本版于 2026 年 11 月 3 日 07:04:31 UTC 公开，共有 19 个资产：九个平台包、九份对应源码包和 OHOS 交接记录。[同提交 CI](https://github.com/Project-Shinkirou/ShinkiEMU/actions/runs/41543961859) 全矩阵通过，[OHOS 交接 gate](https://github.com/Project-Shinkirou/ShinkiEMU/actions/runs/41576487998) 也已通过。
+
+| 平台 | beta.8 实际交付 |
+| --- | --- |
+| Windows x86_64、Linux x86_64、macOS aarch64/x86_64 | Manager 桌面包，独立核心另行安装。 |
+| Android | 一个通用正式发行 APK，包含 aarch64 和 x86_64 两个 ABI，内嵌 8 核：RFVP、Siglus、Artemis、Musica、KiriKiri2、CMVS（本版新增）、Impacto、Ren'Py。 |
+| iOS | 三个测试包：aarch64 device-test、aarch64 simulator-test、x86_64 simulator-test。每包内嵌 6 核：RFVP、Siglus、Musica、Sena、Ethornell、ReMinori。 |
+| OHOS aarch64 | 实验性 debug-test 签名 HAP，内嵌 1 核 Musica，使用 OpenHarmony SDK 测试 PKI。设备/模拟器启动和零售设备安装性仍未验证。 |
+
+Android 正式发行证书 SHA256 仍为 `c415bd462d26574758ed455055ff528a3bd6036e39d5ac6887308f8cf69e97fc`。发行资产清单和该源码提交的 [`build/cores.toml`](https://github.com/Project-Shinkirou/ShinkiEMU/blob/051a05bceff139e60ef6f973781ffa1f093fb2fc/build/cores.toml) 记录交付目标与内嵌核心；Android 的两个 ABI 共用一个 APK。新 Musica 补丁需要 Musica 核心 `0.1.0-beta.5` 或更高版本。**Manager beta.7 及更早的公开 tag 和资产保持不变。**
+
+**上一版：Manager [0.1.0-beta.7](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.7)。** 本版从 `fd9c78a4cabf1d80430744e4bb5d140c2a837bb9` 公开九个目标。Android 内嵌七核；iOS 的三个设备/模拟器测试包内嵌六核；OHOS 使用 SDK debug-test-PKI 测试签名。官方 Windows 二进制内部自报 `0.1.0-beta.6`。后续源码功能和核心 pin 更新不改变这些历史下载包。
 
 [KiriKiri2 序号 2 发行版](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/core-kirikiroid2-web-branch-web-1e3603089b4951c8e2831d978ea6fe5a8097bceeb0a56fdeb65aa3953e67eecf) 已从产品 `fe4e6f2d82c8b61f3f14e13d48af6d57722b9952`、适配提交 `d72046c28e6ada623acdb1d72f7075edd488797d` 公开 Windows、Linux 和两种 macOS 架构。相同适配已静态嵌入 beta.7 Android，不代表 KiriKiri 已进入 iOS 或 OHOS。桌面包附对应源码和原许可证，FMOD 条款单独保留。
 

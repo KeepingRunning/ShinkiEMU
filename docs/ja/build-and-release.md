@@ -56,7 +56,7 @@ Manager は現在のターゲットの `static_manager_targets` と正確な Car
 
 版を指定して Manager をコンパイルする前に、`SHINKI_EMU_PRODUCT_VERSION` を `package`/`release` と同じ SemVer に設定します。未設定なら CI の既存の `SHINKI_EMU_CI_VERSION` を使い、両方ある場合は一致が必要です。どちらもない開発ビルドだけが Manager の package version を使います。リリース名のために `Cargo.toml` を変更しません。Manager の build script が書く `OUT_DIR/manager-build-version.json` を xtask が照合し、build/package/release 記録の `product_version` に保持します。版が不明・不一致の場合や Android の両 ABI で版が異なる場合は拒否します。古い receipt のラベルを変えず、目的の版で通常の再ビルドを行ってください。Apple cross コンテナも同じ製品版の変数を転送します。
 
-beta.7 の既知の問題：公式 Windows バイナリは内部の版を `0.1.0-beta.6` と報告しますが、配布パッケージのラベルは beta.7 です。既存タグと添付ファイルは変更しません。上記のコンパイル時注入と receipt 検証で後続ビルドを修正し、次の Manager リリースノートにもこの問題を記載します。
+beta.7 の既知の問題：公式 Windows バイナリは内部の版を `0.1.0-beta.6` と報告しますが、配布パッケージのラベルは beta.7 です。既存タグと添付ファイルは変更しません。上記のコンパイル時注入と receipt 検証で後続ビルドを修正し、[Manager beta.8 リリースノート](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.8)にもこの問題を記載しています。
 
 Manager は、ネットワーククライアントやワーカースレッドを作る前に、プロセス全体の Rustls 暗号プロバイダーを一度だけ初期化します。選ぶのは、reqwest 0.13 とプラットフォームの証明書検証スタックに合わせた AWS-LC です。VNDB が現在使っている reqwest 0.12 は ring も有効にするため、feature による自動選択には頼れません。Steam などの provider は、プロセス全体の既定実装を自分ではインストールしません。
 
@@ -271,7 +271,18 @@ Manager のパッケージングでは、ターゲットプラットフォーム
 
 Manager と自作 CMVS/Musica は独立した SemVer および `manager-v<semver>`、`core-<slug>-v<semver>` タグを維持し、`--version` を指定します。RFVP、Artemis を含む外部コアは `build/cores.toml` から識別子を計算するため `--version` は省略します。`cargo xtask release --component <id> --dry-run` は元の upstream ref、完全なコミットと adapter pin の関係だけを検証し、ビルド・公開しません。`release --target <トリプル>` は `.work/release/<tag>/<target>/` にバイナリ ZIP、対応ソース ZIP と `release.json` を作成します。ブロック対象と `publish_blocked` コアは成果物を作りません。
 
-Manager [0.1.0-beta.7](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.7) は `fd9c78a4cabf1d80430744e4bb5d140c2a837bb9` から全9ターゲットを公開済みです。同じコミットの CI、ホスト準備、OHOS 引き渡しが成功し、全パッケージと対応ソースはこの製品コミットに対応します。Android は7コアを組み込み、既存の正式配布用証明書 `c415bd462d26574758ed455055ff528a3bd6036e39d5ac6887308f8cf69e97fc` を使います。iOS は RFVP、Siglus、Shinki Musica、Sena、Ethornell、ReMinori の6コアを維持し、実機用・シミュレーター用ともテスト成果物です。OHOS も SDK debug-test-PKI のテスト署名です。`fef31a82104a371aa919641f1fe08c65285e5267` からの beta.6 と、それ以前の公開タグ・添付ファイルは変更しません。後続のソース限定機能やコア pin 更新は beta.7 のダウンロードに含まれません。
+**現在の版：Manager 0.1.0-beta.8。** タグ [`manager-v0.1.0-beta.8`](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.8) はソースコミット [`051a05bceff139e60ef6f973781ffa1f093fb2fc`](https://github.com/Project-Shinkirou/ShinkiEMU/commit/051a05bceff139e60ef6f973781ffa1f093fb2fc) を指します。2026年11月3日 07:04:31 UTC に公開され、公開資産は19個です。内訳は9プラットフォームのパッケージ、9個の対応ソースアーカイブ、OHOS 引き渡し記録です。[同一コミットの CI](https://github.com/Project-Shinkirou/ShinkiEMU/actions/runs/41543961859) は全マトリクスで成功し、[OHOS 引き渡し gate](https://github.com/Project-Shinkirou/ShinkiEMU/actions/runs/41576487998) も成功しました。
+
+| プラットフォーム | beta.8 の実際の配布物 |
+| --- | --- |
+| Windows x86_64、Linux x86_64、macOS aarch64/x86_64 | Manager のデスクトップパッケージ。単独コアは別途インストールします。 |
+| Android | aarch64 と x86_64 の2 ABI を含む正式配布用の単一 universal APK。RFVP、Siglus、Artemis、Musica、KiriKiri2、CMVS（本版で追加）、Impacto、Ren'Py の8コアを組み込みます。 |
+| iOS | aarch64 device-test、aarch64 simulator-test、x86_64 simulator-test の3テストパッケージ。それぞれ RFVP、Siglus、Musica、Sena、Ethornell、ReMinori の6コアを組み込みます。 |
+| OHOS aarch64 | Musica の1コアを組み込む実験的な debug-test 署名 HAP。OpenHarmony SDK テスト PKI を使用します。実機/エミュレーター起動と市販デバイスへのインストールは未検証です。 |
+
+Android の正式配布用証明書 SHA256 は引き続き `c415bd462d26574758ed455055ff528a3bd6036e39d5ac6887308f8cf69e97fc` です。リリース資産一覧と当該ソースコミットの [`build/cores.toml`](https://github.com/Project-Shinkirou/ShinkiEMU/blob/051a05bceff139e60ef6f973781ffa1f093fb2fc/build/cores.toml) に配布対象と組み込みコアを記録しています。Android の2 ABI は同じ APK に含まれます。新しい Musica パッチには Musica コア `0.1.0-beta.5` 以降が必要です。**Manager beta.7 およびそれ以前の公開タグと資産は変更しません。**
+
+**前の版：Manager [0.1.0-beta.7](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.7)。** `fd9c78a4cabf1d80430744e4bb5d140c2a837bb9` から9ターゲットを公開しました。Android は7コア、iOS の実機/シミュレーター用3テストパッケージは6コアを組み込み、OHOS は SDK debug-test-PKI で署名しています。公式 Windows バイナリは内部版を `0.1.0-beta.6` と報告します。後続のソース機能やコア pin の更新によって、これらの過去の配布物は変わりません。
 
 [KiriKiri2 連番2のリリース](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/core-kirikiroid2-web-branch-web-1e3603089b4951c8e2831d978ea6fe5a8097bceeb0a56fdeb65aa3953e67eecf) は、製品 `fe4e6f2d82c8b61f3f14e13d48af6d57722b9952`、adapter `d72046c28e6ada623acdb1d72f7075edd488797d` から Windows、Linux、両 macOS アーキテクチャを公開しています。同じ adapter は beta.7 Android に静的組み込み済みですが、iOS や OHOS への KiriKiri 追加を意味しません。デスクトップ版には対応ソースと元ライセンスを同梱し、FMOD の条項を別に維持します。
 

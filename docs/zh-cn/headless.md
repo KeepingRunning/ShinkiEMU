@@ -7,7 +7,7 @@ description: 核心出帧验收、输入回放、截图基线比较和 Manager �
 
 `shinki-emu-headless` 复用 Manager 的 C ABI v3 loader、原生会话和 CPU 帧租约。输入脚本直接使用已 pin 的 RoukakuEngine `roukaku-headless-protocol` 中的 `roukaku.user_input_sequence.v1`，没有新增第二套输入协议。完整字段说明和脚本样例见[英文接口文档](../en/headless.md)。
 
-这些命令已在仓库源码中实现，安排在 Manager `0.1.0-beta.7` 之后的版本发布，beta.7 下载包不包含它们。现在使用时，请按下面的命令从源码构建。
+当前 [Manager `0.1.0-beta.8` 发布包](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.8)不包含 `shinki-emu-headless` 二进制。运行器已在仓库源码中实现，请按下面的步骤从源码构建。
 
 ## 构建与核心验收
 

@@ -7,7 +7,7 @@ description: コアの描画確認、入力リプレイ、画像比較、Manager
 
 `shinki-emu-headless` は Manager の C ABI v3 ローダー、ネイティブセッション、CPU フレームリースを再利用します。入力には固定済み RoukakuEngine の `roukaku-headless-protocol` にある `roukaku.user_input_sequence.v1` を使用します。全フィールドと JSON サンプルは[英語のインターフェース文書](../en/headless.md)を参照してください。
 
-これらのコマンドは Manager `0.1.0-beta.7` より後のリリースに向けてリポジトリのソースに実装されており、beta.7 のダウンロードには含まれません。今すぐ利用する場合は、以下の手順でソースからビルドしてください。
+現在の [Manager `0.1.0-beta.8` 配布パッケージ](https://github.com/Project-Shinkirou/ShinkiEMU/releases/tag/manager-v0.1.0-beta.8)には `shinki-emu-headless` バイナリは含まれません。ランナーはリポジトリのソースに実装済みです。以下の手順でソースからビルドしてください。
 
 ## ビルドとコア実行
 
