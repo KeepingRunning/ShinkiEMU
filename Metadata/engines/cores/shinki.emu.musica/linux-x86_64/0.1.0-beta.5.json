@@ -1,0 +1,13 @@
+{
+  "abi": "shinki.emu.native.c.v3",
+  "display_name": "Shinki Musica",
+  "family_name": "Musica",
+  "license": "MIT OR Apache-2.0",
+  "platform": "linux-x86_64",
+  "plugin_id": "shinki.emu.musica",
+  "release_tag": "core-shinki-emu-musica-v0.1.0-beta.5",
+  "sha256": "f3f9a5b02bd0f1e089b7c19d3c69e57ae57acbf966fffd3c56a94fef2de741c9",
+  "size": 38653501,
+  "url": "https://github.com/Project-Shinkirou/ShinkiEMU/releases/download/core-shinki-emu-musica-v0.1.0-beta.5/shinki-emu-core-shinki-emu-musica-0.1.0-beta.5-linux-x86_64.zip",
+  "version": "0.1.0-beta.5"
+}
