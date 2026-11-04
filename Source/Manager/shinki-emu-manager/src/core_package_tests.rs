@@ -1,17 +1,21 @@
 use super::*;
 use zip::write::SimpleFileOptions;
 
-const LIBRARY: &str = "shinki_emu_fixture.dll";
+const CORE_STEM: &str = "shinki_emu_fixture";
+
+fn library_name(stem: &str) -> String {
+    format!("{stem}.{}", std::env::consts::DLL_EXTENSION)
+}
 
 fn options() -> SimpleFileOptions {
     SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated)
 }
 
-fn manifest(plugin_id: &str, files: &[(&str, &[u8])]) -> Vec<u8> {
+fn manifest(plugin_id: &str, files: &[(String, &[u8])]) -> Vec<u8> {
     let mut files: Vec<CoreFile> = files
         .iter()
         .map(|(path, bytes)| CoreFile {
-            path: (*path).into(),
+            path: path.clone(),
             sha256: sha256_hex(bytes),
         })
         .collect();
@@ -19,7 +23,7 @@ fn manifest(plugin_id: &str, files: &[(&str, &[u8])]) -> Vec<u8> {
     serde_json::to_vec(&CoreManifest {
         schema: CORE_PACKAGE_SCHEMA.into(),
         plugin_id: plugin_id.into(),
-        library: LIBRARY.into(),
+        library: library_name(CORE_STEM),
         version: "0.2.0".into(),
         identity: None,
         abi: INDEPENDENT_FAMILY_ABI_FINGERPRINT.into(),
@@ -28,20 +32,20 @@ fn manifest(plugin_id: &str, files: &[(&str, &[u8])]) -> Vec<u8> {
     .unwrap()
 }
 
-fn write_zip(path: &Path, entries: &[(&str, &[u8])]) {
+fn write_zip(path: &Path, entries: &[(String, &[u8])]) {
     let mut writer = zip::ZipWriter::new(fs::File::create(path).unwrap());
     for (name, bytes) in entries {
-        writer.start_file(*name, options()).unwrap();
+        writer.start_file(name.as_str(), options()).unwrap();
         writer.write_all(bytes).unwrap();
     }
     writer.finish().unwrap();
 }
 
-fn valid_files() -> Vec<(&'static str, &'static [u8])> {
+fn valid_files() -> Vec<(String, &'static [u8])> {
     vec![
-        (LIBRARY, b"new library".as_slice()),
-        ("avcodec-62.dll", b"dependency"),
-        ("licenses/LICENSE.txt", b"license"),
+        (library_name(CORE_STEM), b"new library".as_slice()),
+        (library_name("avcodec-62"), b"dependency"),
+        ("licenses/LICENSE.txt".into(), b"license"),
     ]
 }
 
@@ -49,7 +53,7 @@ fn valid_package(path: &Path, plugin_id: &str) {
     let files = valid_files();
     let manifest = manifest(plugin_id, &files);
     let mut entries = files;
-    entries.push((CORE_MANIFEST, &manifest));
+    entries.push((CORE_MANIFEST.into(), &manifest));
     write_zip(path, &entries);
 }
 
@@ -63,9 +67,9 @@ fn package_with_parent_directory_entry_is_rejected() {
     let cores = root.path().join("cores");
     let archive = root.path().join("core.zip");
     let mut files = valid_files();
-    files.push(("../evil.dll", b"escape"));
+    files.push(("../evil.dll".into(), b"escape"));
     let manifest = manifest("shinki.emu.fixture", &valid_files());
-    files.push((CORE_MANIFEST, &manifest));
+    files.push((CORE_MANIFEST.into(), &manifest));
     write_zip(&archive, &files);
     let error =
         stage_package(&archive, Some(("shinki.emu.fixture", "0.2.0", None)), &cores.join(PENDING)).unwrap_err();
@@ -79,7 +83,7 @@ fn package_with_absolute_symlink_or_duplicate_entry_is_rejected() {
     let root = tempfile::tempdir().unwrap();
     let pending = root.path().join("cores").join(PENDING);
     let archive = root.path().join("core.zip");
-    write_zip(&archive, &[("/abs.dll", b"x")]);
+    write_zip(&archive, &[("/abs.dll".into(), b"x")]);
     assert_eq!(
         stage_package(&archive, None, &pending).unwrap_err(),
         "SHINKI_EMU_CORE_PACKAGE_PATH"
@@ -94,7 +98,7 @@ fn package_with_absolute_symlink_or_duplicate_entry_is_rejected() {
         "SHINKI_EMU_CORE_PACKAGE_PATH"
     );
     let mut files = valid_files();
-    files.push(("AVCODEC-62.DLL", b"other"));
+    files.push((library_name("avcodec-62").to_ascii_uppercase(), b"other"));
     write_zip(&archive, &files);
     assert_eq!(
         stage_package(&archive, None, &pending).unwrap_err(),
@@ -110,7 +114,7 @@ fn package_with_hash_mismatch_or_foreign_plugin_is_rejected() {
     let manifest = manifest("shinki.emu.fixture", &valid_files());
     let mut files = valid_files();
     files[0].1 = b"tampered library";
-    files.push((CORE_MANIFEST, &manifest));
+    files.push((CORE_MANIFEST.into(), &manifest));
     write_zip(&archive, &files);
     let error =
         stage_package(&archive, Some(("shinki.emu.fixture", "0.2.0", None)), &cores.join(PENDING)).unwrap_err();
@@ -132,33 +136,35 @@ fn package_with_hash_mismatch_or_foreign_plugin_is_rejected() {
 fn valid_package_is_staged_and_apply_pending_replaces_the_core_directory() {
     let root = tempfile::tempdir().unwrap();
     let cores = root.path().join("cores");
-    let installed = cores.join("shinki_emu_fixture");
+    let installed = cores.join(CORE_STEM);
+    let library = library_name(CORE_STEM);
     fs::create_dir_all(&installed).unwrap();
-    fs::write(installed.join(LIBRARY), b"old library").unwrap();
-    fs::write(installed.join("stale-dependency.dll"), b"old").unwrap();
+    fs::write(installed.join(&library), b"old library").unwrap();
+    let stale_dependency = library_name("stale-dependency");
+    fs::write(installed.join(&stale_dependency), b"old").unwrap();
     let archive = root.path().join("core.zip");
     valid_package(&archive, "shinki.emu.fixture");
 
     let (stem, staged) =
         stage_package(&archive, Some(("shinki.emu.fixture", "0.2.0", None)), &cores.join(PENDING)).unwrap();
-    assert_eq!(stem, "shinki_emu_fixture");
+    assert_eq!(stem, CORE_STEM);
     assert_eq!(staged.version, "0.2.0");
     assert_eq!(
         pending_entries(&cores).unwrap(),
         BTreeMap::from([(stem.clone(), PendingKind::Install)])
     );
     assert_eq!(
-        fs::read(cores.join(PENDING).join(&stem).join(LIBRARY)).unwrap(),
+        fs::read(cores.join(PENDING).join(&stem).join(&library)).unwrap(),
         b"new library"
     );
 
     assert!(apply_pending(&cores).is_empty());
-    assert_eq!(fs::read(installed.join(LIBRARY)).unwrap(), b"new library");
+    assert_eq!(fs::read(installed.join(&library)).unwrap(), b"new library");
     assert_eq!(
         fs::read(installed.join("licenses/LICENSE.txt")).unwrap(),
         b"license"
     );
-    assert!(!installed.join("stale-dependency.dll").exists());
+    assert!(!installed.join(&stale_dependency).exists());
     assert_eq!(
         read_manifest(&installed).unwrap().plugin_id,
         "shinki.emu.fixture"
@@ -171,7 +177,11 @@ fn removal_marker_deletes_the_core_directory() {
     let root = tempfile::tempdir().unwrap();
     let cores = root.path().join("cores");
     fs::create_dir_all(cores.join("shinki_emu_y")).unwrap();
-    fs::write(cores.join("shinki_emu_y").join("shinki_emu_y.dll"), b"y").unwrap();
+    fs::write(
+        cores.join("shinki_emu_y").join(library_name("shinki_emu_y")),
+        b"y",
+    )
+    .unwrap();
     mark_removal(&cores, "shinki_emu_y").unwrap();
     assert_eq!(
         pending_entries(&cores).unwrap(),
@@ -187,34 +197,39 @@ fn legacy_top_level_library_is_migrated_into_its_directory() {
     let root = tempfile::tempdir().unwrap();
     let cores = root.path().join("cores");
     fs::create_dir_all(&cores).unwrap();
-    fs::write(cores.join("shinki_emu_x.dll"), b"legacy").unwrap();
-    fs::write(cores.join("avcodec-62.dll"), b"dependency").unwrap();
+    let library = library_name("shinki_emu_x");
+    let dependency = library_name("avcodec-62");
+    fs::write(cores.join(&library), b"legacy").unwrap();
+    fs::write(cores.join(&dependency), b"dependency").unwrap();
     assert!(apply_pending(&cores).is_empty());
-    assert!(!cores.join("shinki_emu_x.dll").exists());
+    assert!(!cores.join(&library).exists());
     assert_eq!(
-        fs::read(cores.join("shinki_emu_x").join("shinki_emu_x.dll")).unwrap(),
+        fs::read(cores.join("shinki_emu_x").join(&library)).unwrap(),
         b"legacy"
     );
     let manifest = read_manifest(&cores.join("shinki_emu_x")).unwrap();
-    assert_eq!(manifest.library, "shinki_emu_x.dll");
+    assert_eq!(manifest.library, library);
     assert_eq!(manifest.files[0].sha256, sha256_hex(b"legacy"));
-    assert!(cores.join("avcodec-62.dll").exists());
+    assert!(cores.join(&dependency).exists());
 }
 
 #[test]
 fn single_library_install_generates_a_manifest() {
     let root = tempfile::tempdir().unwrap();
     let cores = root.path().join("cores");
-    let library = root.path().join(LIBRARY);
+    let name = library_name(CORE_STEM);
+    let library = root.path().join(&name);
     fs::write(&library, b"bare").unwrap();
     let stem = stage_library(&library, &cores.join(PENDING)).unwrap();
     let staged = cores.join(PENDING).join(&stem);
-    assert_eq!(fs::read(staged.join(LIBRARY)).unwrap(), b"bare");
+    assert_eq!(fs::read(staged.join(&name)).unwrap(), b"bare");
     let manifest = read_manifest(&staged).unwrap();
     assert_eq!(manifest.files.len(), 1);
     assert_eq!(manifest.files[0].sha256, sha256_hex(b"bare"));
+    let dependency = root.path().join(library_name("avcodec-62"));
+    fs::write(&dependency, b"dependency").unwrap();
     assert_eq!(
-        stage_library(&root.path().join("avcodec-62.dll"), &cores.join(PENDING)).unwrap_err(),
+        stage_library(&dependency, &cores.join(PENDING)).unwrap_err(),
         "SHINKI_EMU_CORE_INSTALL_NAME"
     );
 }
@@ -225,23 +240,24 @@ fn failed_install_restores_the_previous_directory() {
     use std::os::windows::fs::OpenOptionsExt;
     let root = tempfile::tempdir().unwrap();
     let cores = root.path().join("cores");
-    let installed = cores.join("shinki_emu_fixture");
+    let installed = cores.join(CORE_STEM);
+    let library = library_name(CORE_STEM);
     fs::create_dir_all(&installed).unwrap();
-    fs::write(installed.join(LIBRARY), b"installed").unwrap();
-    let staged = cores.join(PENDING).join("shinki_emu_fixture");
+    fs::write(installed.join(&library), b"installed").unwrap();
+    let staged = cores.join(PENDING).join(CORE_STEM);
     fs::create_dir_all(&staged).unwrap();
-    fs::write(staged.join(LIBRARY), b"replacement").unwrap();
+    fs::write(staged.join(&library), b"replacement").unwrap();
     let locked = fs::OpenOptions::new()
         .read(true)
         .share_mode(0)
-        .open(staged.join(LIBRARY))
+        .open(staged.join(&library))
         .unwrap();
     assert_eq!(apply_pending(&cores).len(), 1);
-    assert_eq!(fs::read(installed.join(LIBRARY)).unwrap(), b"installed");
+    assert_eq!(fs::read(installed.join(&library)).unwrap(), b"installed");
     drop(locked);
-    assert_eq!(fs::read(staged.join(LIBRARY)).unwrap(), b"replacement");
+    assert_eq!(fs::read(staged.join(&library)).unwrap(), b"replacement");
     assert!(apply_pending(&cores).is_empty());
-    assert_eq!(fs::read(installed.join(LIBRARY)).unwrap(), b"replacement");
+    assert_eq!(fs::read(installed.join(&library)).unwrap(), b"replacement");
     assert!(pending_is_empty(&cores));
 }
 
@@ -267,7 +283,7 @@ fn installs_branch_identity_and_rejects_catalog_receipt_disagreement() {
     let archive = root.path().join("branch.zip");
     let encoded = serde_json::to_vec(&receipt).unwrap();
     let mut entries = files;
-    entries.push((CORE_MANIFEST, &encoded));
+    entries.push((CORE_MANIFEST.into(), &encoded));
     write_zip(&archive, &entries);
     let pending = root.path().join("pending");
     let (stem, accepted) = stage_package(&archive, Some(("engine", &receipt.version, Some(&identity))), &pending).unwrap();
@@ -289,7 +305,7 @@ fn published_beta_package_without_identity_remains_installable() {
     receipt.version = "0.1.0-beta.3".into();
     let encoded = serde_json::to_vec(&receipt).unwrap();
     let mut entries = files;
-    entries.push((CORE_MANIFEST, &encoded));
+    entries.push((CORE_MANIFEST.into(), &encoded));
     write_zip(&archive, &entries);
     let (_, staged) = stage_package(&archive, Some(("engine", "0.1.0-beta.3", None)), &root.path().join(PENDING)).unwrap();
     assert_eq!(staged.version, "0.1.0-beta.3");
