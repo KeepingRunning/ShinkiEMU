@@ -13,6 +13,8 @@ description: Use when maintaining ShinkiEMU itself rather than writing a core - 
 
 写新核心看 `shinkiemu-new-core`，移植第三方引擎看 `shinkiemu-integrate-existing-core`，写或审核 Luau 游戏补丁看 `shinkiemu-patch`。
 
+审查核心或 adapter 的代码改动时，检查 probe、open、资源、存档和标题/鉴赏路径里有没有作品白名单或作品枚举（EXE 名、Steam appid、固定 hash、固定游戏 ID、写死的作品资源名或入口），有就退回，按 [shinkiemu-new-core](../shinkiemu-new-core/SKILL.md#引擎适配器不是作品播放器) 和 [shinkiemu-integrate-existing-core](../shinkiemu-integrate-existing-core/SKILL.md#引擎适配器不是作品播放器) 的规则改成引擎特征识别，作品数据改走原版文件解析、Metadata 发行版本配置或 Luau 补丁。
+
 ## 1. 权威文件
 
 | 文件 | 管什么 |
