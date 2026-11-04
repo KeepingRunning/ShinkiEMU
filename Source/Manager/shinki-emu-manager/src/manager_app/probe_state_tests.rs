@@ -616,6 +616,7 @@ fn manual_core_failure_requires_restart_and_shutdown_still_joins_the_owner() {
     assert_eq!(initial.library.prepare_state, "unprepared");
     // The core installation is untouched until the explicit action.
     fs::write(root.path().join("cores"), b"not a directory").unwrap();
+    assert_eq!(app.model().unwrap().library.prepare_state, "unprepared");
     assert!(app.poll_platform().unwrap().is_none());
     assert!(!app.cores_started());
     let pending = app.prepare_library().unwrap();
@@ -636,6 +637,13 @@ fn manual_core_failure_requires_restart_and_shutdown_still_joins_the_owner() {
     assert!(!app.cores_ready());
     let failed = app.model().unwrap();
     assert_eq!(failed.library.prepare_state, "failed");
+    assert!(
+        failed
+            .notices
+            .items
+            .iter()
+            .any(|notice| notice.code == "SHINKI_EMU_CORES_DIRECTORY_CREATE")
+    );
     assert_eq!(
         app.prepare_library().unwrap_err(),
         "SHINKI_EMU_PREPARE_RESTART_REQUIRED"

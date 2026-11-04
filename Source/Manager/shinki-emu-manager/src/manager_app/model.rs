@@ -204,6 +204,8 @@ impl ShinkiEmuManagerController {
             .map(|root| root.path)
             .collect();
         let profile = self.profile()?;
+        let mut core_notices = Vec::new();
+        let cores = self.cores_model(&mut core_notices)?;
         Ok(ManagerViewModel {
             app: AppViewModel {
                 version: shinki_emu_manager::version().into(),
@@ -229,9 +231,9 @@ impl ShinkiEmuManagerController {
             selection,
             game_settings,
             patch,
-            cores: self.cores_model()?,
+            cores,
             notices: NoticesViewModel {
-                items: self.notice_views(),
+                items: self.notice_views().into_iter().chain(core_notices).collect(),
                 snackbar: self.snackbar.view(),
             },
             settings: SettingsViewModel {
@@ -512,8 +514,23 @@ impl ShinkiEmuManagerController {
         })
     }
 
-    fn cores_model(&mut self) -> Result<CoresViewModel, String> {
-        let mut cores = self.cores_view()?;
+    fn cores_model(&mut self, notices: &mut Vec<NoticeViewModel>) -> Result<CoresViewModel, String> {
+        let mut cores = match self.cores_view() {
+            Ok(cores) => cores,
+            Err(error) => {
+                // Keep directory errors visible while the rest of the view remains usable.
+                let text = describe_error(&error);
+                notices.push(NoticeViewModel {
+                    id: format!("core-inventory:{}", &sha256_id(&error)[..12]),
+                    severity: "error".into(),
+                    title: text.title,
+                    detail: format!("{}\n{error}", text.detail),
+                    code: text.code,
+                    core: String::new(),
+                });
+                CoresViewModel::default()
+            }
+        };
         if let Some(plugin) = self.defaults_plugin.clone()
             && self.registry.descriptor(&plugin).is_some()
         {

@@ -504,6 +504,90 @@ mod tests {
     }
 
     #[test]
+    fn pending_directory_error_is_visible_and_clears_after_repair() {
+        let root = tempfile::tempdir().unwrap();
+        let mut app = ShinkiEmuManagerController::open_library(
+            root.path().into(),
+            FrameMailbox::new(),
+            Vec::new(),
+        )
+        .unwrap();
+        let pending_code = "SHINKI_EMU_CORE_PENDING_APPLY";
+        assert!(
+            app.model()
+                .unwrap()
+                .notices
+                .items
+                .iter()
+                .all(|notice| notice.code != pending_code)
+        );
+        let cores = root.path().join("cores");
+        let pending = cores.join(core_package::PENDING);
+        fs::create_dir(&cores).unwrap();
+        fs::write(&pending, b"blocked").unwrap();
+        let error = core_package::pending_entries(&cores).unwrap_err();
+        let other_error = "SHINKI_EMU_NETWORK_PERMISSION_REQUIRED";
+        app.diagnostic = other_error.into();
+
+        let model = app.model().unwrap();
+        assert_eq!(model.library.prepare_state, "unprepared");
+        let notice = model
+            .notices
+            .items
+            .iter()
+            .find(|notice| notice.code == pending_code)
+            .unwrap();
+        assert_eq!(notice.severity, "error");
+        assert!(notice.detail.contains(&error));
+        assert!(
+            model
+                .notices
+                .items
+                .iter()
+                .any(|notice| notice.code == other_error)
+        );
+        assert_eq!(app.diagnostic, other_error);
+        assert_eq!(app.model().unwrap().notices.items, model.notices.items);
+
+        let source = root
+            .path()
+            .join(format!("shinki_emu_fixture.{}", env::consts::DLL_EXTENSION));
+        fs::write(&source, b"fixture").unwrap();
+        assert!(
+            app.install_core(&source)
+                .unwrap_err()
+                .starts_with("SHINKI_EMU_CORE_INSTALL_COPY")
+        );
+        assert_eq!(app.uninstall_core("shinki_emu_fixture").unwrap_err(), error);
+        assert_eq!(fs::read(&pending).unwrap(), b"blocked");
+
+        fs::remove_file(&pending).unwrap();
+        let recovered = app.install_core(&source).unwrap();
+        assert!(
+            recovered
+                .cores
+                .items
+                .iter()
+                .any(|core| core.id == "shinki_emu_fixture" && core.state == "pending-install")
+        );
+        assert!(
+            recovered
+                .notices
+                .items
+                .iter()
+                .all(|notice| notice.code != pending_code)
+        );
+        assert!(
+            recovered
+                .notices
+                .items
+                .iter()
+                .any(|notice| notice.code == other_error)
+        );
+        assert_eq!(app.diagnostic, other_error);
+    }
+
+    #[test]
     fn log_text_filters_by_core_and_counts_all() {
         let root = tempfile::tempdir().unwrap();
         let diagnostics = root.path().join("diagnostics");
