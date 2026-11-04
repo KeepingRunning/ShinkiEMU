@@ -1,13 +1,42 @@
 ---
 name: shinkiemu-new-core
-description: Use when writing a new ShinkiEMU core from scratch on the in-repo Rust SDK (a crate under Source/Families/ implementing C ABI v3 with shinki-emu-sdk), or when choosing between writing one and porting a third-party engine. Covers the port-vs-SDK decision, crate layout, query/CoreApi table, worker and CPU frame leases, which SDK module to use (runtime, native, native_input, lease_cpu, text, image, audio, device-audio, subtitle, video-ffmpeg, archive, cache, profile), core-build.json, build/cores.toml registration, static embedding, tests, docs, release tags and the completion standard (build, ABI probe, exact-head CI, sources/licenses, real game opens and renders headless). Not for wrapping an existing third-party engine; use shinkiemu-integrate-existing-core.
+description: Use when writing a new ShinkiEMU core from scratch on the in-repo Rust SDK (a crate under Source/Families/ implementing C ABI v3 with shinki-emu-sdk), when changing an in-repo core (CMVS, Musica), or when choosing between writing one and porting a third-party engine. Covers the engine-adapter rules (engine-trait probe without per-work whitelists or enums; per-work data from original files, then release-bound Metadata, then Luau patches; original-save compatibility), the port-vs-SDK decision, crate layout, query/CoreApi table, worker and CPU frame leases, SDK modules, core-build.json, build/cores.toml registration, static embedding, tests, docs, release tags and the completion standard (build, ABI probe, exact-head CI, sources/licenses, real game opens and renders headless). Not for wrapping an existing third-party engine; use shinkiemu-integrate-existing-core.
 ---
 
 # 基于 SDK 编写新的 ShinkiEMU 核心
 
-参考实现是 CMVS（`Source/Families/shinki-emu-cmvs`），Musica（`Source/Families/shinki-emu-musica`）是第二个例子。照着它们的结构写，不要另起一套约定。
+参考实现是 CMVS（`Source/Families/shinki-emu-cmvs`），Musica（`Source/Families/shinki-emu-musica`）是第二个例子。照着它们的结构写，不要另起一套约定。Musica 的存档身份和标题/鉴赏/角色数据是作品绑定的反例，见下一节。
 
 契约文档直接链接，不要抄进核心：[Core ABI](../../../docs/en/core-abi.md)、[Build and release](../../../docs/en/build-and-release.md)、[Metadata](../../../docs/en/metadata.md)、[SDK README](../../../Source/SDK/shinki-emu-sdk/README.md)。构建、CI、发布流程见 `shinkiemu-maintenance`。
+
+## 引擎适配器，不是作品播放器
+
+一个核心对应一个引擎，目标是运行这个引擎做出的任意作品。Musica 核心是 Musica 引擎的适配器，eden 只是它的验收样本之一。下面七条在本 skill 和 `shinkiemu-integrate-existing-core` 里写法一致，改一处要同步另一处。
+
+1. **改动边界。** 自研核心（CMVS、Musica，以及按本 skill 新写的核心）可以全量修改，VM、存档、probe、前端都能重构。外部移植核心（Siglus、Sena、Ethornell、Artemis、ReMinori、Impacto、Ren'Py、KrKr、RFVP）只改 adapter 层，尊重上游行为，细则见 `shinkiemu-integrate-existing-core`。
+2. **定位。** 核心按引擎适配，要能运行该引擎的任意作品。代码里用到的作品名、文件名、数值都来自输入数据（原版文件、配置），不写在核心里。
+3. **Probe。** 按引擎特征识别：文件格式、魔数、目录结构。不得有作品白名单，EXE 名、Steam appid、固定 hash、固定游戏 ID 都不能作为识别条件或返回值。`game_id` 由实际路径或内容推导。probe 接受的输入，open 按同一套条件处理，不在 open 里另设作品门禁。
+4. **脚本和资源。** 支持引擎的多种编码和格式。入口脚本、标题图、归档集合从引擎自己的配置或启动约定读取，不写死某款作品的资源文件名或入口。启动必需资源和可选资源分开，缺可选资源的作品照样能打开。
+5. **按作品变化的数据**（标题菜单、鉴赏/回想、角色、原生存档身份、画布尺寸等）按以下顺序取得，核心里不写作品枚举，也不按作品名分派数据：
+   1. 先解析原版文件（脚本、系统归档、原生配置、可执行文件里的数据表），结果与原版行为一致。
+   2. 确实解析不了的，由 Metadata 里按发行版本绑定的配置提供。核心在 descriptor 里声明对应配置字段，值写在 `Metadata/engines/presets/<rid>/<plugin_id>.json`（`shinki.emu.presets.v1`，按 VNDB rID 绑定），或由补丁配方输出 profile 的 `configuration` 提供（按文件指纹识别发行，见 `shinkiemu-patch`）。核心只认字段，不认作品。
+   3. 源文件本身不符合引擎通用格式时，用 Luau 补丁把资源修成标准形式（补丁只改资源，不改 EXE），核心不为它加特例。Ren'Py HimaNatsu 的 RPA chunk 顺序就由 `Metadata/patches/renpy-himanatsu.luau` 处理。
+6. **存档。** 尽量兼容原版存档：原版位置和字节格式，原版可执行文件能读（自研核心见 §4 存档，外部核心沿用上游）。只有确实无法兼容时才隔离，隔离按游戏路径或内容身份划分，不按作品名。没有已知原生格式的作品也要真实持久化，不能返回成功却不写入。
+7. **兼容性。** 允许破坏性升级。去掉作品绑定后跑不起来的现有作品，用 Luau 补丁修正源文件中不标准的地方，或用配置切换（descriptor 字段加 Metadata preset），不在核心里为作品写特例。删配置字段按迁移处理（§4 配置）。
+
+有几类东西看起来像作品绑定，实际属于引擎能力，不要为了"通用"删掉：原生签名、校验和、SerialCode 绑定、真实的格式版本检查；补丁配方里的发行指纹；格式版本覆盖范围（CMVS 只挂载 CPZ5 是版本覆盖，不是白名单，如实写进文档即可）。
+
+正例：CMVS 按 `CPZ5` magic 识别，游戏 ID 取目录名，归档和密钥由 profile 提供；Siglus 由 Gameexe/Scene.pck/Select.ini 驱动，加密表作为输入传入；Artemis 读取 PFS 内 `system.ini`，依次尝试 UTF-8/Shift-JIS/GB18030。
+
+### 反例：Musica（2026-10 审计）
+
+文件都在 `Source/Families/shinki-emu-musica/src/` 下（`shinki-emu-musica-keys` 是同目录的兄弟 crate）。
+
+- **存档身份枚举。** `minori_data.rs` 的 `MinoriTitle` 只有 `EdenEnglish`、`Perseus`，靠 `eden_en.exe`、`perseus.exe` 识别。其他作品不建原生目录，`native_directory/slots.rs` 拒绝槽位操作（"native slots require an identified original game executable"），全局变量、CG、已读记录的写入只打警告并返回成功。违反第 5、6 条：原生存档身份、文件命名和格式参数应先从原版文件解析（注册表 SerialCode 前缀、容器签名），解析不了再走 Metadata 配置。
+- **标题 CLEAR 标记。** `runtime/title.rs` 用 `TOHKA_CLEAR`、`AYAME_CLEAR`、`SUI_CLEAR`、`REN_CLEAR` 决定菜单变体，点击区固定在 1280 宽画布右侧。换作品后菜单解锁规则不变。
+- **鉴赏脚本表。** `runtime/gallery.rs` 内置 `fb_ren_04.sc` 等回想脚本、`fb_aya_12.sc` 等影片脚本和 `ed_ayame.avi` 等文件名。其他作品的回想和影片入口会访问不存在的资源。
+- **角色前缀。** `voice_preferences.rs` 把 ren/sui/aya/tou/mot 文件名前缀解释为五个固定角色，配置界面表达不了其他作品的角色集合。
+- **归档布局当成引擎条件。** `native.rs` 的 probe 要求 bg/bgm/scr/st/sys/se/voice/mov 八个 PAZ 同时存在，`shinki-emu-musica-keys` 要求密钥表恰好包含这八个角色。归档角色应由实际 profile 声明，并区分必需和可选。
 
 ## 0. 先选路径
 
@@ -241,3 +270,8 @@ cargo xtask matrix
 - [ ] 行为测试用合成 fixture，`cargo xtask test --core <id>` 通过。
 - [ ] 三语文档和 README 表已更新；`cargo xtask metadata validate` 通过。
 - [ ] §11 的五项完成标准全部满足。
+- [ ] probe 只按引擎特征识别，没有 EXE 名、Steam appid、固定 hash、固定游戏 ID 白名单；probe 和 open 的接受条件一致。
+- [ ] 核心里没有作品枚举，也没有按作品名分派的数据或资源名。
+- [ ] 按作品变化的数据按"原版文件解析 → Metadata 按发行版本配置 → Luau 补丁修正非标准源文件"的顺序取得。
+- [ ] 存档兼容原版；只在确实无法兼容时隔离，且隔离后真实持久化。
+- [ ] probe/open 用至少两款不同作品，或模拟不同归档集合、入口名、目录名、EXE 名的合成 fixture 验证过。
