@@ -412,7 +412,7 @@ publish_blocked = ""
 [cores.source]
 repo = "https://github.com/Project-Shinkirou/renpy"
 branch = "shinki-android-ports"
-rev = "a52d9d9c006223c2b5a276c05e1b97ffeecbe66f"
+rev = "0e1b1812035dfdd3d8a91f8ce419b935152f8c78"
 upstream = "https://github.com/renpy/renpy"
 release_sequence = 1
 upstream_identity = { repo = "https://github.com/renpy/renpy", ref_kind = "tag", ref_name = "8.5.3.26051504", commit = "39895c1e017f0b36ffea2447d97eccd69d76ee1c" }

@@ -30,6 +30,8 @@ Beta.3 会在加载令牌和 persistent 前，一次性导入旧默认目录 `%L
 
 ## 原生行为与限制
 
+目录探测使用原生 C++ 校验 UTF-8，再检查 `.rpy`、`.rpyc` 和 `.rpa` 路径。探测不会调用 Python 或启动 CPython；解释器仍在模块 owner 的生命周期中创建。无效 UTF-8、嵌入 NUL 和无效目录路径仍返回 `INVALID_ARGUMENT`。
+
 运行时桥保留在驻留解释器中。原生构建产出 display 扩展和真实共享核心，包内还需匹配的 SDK DLL 与 `Resources/`。关闭和跨游戏重开继续清理解释器/原生状态，不能只复制核心 DLL。
 
 桌面适配层支持 Windows x64/MSVC 与 Linux x64/GNU；其他目标需通过各自的原生运行时和打包检查。上游 Ren’Py 支持某个平台，不代表此适配已经移植。官方标准归档 reader 保持不变，发行版专用离线转换由已审查配方处理。不打包 Steam、Cubism、Bink、nvdrs 或可再分发 D3DCompiler DLL。

@@ -51,6 +51,11 @@ only invoke the one-time import before the native token/persistent loaders.
 
 ## Native behavior and limits
 
+Directory probing validates UTF-8 in native C++ before inspecting `.rpy`, `.rpyc`
+and `.rpa` paths. It does not call Python or start CPython; interpreter creation
+remains in the module-owner lifecycle. Invalid UTF-8, embedded NULs and invalid
+directory paths still return `INVALID_ARGUMENT`.
+
 Windows builds generate MSVC import libraries from the official SDK DLLs in the
 Rust build helper, then link those SDK libraries into both the display extension
 and the core. The package includes the SDK-generated `renpy/vc_version.py`.

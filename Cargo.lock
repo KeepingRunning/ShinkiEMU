@@ -11413,7 +11413,7 @@ dependencies = [
 [[package]]
 name = "shinki-emu-renpy"
 version = "0.1.0"
-source = "git+https://github.com/Project-Shinkirou/renpy?rev=a52d9d9c006223c2b5a276c05e1b97ffeecbe66f#a52d9d9c006223c2b5a276c05e1b97ffeecbe66f"
+source = "git+https://github.com/Project-Shinkirou/renpy?rev=0e1b1812035dfdd3d8a91f8ce419b935152f8c78#0e1b1812035dfdd3d8a91f8ce419b935152f8c78"
 dependencies = [
  "anyhow",
  "serde_json",
