@@ -524,7 +524,7 @@ mod tests {
     }
     #[test]
     fn intake_roundtrip_keeps_platforms_separate_and_parses_timezone_crlf() {
-        let t = tempfile::tempdir().unwrap();
+        let t = crate::temporary::directory().unwrap();
         let r = t.path().join("root");
         root(&r);
         let ev = t.path().join("event.json");
@@ -571,7 +571,7 @@ mod tests {
         new.release_tag = format!("core-rfvp-{}", new.version);
         new.url = format!("{CORE_RELEASE_URL_PREFIX}{}/core.zip", new.release_tag);
         new.identity = Some(identity);
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         root(temp.path());
         for entry in [&old, &new] {
             let path = temp.path().join(format!(
@@ -611,7 +611,7 @@ mod tests {
     }
     #[test]
     fn deterministic_snapshot_and_existing_output_protection() {
-        let t = tempfile::tempdir().unwrap();
+        let t = crate::temporary::directory().unwrap();
         let r = t.path().join("root");
         root(&r);
         let a = collect(&r, 123, true).unwrap();
@@ -690,7 +690,7 @@ mod tests {
     }
     #[test]
     fn illegal_core_id_in_intake_publishes_nothing() {
-        let t = tempfile::tempdir().unwrap();
+        let t = crate::temporary::directory().unwrap();
         let ev = t.path().join("event.json");
         event(&ev, "windows");
         let mut v: Value = decode(&ev).unwrap();

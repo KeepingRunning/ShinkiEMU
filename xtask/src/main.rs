@@ -13,6 +13,7 @@ mod package;
 mod release;
 mod rust_licenses;
 mod sources;
+mod temporary;
 #[cfg(test)]
 mod tests;
 use anyhow::{Result, bail};

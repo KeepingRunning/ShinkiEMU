@@ -516,7 +516,7 @@ mod tests {
     use super::*;
     #[test]
     fn invalid_identity_never_mutates_staging() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = crate::temporary::directory().unwrap();
         fs::write(tmp.path().join("player"), b"original").unwrap();
         assert!(
             bundle(
@@ -535,7 +535,7 @@ mod tests {
 
     #[test]
     fn device_bundle_rejects_simulator_macho_without_modifying_input() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = crate::temporary::directory().unwrap();
         // A minimal public synthetic arm64 Mach-O header, with an iOS
         // simulator LC_BUILD_VERSION. No proprietary executable is used.
         let words: [u32; 14] = [

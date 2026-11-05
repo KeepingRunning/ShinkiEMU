@@ -14,7 +14,7 @@ struct Fixture {
 }
 fn fixture() -> &'static Fixture {
     static F: LazyLock<Fixture> = LazyLock::new(|| {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = crate::temporary::directory().unwrap();
         let version = Command::new("rustc").arg("-vV").output().unwrap();
         assert!(version.status.success());
         let target = String::from_utf8(version.stdout)
@@ -122,7 +122,7 @@ fn result(temp: &Path) -> BuildResult {
 
 #[test]
 fn manager_package_identity_cannot_relabel_old_or_unversioned_builds() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let mut receipt = result(temp.path());
     receipt.component = "manager".into();
     receipt.core_build = None;
@@ -140,7 +140,7 @@ fn manager_package_identity_cannot_relabel_old_or_unversioned_builds() {
 }
 #[test]
 fn paths_reject_traversal_ads_devices_and_collisions() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let source = temp.path().join("source");
     fs::write(&source, "original").unwrap();
     for bad in [
@@ -179,7 +179,7 @@ fn paths_reject_traversal_ads_devices_and_collisions() {
 }
 #[test]
 fn portable_resource_punctuation_survives_packaging() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let source = temp.path().join("source");
     let bytes = b"<assembly>runtime resource</assembly>";
     fs::write(&source, bytes).unwrap();
@@ -202,7 +202,7 @@ fn portable_resource_punctuation_survives_packaging() {
 }
 #[test]
 fn atomic_publication_preserves_existing_and_racing_outputs_and_cleans_staging() {
-    let t = tempfile::tempdir().unwrap();
+    let t = crate::temporary::directory().unwrap();
     let out = t.path().join("out");
     fs::create_dir(&out).unwrap();
     fs::write(out.join("user"), "keep").unwrap();
@@ -260,7 +260,7 @@ fn real_binary_dependency_arch_and_export_validation() {
 #[test]
 fn delay_imports_participate_in_dependency_closure() {
     let f = fixture();
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let library = temp.path().join("shinki_emu_delayed.dll");
     let status = Command::new("rustc")
         .arg(f._dir.path().join("core.rs"))
@@ -304,7 +304,7 @@ fn delay_imports_participate_in_dependency_closure() {
 #[test]
 fn unsafe_zip_paths_cannot_escape_or_publish_partial_output() {
     use std::io::Write;
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let archive = temp.path().join("unsafe.zip");
     let mut zip = zip::ZipWriter::new(fs::File::create(&archive).unwrap());
     zip.start_file("../outside", zip::write::SimpleFileOptions::default())
@@ -318,7 +318,7 @@ fn unsafe_zip_paths_cannot_escape_or_publish_partial_output() {
 }
 #[test]
 fn staged_disk_set_hashes_and_deterministic_archive_match() {
-    let t = tempfile::tempdir().unwrap();
+    let t = crate::temporary::directory().unwrap();
     let r = result(t.path());
     let f = fixture();
     let dir = stage_core(
@@ -350,7 +350,7 @@ fn staged_disk_set_hashes_and_deterministic_archive_match() {
 #[test]
 fn desktop_archive_preserves_executables_without_executable_notices() {
     use std::os::unix::fs::PermissionsExt;
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let executable = temp.path().join("manager");
     let notice = temp.path().join("NOTICE");
     fs::write(&executable, b"public synthetic executable").unwrap();
@@ -375,7 +375,7 @@ fn desktop_archive_preserves_executables_without_executable_notices() {
 }
 #[test]
 fn unlisted_duplicate_and_missing_licenses_fail_without_output() {
-    let t = tempfile::tempdir().unwrap();
+    let t = crate::temporary::directory().unwrap();
     let f = fixture();
     let mut r = result(t.path());
     r.core_build.as_mut().unwrap().licenses.clear();
@@ -415,7 +415,7 @@ fn unlisted_duplicate_and_missing_licenses_fail_without_output() {
 #[test]
 fn reparse_input_is_rejected() {
     use std::os::windows::fs::symlink_dir;
-    let t = tempfile::tempdir().unwrap();
+    let t = crate::temporary::directory().unwrap();
     let real = t.path().join("real");
     fs::create_dir(&real).unwrap();
     fs::write(real.join("file"), "data").unwrap();
@@ -447,7 +447,7 @@ fn reparse_input_is_rejected() {
 #[test]
 fn linked_parent_and_files_are_rejected() {
     use std::os::unix::fs::symlink;
-    let t = tempfile::tempdir().unwrap();
+    let t = crate::temporary::directory().unwrap();
     let real = t.path().join("real");
     fs::create_dir(&real).unwrap();
     fs::write(real.join("file"), "data").unwrap();
@@ -483,7 +483,7 @@ fn matrix_covers_each_core_and_target_without_accepting_unknown_keys() {
 
 #[test]
 fn macho_identity_is_not_a_runtime_dependency() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let name = b"@rpath/libexample.dylib\0";
     let size = (24 + name.len() + 7) & !7;
     for (command, expected_dependencies) in [
@@ -541,7 +541,7 @@ fn apple_subtitle_installs_isolate_architectures_and_platforms() {
 #[test]
 fn corresponding_sources_copy_downloads_matching_installed_sha512() {
     use sha2::Digest;
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let downloads = temp.path().join("downloads");
     fs::create_dir(&downloads).unwrap();
     let upstream = downloads.join("source.tar.gz");
@@ -580,7 +580,7 @@ fn corresponding_sources_copy_downloads_matching_installed_sha512() {
 
 #[test]
 fn native_packages_include_dynamically_loaded_modules_and_validate_resource_binaries() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let fixture = fixture();
     let native = temp.path().join("native");
     let resources = temp.path().join("resources");
@@ -640,7 +640,7 @@ fn native_packages_include_dynamically_loaded_modules_and_validate_resource_bina
 
 #[test]
 fn output_nested_in_resource_inputs_is_rejected_without_modifying_sources() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let resources = temp.path().join("resources");
     fs::create_dir(&resources).unwrap();
     let source = resources.join("public.txt");
@@ -677,7 +677,7 @@ fn external_package_receipt_matches_exact_upstream_and_adapter_pins() {
     let inventory = Inventory::load(root).unwrap();
     let source = inventory.core("rfvp").unwrap().source.as_ref().unwrap();
     let identity = source.identity();
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let fixture = fixture();
     let mut receipt = result(temp.path());
     receipt.source_commit = source.rev.clone();
@@ -795,7 +795,7 @@ fn linux_soname_links_copy_regular_bytes_and_reject_escape_and_conflicts() {
     #[cfg(windows)]
     use std::os::windows::fs::symlink_file;
 
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let build = temp.path().join("build");
     fs::create_dir(&build).unwrap();
     let library = temp.path().join("libcore.so");
@@ -843,7 +843,7 @@ fn linux_soname_links_copy_regular_bytes_and_reject_escape_and_conflicts() {
 
 #[test]
 fn elf_dynamic_segments_resolve_needed_and_runpath_without_section_headers() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let library = temp.path().join("libsynthetic.so");
     fs::write(&library, sectionless_elf("libmissing.so", "$ORIGIN")).unwrap();
     let info = binary::inspect(&library, "x86_64-unknown-linux-gnu", false).unwrap();
@@ -882,7 +882,7 @@ fn synthetic_macho(dependency: &[u8], rpath: &str) -> Vec<u8> {
 
 #[test]
 fn macho_load_commands_require_relocatable_rpaths_and_a_complete_closure() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let library = temp.path().join("libsynthetic.dylib");
     fs::write(
         &library,
@@ -903,7 +903,7 @@ fn macho_load_commands_require_relocatable_rpaths_and_a_complete_closure() {
 
 #[test]
 fn macho_runtime_bundles_keep_architecture_dependency_and_query_checks() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let module = temp.path().join("display.so");
     let mut bytes = synthetic_macho(b"@rpath/libpython3.12.dylib\0", "@loader_path");
     bytes[12..16].copy_from_slice(&object::macho::MH_BUNDLE.0.to_le_bytes());
@@ -930,7 +930,7 @@ fn macho_runtime_bundles_keep_architecture_dependency_and_query_checks() {
 
 #[test]
 fn universal_macho_inspection_selects_and_bounds_checks_each_target_slice() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let x86 = synthetic_macho(b"/usr/lib/libSystem.B.dylib\0", "@loader_path");
     let mut arm = x86.clone();
     arm[4..8].copy_from_slice(&object::macho::CPU_TYPE_ARM64.0.to_le_bytes());
@@ -967,7 +967,7 @@ fn universal_macho_inspection_selects_and_bounds_checks_each_target_slice() {
 #[test]
 fn rust_license_closure_collects_files_and_spdx_and_rejects_missing_data() {
     use serde_json::json;
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let mut packages = Vec::new();
     for (id, name, version, license, license_file) in [
         (
@@ -1244,7 +1244,7 @@ fn rust_license_closure_collects_files_and_spdx_and_rejects_missing_data() {
 
 #[test]
 fn embedded_font_notices_resolve_custom_terms_without_inventing_license_text() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = crate::temporary::directory().unwrap();
     let root = temp.path().join("crate");
     fs::create_dir_all(root.join("fonts")).unwrap();
     fs::write(

@@ -197,7 +197,7 @@ fn stage_inputs(
     fs::create_dir_all(libs.join(ABI))?;
     copy_entries(&native, &libs.join(ABI))?;
 
-    let temp = tempfile::tempdir()?;
+    let temp = crate::temporary::directory()?;
     let mut entries = vec![(
         inv.root.join("THIRD_PARTY_NOTICES.md"),
         "THIRD_PARTY_NOTICES.md".to_owned(),
@@ -458,7 +458,7 @@ fn sign_tool(tools: &Tools) -> Command {
 /// `verify-app`, archive layout, and the dynamic section of every bundled
 /// native library (all remaining NEEDED entries must be OHOS system libraries).
 fn verify_hap(tools: &Tools, hap: &Path, target: &str) -> Result<()> {
-    let evidence = tempfile::tempdir()?;
+    let evidence = crate::temporary::directory()?;
     dependencies::run(
         sign_tool(tools)
             .args(["verify-app", "-inFile"])
@@ -468,7 +468,7 @@ fn verify_hap(tools: &Tools, hap: &Path, target: &str) -> Result<()> {
             .arg("-outProfile")
             .arg(evidence.path().join("profile.p7b")),
     )?;
-    let extracted = tempfile::tempdir()?;
+    let extracted = crate::temporary::directory()?;
     let mut archive = zip::ZipArchive::new(fs::File::open(hap)?)?;
     let mut names = Vec::new();
     for i in 0..archive.len() {

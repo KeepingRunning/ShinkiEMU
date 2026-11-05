@@ -637,7 +637,7 @@ mod version_tests {
 
     #[test]
     fn manager_build_sidecar_rejects_an_old_or_missing_compile_identity() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         let path = temp.path().join("manager-build-version.json");
         assert!(manager_build_version(&path, "0.1.0-beta.8").is_err());
         fs::write(&path, r#"{"version":"0.1.0-beta.6"}"#).unwrap();

@@ -593,7 +593,7 @@ pub fn verify_ohos_handoff(inv: &Inventory, component: &str, version: &str) -> R
         }
     }
     let hap = directory.join(record["archive"]["name"].as_str().unwrap());
-    let extracted = tempfile::tempdir()?;
+    let extracted = crate::temporary::directory()?;
     let mut archive = zip::ZipArchive::new(fs::File::open(&hap)?)?;
     for required in [
         "module.json",
@@ -920,7 +920,7 @@ mod tests {
             "url":format!("https://github.com/Project-Shinkirou/ShinkiEMU/releases/download/{tag}/core.zip"),
             "sha256":"a".repeat(64), "size":1,
         });
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         let catalog = temp
             .path()
             .join("Metadata/engines/cores/rfvp/windows-x86_64");

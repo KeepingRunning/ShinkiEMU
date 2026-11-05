@@ -2390,7 +2390,7 @@ mod native_tests {
 
     #[test]
     fn ndk_requires_the_exact_stable_revision() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         let properties = temp.path().join("source.properties");
         for revision in ["30.0.16248370-beta2", "30.0.15729638", "29.0.14206865"] {
             fs::write(&properties, format!("Pkg.Revision = {revision}\n")).unwrap();
@@ -2429,7 +2429,7 @@ mod native_tests {
     #[cfg(unix)]
     #[test]
     fn native_archives_preserve_executable_inputs() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         let bytes = b"#!/bin/sh\nexit 7\n";
         for format in ["zip", "tar-gz"] {
             let input = temp.path().join(format);
@@ -2477,7 +2477,7 @@ mod native_tests {
 
     #[test]
     fn verified_native_tree_reuses_files_without_an_archive_or_network() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         let (archive, pin) = cached_zip(
             temp.path(),
             &[
@@ -2509,7 +2509,7 @@ mod native_tests {
 
     #[test]
     fn bad_native_archive_hash_never_publishes_a_partial_tree() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         let (archive, pin) = cached_zip(temp.path(), &[("fixture/source.txt", b"public source")]);
         fs::write(&archive, b"changed download").unwrap();
         let layers = [NativeLayer {
@@ -2523,7 +2523,7 @@ mod native_tests {
 
     #[test]
     fn unsafe_native_archive_cleans_its_staging_and_preserves_inputs() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         let (archive, pin) = cached_zip(
             temp.path(),
             &[
@@ -2557,7 +2557,7 @@ mod native_tests {
     #[test]
     fn linux_runtime_links_cannot_copy_files_outside_the_pinned_installation() {
         use std::os::unix::fs::symlink;
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         let mut inv =
             Inventory::load(Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap()).unwrap();
         inv.root = temp.path().to_owned();
@@ -2581,7 +2581,7 @@ mod native_tests {
     #[test]
     fn linux_runtime_copy_rejects_dangling_output_links() {
         use std::os::unix::fs::symlink;
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         let mut inv =
             Inventory::load(Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap()).unwrap();
         inv.root = temp.path().to_owned();

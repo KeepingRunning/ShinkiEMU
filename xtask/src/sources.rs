@@ -324,7 +324,7 @@ fn append_revision(
     rev: &str,
     prefix: &Path,
 ) -> Result<()> {
-    let raw = tempfile::NamedTempFile::new()?;
+    let raw = crate::temporary::file()?;
     dependencies::run(
         git_committed_bytes(repository)
             .args(["archive", "--format=tar", rev, "-o"])
@@ -641,7 +641,7 @@ fn native_git_source(downloads: &Path, port: &str, location: &str, dest: &Path) 
     {
         cached.as_path()
     } else {
-        checkout = tempfile::tempdir()?;
+        checkout = crate::temporary::directory()?;
         dependencies::run(git_committed_bytes(checkout.path()).args(["init", "-q"]))?;
         dependencies::run(git_committed_bytes(checkout.path()).args([
             "fetch",
@@ -1408,7 +1408,7 @@ mod tests {
     }
 
     fn fixture() -> (tempfile::TempDir, Inventory, Core, PathBuf, String, String) {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         let source = temp.path().join("upstream");
         fs::create_dir(&source).unwrap();
         dependencies::run(
@@ -1871,7 +1871,7 @@ mod tests {
 
     #[test]
     fn native_graph_follows_host_tools_and_ignores_removed_or_unrelated_records() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         let install = temp.path().join("installed/target");
         fs::create_dir_all(install.join("share/doc")).unwrap();
         fs::create_dir_all(temp.path().join("installed/vcpkg")).unwrap();
@@ -1904,7 +1904,7 @@ mod tests {
 
     #[test]
     fn installed_registry_tree_wins_over_head_and_overlays_are_skipped() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         let registry = temp.path().join("registry");
         let head = registry.join("ports/example");
         fs::create_dir_all(&head).unwrap();

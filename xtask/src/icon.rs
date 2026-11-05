@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn generates_android_density_resources_and_opaque_apple_icons() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         let icon = Icon::new().unwrap();
         icon.android(temp.path()).unwrap();
         let density =
@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn encodes_png_chunks_inside_a_complete_icns_container() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         let path = temp.path().join("ShinkiEMU.icns");
         Icon::new().unwrap().icns(&path).unwrap();
         let bytes = fs::read(path).unwrap();

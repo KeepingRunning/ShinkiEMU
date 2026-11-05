@@ -127,7 +127,7 @@ mod tests {
 
     #[test]
     fn dotted_core_ids_keep_independent_archive_contents() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::temporary::directory().unwrap();
         let mut artifacts = Vec::new();
         for (core, contents) in [
             ("shinki.emu.musica", b"musica".as_slice()),

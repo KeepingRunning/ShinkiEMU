@@ -54,6 +54,8 @@ cargo xtask test
 
 build 必须在 `--manager`、`--core`、`--all-cores` 中选一项。check 选择 Manager 或单个核心；test 在宿主运行，没有 `--target` 参数。不带选择的 test 运行 xtask 和构建辅助库测试。原生行为回归可能需要真实 GPU、音频设备及公开夹具。
 
+xtask 在创建临时文件和目录前解析系统临时目录根的真实路径。macOS 默认的 `/var/folders/...` 和含符号链接的 `TMPDIR` 均可使用，无需修改该环境变量。打包输入仍拒绝链接和特殊文件；原子发布仍在目标旁、同一文件系统内暂存。
+
 每个核心的 `build.rs` 校验本核心的目标和输入，在 Cargo `OUT_DIR` 写入 `core-build.json`。C++ 适配通过它驱动真实 CMake 构建，纯 Rust 核心仍由 Cargo 编译。构建脚本不递归运行 Cargo，也不发布 Release。xtask 从 `compiler-artifact` 和 `build-script-executed` JSON 读取真实产物，不猜测 target 路径。各组件使用 `.work/target/<target>/<component>`，构建记录写入 `.work/build/`。Artemis 在所有平台统一使用 Luau，Android 静态嵌入时与 Manager 共用运行时。
 
 Manager 只按当前目标的 `static_manager_targets` 收集嵌入构建清单，并匹配准确的 Cargo package ID。仅作为资源读取器使用的核心依赖不算静态注册。所选清单仍须通过 plugin、目标、profile 和产物种类校验，缺失、歧义或重复记录会使构建失败。
