@@ -370,7 +370,13 @@ fn crossfade_transition_and_sqz_animated_foreground_render_native_layers() {
     // Half-way: the animated red frame fades in over the old black stage.
     assert!(machine.advance_transition_clock(duration_ns / 2).unwrap());
     scene.render(machine.state(), None, None).unwrap();
-    assert_eq!(pixel(&scene, 8, 8), [127, 0, 0, 255]);
+    let halfway = pixel(&scene, 8, 8);
+    // Half-intensity red is 127.5 in RGBA8; accept either adjacent integer.
+    assert!(
+        (127..=128).contains(&halfway[0]),
+        "unexpected half-way pixel: {halfway:?}"
+    );
+    assert_eq!(&halfway[1..], &[0, 0, 255]);
     // Completed: the new stage renders fully, animated frame 0 is opaque red.
     assert!(!machine.advance_transition_clock(duration_ns).unwrap());
     scene.render(machine.state(), None, None).unwrap();
