@@ -118,7 +118,7 @@ struct Session {
   platform::InputSnapshot pending;
   Lease pixels;
   uint64_t generation{}, timestamp{};
-  std::jthread thread;
+  std::thread thread;
 
   explicit Session(uint64_t value) : epoch(value) {}
   ~Session() {
@@ -312,7 +312,7 @@ static int open_game(const ShinkiEmuOpenRequest *req, ShinkiEmuOpenResult *out,
       return ShinkiEmuNO_MATCH;
     auto opts = options(*req);
     auto s = std::make_unique<Session>(req->session_epoch);
-    s->thread = std::jthread(
+    s->thread = std::thread(
         [owner = s.get(), root, opts] { owner->work(root, opts); });
     auto until = Clock::now() + 30s;
     std::unique_lock lock(s->mutex);
