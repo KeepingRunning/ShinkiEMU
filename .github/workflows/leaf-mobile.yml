@@ -33,6 +33,18 @@ jobs:
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - uses: actions/cache/restore@v4
+        id: media-cache
+        with:
+          path: media
+          key: leaf-codecs-v1-${{ matrix.target }}-${{ hashFiles('Tools/leaf/media.sh', 'Tools/leaf-mobile/media-build.sh') }}
+      - if: steps.media-cache.outputs.cache-hit != 'true'
+        run: bash Tools/leaf-mobile/media-build.sh "${{ matrix.target }}"
+      - if: steps.media-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: media
+          key: ${{ steps.media-cache.outputs.cache-primary-key }}
       - name: Compile application and inspect target binary
         run: bash Tools/leaf-mobile/build.sh "${{ matrix.target }}"
       - uses: actions/upload-artifact@v4

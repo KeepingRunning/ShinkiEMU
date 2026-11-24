@@ -20,3 +20,16 @@ diff --git a/engine/scene_audio_checkpoint.cpp b/engine/scene_audio_checkpoint.c
      ~PendingAudio(){if(!committed)for(auto& slot:slots)if(slot.voice)slot.voice->stop();}
  };
  }
+diff --git a/tools/SDL-release-2.32.10/src/thread/pthread/SDL_systhread.c b/tools/SDL-release-2.32.10/src/thread/pthread/SDL_systhread.c
+--- a/tools/SDL-release-2.32.10/src/thread/pthread/SDL_systhread.c
++++ b/tools/SDL-release-2.32.10/src/thread/pthread/SDL_systhread.c
+@@ -172,7 +172,8 @@
+ #endif /* !__NACL__ */
+ 
+ 
+-#ifdef PTHREAD_CANCEL_ASYNCHRONOUS
++/* The OpenHarmony libc exposes the constant but omits pthread_setcanceltype. */
++#if defined(PTHREAD_CANCEL_ASYNCHRONOUS) && !defined(SDL_PLATFORM_OPENHARMONY)
+     /* Allow ourselves to be asynchronously cancelled */
+     {
+         int oldstate;

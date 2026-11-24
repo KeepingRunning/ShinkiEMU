@@ -3,7 +3,7 @@ set -eu
 root=$PWD
 target=$1
 git -C upstream apply "$root/Tools/leaf/upstream.patch"
-bash Tools/leaf-mobile/media-build.sh "$target"
+if [ ! -s media/lib/libavformat.a ]; then bash Tools/leaf-mobile/media-build.sh "$target"; fi
 args=(-G Ninja -DCMAKE_BUILD_TYPE=Release -DUPSTREAM="$root/upstream" -DLEAF_MEDIA_PREFIX="$root/media"
       -DLEAF_BUNDLED_SDL=ON -DLEAF_MOBILE_PLAYER=ON)
 mkdir -p out
@@ -33,7 +33,7 @@ case "$target" in
     app=mobile-build/Leaf.app
     bash Tools/leaf-mobile/notices.sh "$app/licenses"
     plutil -lint "$app/Info.plist"
-    lipo -verify_arch "$arch" "$app/Leaf"
+    lipo "$app/Leaf" -verify_arch "$arch"
     xcrun vtool -show-build "$app/Leaf"
     if otool -L "$app/Leaf" | grep -Eq '/opt/homebrew|/usr/local|/Users/runner'; then exit 1; fi
     if [[ "$sdk" == iphoneos ]]; then

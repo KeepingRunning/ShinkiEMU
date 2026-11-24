@@ -13,6 +13,7 @@ foreach(feature ALSA ARTS DBUS ESD HIDAPI IBUS JACK KMSDRM NAS OSS PIPEWIRE PULS
 endforeach()
 set(SDL_STATIC ON CACHE BOOL "" FORCE)
 add_subdirectory("${UPSTREAM}/tools/SDL-release-2.32.10" sdl EXCLUDE_FROM_ALL)
+target_compile_definitions(SDL2-static PRIVATE SDL_PLATFORM_OPENHARMONY=1)
 add_subdirectory("${UPSTREAM}/engine" engine EXCLUDE_FROM_ALL)
 add_library(wa2_movie STATIC "${UPSTREAM}/engine/movie_reader.cpp" "${UPSTREAM}/engine/movie_player.cpp")
 target_link_libraries(wa2_movie PUBLIC wa2_engine leaf_mobile_codecs)
