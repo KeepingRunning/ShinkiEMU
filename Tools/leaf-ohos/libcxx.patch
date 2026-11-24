@@ -1,0 +1,11 @@
+diff --git a/engine/vorbis_stream.cpp b/engine/vorbis_stream.cpp
+--- a/engine/vorbis_stream.cpp
++++ b/engine/vorbis_stream.cpp
+@@ -3,6 +3,7 @@
+ #include <algorithm>
+ #include <cmath>
+ #include <cstring>
++#include <string>
+ #include <vector>
+ #define STB_VORBIS_NO_STDIO
+ #define STB_VORBIS_NO_PULLDATA_API

@@ -46,7 +46,7 @@ def stage_libraries(root):
             candidate = candidates.get(filename.lower())
             if windows and not candidate:
                 if filename.lower() in ("libwinpthread-1.dll", "libgcc_s_seh-1.dll", "libstdc++-6.dll"):
-                    candidate = Path(shutil.which(filename) or "")
+                    candidate = Path(shutil.which("gcc")).resolve().parent / filename
                 else:
                     continue
             if not candidate or not candidate.is_file():

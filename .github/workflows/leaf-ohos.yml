@@ -31,6 +31,18 @@ jobs:
           echo "DEVECO_SDK_HOME=$cli/sdk" >> "$GITHUB_ENV"
           echo "HOS_SDK_HOME=$cli/sdk" >> "$GITHUB_ENV"
           for dir in "$cli/ohpm/bin" "$cli/hvigor/bin" "$cli/tool/node/bin" "$cli/bin"; do echo "$dir" >> "$GITHUB_PATH"; done
+      - uses: actions/cache/restore@v4
+        id: media-cache
+        with:
+          path: media
+          key: leaf-ohos-media-sdk510840-${{ hashFiles('Tools/leaf/media.sh', 'Tools/leaf-ohos/media.sh') }}
+      - if: steps.media-cache.outputs.cache-hit != 'true'
+        run: bash Tools/leaf-ohos/media.sh
+      - if: steps.media-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: media
+          key: ${{ steps.media-cache.outputs.cache-primary-key }}
       - name: Build Leaf with XComponent and OHAudio
         run: bash Tools/leaf-ohos/build.sh
       - uses: actions/upload-artifact@v4
