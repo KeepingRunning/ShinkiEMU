@@ -1,0 +1,50 @@
+name: Leaf desktop builds
+on:
+  push:
+    branches: [build/wa2-leaf-multiplatform]
+    paths: [Tools/leaf/**, .github/workflows/leaf-desktop.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {platform: linux-x86_64, runner: ubuntu-24.04, shell: bash}
+          - {platform: windows-x86_64, runner: windows-2022, shell: 'msys2 {0}'}
+          - {platform: macos-arm64, runner: macos-15, shell: bash}
+          - {platform: macos-x86_64, runner: macos-15-intel, shell: bash}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: dorakyuraduang/whitealbum2-Android
+          ref: e5b9dcd22123fdb51a5c3db24d76f81afbb3ce68
+          path: upstream
+      - if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            make diffutils git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-nasm
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ninja-build pkg-config libsdl2-dev libavformat-dev libavcodec-dev libswscale-dev libswresample-dev libavutil-dev
+      - if: runner.os == 'macOS'
+        run: brew install ninja pkgconf nasm
+      - name: Build, package and query installed binary
+        shell: ${{ matrix.shell }}
+        env:
+          LEAF_TARGET: ${{ matrix.platform }}
+        run: bash Tools/leaf/desktop.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Leaf-${{ matrix.platform }}
+          path: out/*
+          if-no-files-found: error

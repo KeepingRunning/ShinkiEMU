@@ -1,0 +1,132 @@
+diff --git a/engine/scene_voices.cpp b/engine/scene_voices.cpp
+index 649c32f..735918e 100644
+--- a/engine/scene_voices.cpp
++++ b/engine/scene_voices.cpp
+@@ -75,7 +75,9 @@ std::optional<CommandResult> SceneVoices::dispatch(Command& command){
+     // Existing 0x454db0/0x454de0 reorder the public VV/VX arguments before
+     // calling 0x40eda0; channel and line are not in their first argument slots.
+     case 138:count(5);play(v(3),v(0),-1,v(4),v(1),v(2));return CommandResult{true,false,Value{}};
+-    case 139:count(6);play(v(5),v(0),v(1),v(4),v(3),v(2));return CommandResult{true,false,Value{}};
++    // VX(speaker, line, chapter, volume, mode, channel). A chapter of -1
++    // uses the chapter selected by VI, as in the original SC handler 0x456bb0.
++    case 139:count(6);play(v(5),v(0),v(2),v(1),v(3),v(4));return CommandResult{true,false,Value{}};
+     case 140:{count(2);const auto& item=checked(v(0));const bool interrupted=v(1)!=0 && ((skip_ && skip_()) || (advance_ && advance_()));
+         return CommandResult{!item.voice || interrupted,true,Value{}};}
+     // VS(fade, channel), matching the actual 0x454e40 stack order.
+diff --git a/platform/native_desktop.cpp b/platform/native_desktop.cpp
+index 0860eef..5432bde 100644
+--- a/platform/native_desktop.cpp
++++ b/platform/native_desktop.cpp
+@@ -27,7 +27,27 @@ resource::BankOpener native_desktop_banks(const std::filesystem::path& directory
+     return [directory=directory.lexically_normal()](std::string_view name)->std::shared_ptr<resource::Source>{
+         if(name.empty() || name.size()>240 || name.front()=='/' || name.find("..")!=std::string_view::npos || !name.ends_with(".pak") ||
+             std::any_of(name.begin(),name.end(),[](unsigned char c){return !((c>='a' && c<='z') || (c>='A' && c<='Z') || (c>='0' && c<='9') || c=='_' || c=='-' || c=='.' || c=='/');}))throw resource::Error("Invalid native resource bank name");
+-        try{return open_resource_file(directory/native_utf8_path(name));}catch(const resource::NotFound&){return {};}
++        const auto relative = native_utf8_path(name);
++        try { return open_resource_file(directory / relative); }
++        catch (const resource::NotFound&) {}
++        // Windows media may contain mixed-case directories and archive names.
++        auto resolved = directory;
++        for (const auto& component : relative) {
++            if (std::filesystem::exists(resolved / component)) { resolved /= component; continue; }
++            if (!std::filesystem::is_directory(resolved)) return {};
++            const auto wanted = component.string();
++            std::optional<std::filesystem::path> match;
++            for (const auto& entry : std::filesystem::directory_iterator(resolved)) {
++                const auto filename = entry.path().filename().u8string();
++                if (resource::compare_names(std::string(filename.begin(), filename.end()), wanted) != 0) continue;
++                if (match) throw resource::Error("Ambiguous resource bank path: " + std::string(name));
++                match = entry.path();
++            }
++            if (!match) return {};
++            resolved = std::move(*match);
++        }
++        try { return open_resource_file(resolved); }
++        catch (const resource::NotFound&) { return {}; }
+     };
+ }
+ LegacySettingsOpener native_desktop_legacy_settings(const std::filesystem::path& directory){
+diff --git a/tests/native_audio_checkpoint.cpp b/tests/native_audio_checkpoint.cpp
+index ae4791b..caba75f 100644
+--- a/tests/native_audio_checkpoint.cpp
++++ b/tests/native_audio_checkpoint.cpp
+@@ -40,8 +40,8 @@ int main(int argc,char** argv){try{
+     Factory voice_factory;unsigned voice_started{},voice_stopped{},voice_issued{};const auto speech=[&](const s::SpokenLine& line){auto result=voice_factory.make(line.line,line.loop);voice_factory.made.back()->line=line;return result;};
+     s::SceneVoices voices(speech,[]{return 1001;},[]{return 2;},[]{return 10;});s::SceneVoices restored_voices(speech,[]{return 9999;},[]{return 99;},[]{return 500;},{},{},{[&](auto,const auto&,const auto&){++voice_started;},[&](auto){++voice_stopped;},[&](auto,const auto&,auto){++voice_issued;}});
+     const auto no_voices=voices.checkpoint();restored_voices.restore(no_voices);CHECK(!restored_voices.active() && !voice_started);++cases;
+-    invoke(voices,139,{s::Value(2),s::Value(1001),s::Value(0),s::Value(250),s::Value(5),s::Value(0)});const auto ordinary_speech=voices.checkpoint();restored_voices.restore(ordinary_speech);CHECK(!restored_voices.active() && restored_voices.played()==1);++cases;
+-    invoke(voices,139,{s::Value(1),s::Value(2001),s::Value(-1),s::Value(200),s::Value(7),s::Value(1)});invoke(voices,139,{s::Value(0),s::Value(2001),s::Value(1),s::Value(180),s::Value(8),s::Value(2)});invoke(voices,139,{s::Value(3),s::Value(2001),s::Value(1),s::Value(160),s::Value(9),s::Value(3)});
++    invoke(voices,139,{s::Value(2),s::Value(5),s::Value(1001),s::Value(250),s::Value(0),s::Value(0)});const auto ordinary_speech=voices.checkpoint();restored_voices.restore(ordinary_speech);CHECK(!restored_voices.active() && restored_voices.played()==1);++cases;
++    invoke(voices,139,{s::Value(1),s::Value(7),s::Value(2001),s::Value(200),s::Value(-1),s::Value(1)});invoke(voices,139,{s::Value(0),s::Value(8),s::Value(2001),s::Value(180),s::Value(1),s::Value(2)});invoke(voices,139,{s::Value(3),s::Value(9),s::Value(2001),s::Value(160),s::Value(1),s::Value(3)});
+     invoke(voices,235,{s::Value(64),s::Value(10),s::Value(1)});for(unsigned n=0;n<3;++n)voices.update();const auto saved_voices=voices.checkpoint();const auto made_before=voice_factory.made.size();restored_voices.settings(128,128);restored_voices.restore(saved_voices);
+     CHECK(restored_voices.checkpoint()==saved_voices && restored_voices.active()==3 && restored_voices.played()==4 && !voice_issued && voice_started==3 && voice_factory.made.size()==made_before+3);++cases;
+     const auto first_loop=voice_factory.made[made_before];CHECK(first_loop->line.speaker==1 && first_loop->line.chapter==2001 && first_loop->line.line==17 && first_loop->line.loop && first_loop->volume==50);++cases;
+diff --git a/tests/native_movie_state.cpp b/tests/native_movie_state.cpp
+index 5be979f..200e075 100644
+--- a/tests/native_movie_state.cpp
++++ b/tests/native_movie_state.cpp
+@@ -38,7 +38,7 @@ int main(int argc,char** argv){try{
+     script.call(176,{s::Value(0),s::Value(std::string("atlas.tga")),s::Value(24),s::Value(1),s::Value(std::string()),s::Value(256),s::Value(std::string("grp")),s::Value(1)});
+     script.call(133,{s::Value(std::string()),s::Value(7),s::Value(1)});script.call(158,{s::Value(31),s::Value(0),s::Value(0),s::Value(255)});
+     script.call(164,{s::Value(10),s::Value(255)});script.call(165,{s::Value(3),s::Value(11),s::Value(0),s::Value(1),s::Value(220),s::Value(0)});script.call(165,{s::Value(7),s::Value(12),s::Value(0),s::Value(1),s::Value(220),s::Value(1)});
+-    script.call(138,{s::Value(1),s::Value(255),s::Value(1),s::Value(0),s::Value(7)});script.call(139,{s::Value(2),s::Value(1001),s::Value(1),s::Value(200),s::Value(8),s::Value(1)});
++    script.call(138,{s::Value(1),s::Value(255),s::Value(1),s::Value(0),s::Value(7)});script.call(139,{s::Value(2),s::Value(8),s::Value(1001),s::Value(200),s::Value(1),s::Value(1)});
+     script.call(194,{s::Value(80),s::Value(0),s::Value(0)});script.call(193,{s::Value(std::string("mv12")),s::Value(201)});script.call(194,{s::Value(1000),s::Value(0),s::Value(0)});script.finish();
+     banks["ck-gal.pak"]=bank({{"Global.vrb",text("3,FLG_00,0\r\n")},{"LFScriptFunc.fnc",functions(0,200)},{"LFScriptFuncEx.fnc",functions(200,239)},{"1001.bnr",script.code},{"1001.txt",text(script.strings)}});
+     const r::BankOpener open=[&](auto name)->std::shared_ptr<r::Source>{const auto found=banks.find(std::string(name));return found==banks.end()?nullptr:found->second;};
+diff --git a/tests/native_options_preferences.cpp b/tests/native_options_preferences.cpp
+index ec517c8..d5e848a 100644
+--- a/tests/native_options_preferences.cpp
++++ b/tests/native_options_preferences.cpp
+@@ -43,7 +43,7 @@ int main(int argc,char** argv){try{
+     for(unsigned channel=0;channel<3;++channel){auto muted=prefs;muted.audio_muted[channel]=true;CHECK(g::Preferences::decode(muted.encode())==muted);CHECK(muted.master==195 && muted.music==134 && muted.effects==195);CHECK(muted.effective_master()==(channel==0?0:195) && muted.effective_music()==(channel==1?0:134) && muted.effective_effects()==(channel==2?0:195));CHECK(muted.movie_amplitude()==(channel<2?0.f:102/255.f));++cases;}
+     CHECK(prefs.transition_frames(-1)==15 && prefs.transition_frames(-2)==30 && prefs.transition_frames(57)==57 && prefs.transition_frames(57,true)==0);auto immediate=prefs;immediate.transition_wait=false;CHECK(immediate.transition_frames(-1)==0 && immediate.transition_frames(57)==0);const auto timing=g::options_timing(immediate);CHECK(!timing.open && !timing.page && !timing.close);++cases;
+     auto banks=memory_banks();const r::BankOpener opener=[&](auto name)->std::shared_ptr<r::Source>{const auto found=banks.find(std::string(name));return found==banks.end()?nullptr:found->second;};
+-    Script script;for(int channel:{0,1})script.call(139,{s::Value(channel),s::Value(1001),s::Value(0),s::Value(255),s::Value(1),s::Value(channel)});script.call(131,{s::Value(std::string("ABC")),s::Value(7),s::Value(1)});script.call(194,{s::Value(100),s::Value(0),s::Value(0)});script.finish();banks["ck-gal.pak"]=bank({{"Global.vrb",text("3,FLG_00,0\r\n")},{"LFScriptFunc.fnc",functions(0,200)},{"LFScriptFuncEx.fnc",functions(200,239)},{"1001.bnr",std::move(script.code)},{"1001.txt",text(script.strings)}});
++    Script script;for(int channel:{0,1})script.call(139,{s::Value(channel),s::Value(1),s::Value(1001),s::Value(255),s::Value(0),s::Value(channel)});script.call(131,{s::Value(std::string("ABC")),s::Value(7),s::Value(1)});script.call(194,{s::Value(100),s::Value(0),s::Value(0)});script.finish();banks["ck-gal.pak"]=bank({{"Global.vrb",text("3,FLG_00,0\r\n")},{"LFScriptFunc.fnc",functions(0,200)},{"LFScriptFuncEx.fnc",functions(200,239)},{"1001.bnr",std::move(script.code)},{"1001.txt",text(script.strings)}});
+     std::vector<std::shared_ptr<VoiceState>> voices;g::SceneServices services;services.speech=[&](const auto&){auto voice=std::make_shared<VoiceState>();voices.push_back(voice);return std::make_unique<SettingsVoice>(voice);};
+     auto progress=std::make_shared<p::Store>(std::make_shared<Storage>());g::Scene scene(opener,1,progress,services);auto applied=prefs;applied.cut_voice_on_advance=true;applied.transition_wait=false;applied.window_alpha=applied.button_alpha=applied.picture_alpha=applied.novel_alpha=256;scene.preferences(applied);scene.start();
+     std::int64_t now{};const auto tick=[&](g::Input input={}){now+=16667;scene.update(now,input);};const auto until=[&](auto condition){const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);unsigned ticks{};while(!condition()){CHECK(++ticks<400 && std::chrono::steady_clock::now()<deadline);tick();std::this_thread::sleep_for(std::chrono::milliseconds(1));}};
+diff --git a/tests/native_preferences.cpp b/tests/native_preferences.cpp
+index 7772e4e..129d8ce 100644
+--- a/tests/native_preferences.cpp
++++ b/tests/native_preferences.cpp
+@@ -53,7 +53,7 @@ int main(int argc,char** argv){try{
+     std::vector<std::shared_ptr<State>> made;bool skip{};unsigned issued{};
+     const auto factory=[&](const s::SpokenLine& line){auto state=std::make_shared<State>();state->line=line;made.push_back(state);return std::make_unique<Voice>(state);};
+     s::SceneVoices voice(factory,[]{return 1001;},[]{return 0;},{},[&]{return skip;},{},{{},{},[&](auto,const auto&,auto){++issued;}});
+-    const auto play=[&](int speaker,int loop=1){std::array<s::Value,6> args{s::Value(speaker),s::Value(1001),s::Value(loop),s::Value(255),s::Value(1),s::Value(0)};s::Command command{139,args};voice.dispatch(command);};
++    const auto play=[&](int speaker,int loop=1){std::array<s::Value,6> args{s::Value(speaker),s::Value(1),s::Value(1001),s::Value(255),s::Value(loop),s::Value(0)};s::Command command{139,args};voice.dispatch(command);};
+     play(2);auto old=made.back();CHECK(voice.active()==1 && old->gain==255 && issued==1);++cases;
+     std::array<bool,10> switches;switches.fill(true);switches[1]=false;voice.character_switches(switches);const auto count=made.size();play(2);CHECK(made.size()==count && !old->stops && voice.active()==1 && issued==2);++cases;
+     skip=true;play(1,0);CHECK(made.size()==count && !old->stops);skip=false;++cases;
+diff --git a/tests/native_voices.cpp b/tests/native_voices.cpp
+index 16e700c..83608cc 100644
+--- a/tests/native_voices.cpp
++++ b/tests/native_voices.cpp
+@@ -28,10 +28,10 @@ int main(int argc,char** argv){try{
+     std::array<s::Value,2> stop{s::Value(4),s::Value(0)};call={141,stop};voices.dispatch(call);voices.update();CHECK(created.back()->gain==255 && !created.back()->done);voices.update();CHECK(created.back()->gain==191);++cases;
+     for(unsigned n=0;n<3;++n)voices.update();CHECK(created.back()->done && !voices.active());++cases;
+     skip=true;const auto issued_before=issued;call={138,args};voices.dispatch(call);CHECK(created.size()==2 && !voices.active() && issued==issued_before+1 && issued_line.line==103);++cases;
+-    std::array<s::Value,6> forced{s::Value(2),s::Value(2003),s::Value(1),s::Value(128),s::Value(51),s::Value(1)};call={139,forced};voices.dispatch(call);
++    std::array<s::Value,6> forced{s::Value(2),s::Value(51),s::Value(2003),s::Value(128),s::Value(1),s::Value(1)};call={139,forced};voices.dispatch(call);
+     CHECK(voices.active()==1 && created.back()->line.chapter==2003 && created.back()->line.speaker==2 && created.back()->line.line==54 && created.back()->line.loop);++cases;
+     created.back()->done=true;voices.update();CHECK(!voices.active());++cases;
+-    forced[2]=s::Value(-1);call={139,forced};voices.dispatch(call);CHECK(created.back()->line.loop);++cases;
++    forced[4]=s::Value(-1);call={139,forced};voices.dispatch(call);CHECK(created.back()->line.loop);++cases;
+     skip=false;forced[5]=s::Value(2);call={139,forced};voices.dispatch(call);auto channel2=created.back();forced[5]=s::Value(3);call={139,forced};voices.dispatch(call);CHECK(voices.active()==3);++cases;
+     std::array<s::Value,3> volume{s::Value(0),s::Value(2),s::Value(2)};call={235,volume};voices.dispatch(call);voices.update();CHECK(channel2->gain==128);voices.update();CHECK(channel2->gain==64);voices.update();CHECK(channel2->gain==0 && !channel2->done);++cases;
+     volume[0]=s::Value(255);volume[1]=s::Value(0);call={235,volume};voices.dispatch(call);voices.update();CHECK(channel2->gain==255);++cases;
+@@ -44,6 +44,12 @@ int main(int argc,char** argv){try{
+     const auto recorded=issued;voices.replay({1,1200,9,false},64);CHECK(voices.playing() && created.back()->line.chapter==1200 && created.back()->line.line==9 && created.back()->gain==64 && issued==recorded);++cases;
+     created.back()->done=true;CHECK(!voices.playing());voices.update();CHECK(!voices.playing());++cases;
+     failed=false;try{voices.replay({-1,1200,9,false},64);}catch(const std::exception&){failed=true;}CHECK(failed);++cases;
++    // The first extended voice in Special Contents uses line zero and inherits
++    // its chapter. It plays once on channel one; the backlog uses that identity.
++    std::array<s::Value,6> inherited{s::Value(99),s::Value(0),s::Value(-1),s::Value(128),s::Value(0),s::Value(1)};
++    call={139,inherited};voices.dispatch(call);
++    CHECK(voices.playing(1) && issued_line.chapter==1002 && issued_line.line==3 && issued_line.speaker==99 && !issued_line.loop);
++    CHECK(created.back()->line.chapter==1002 && created.back()->line.line==3 && created.back()->gain==128);++cases;
+     std::ofstream report(argv[1]);report<<"{\"schema\":\"wa2.native-voices.v1\",\"cases\":"<<cases<<",\"maximum_voice_slots\":4,\"screen_access\":false,\"audio_devices_opened\":0,\"cpu_emulator_linked\":false,\"passed\":true}\n";
+     std::cout<<"PASS native speech commands: "<<cases<<" cases.\n";return 0;
+ }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
