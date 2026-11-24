@@ -7,7 +7,7 @@ git -C upstream apply "$root/Tools/leaf-ohos/libcxx.patch"
 cmake -S Tools/leaf-ohos -B build-ohos -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DUPSTREAM="$root/upstream" -DLEAF_MEDIA_PREFIX="$root/media" -DCMAKE_TOOLCHAIN_FILE="$native/build/cmake/ohos.toolchain.cmake" \
   -DOHOS_ARCH=arm64-v8a -DOHOS_STL=c++_shared
-cmake --build build-ohos --target leaf_ohos -j 2
+cmake --build build-ohos --target leaf_ohos -j 3 -- -k 0
 cp -R Platforms/OHOS leaf-hap
 cp Tools/leaf-ohos/Index.ets leaf-hap/entry/src/main/ets/pages/Index.ets
 mkdir -p leaf-hap/entry/libs/arm64-v8a
@@ -15,7 +15,11 @@ cp build-ohos/libshinki_emu_manager.so leaf-hap/entry/libs/arm64-v8a/
 runtime=$(find "$native" -path '*/aarch64-linux-ohos/libc++_shared.so' -print -quit)
 test -s "$runtime"
 cp "$runtime" leaf-hap/entry/libs/arm64-v8a/
-bash Tools/leaf-mobile/notices.sh leaf-hap/entry/src/main/resources/rawfile/licenses
+notices=leaf-hap/entry/src/main/resources/rawfile/licenses
+bash Tools/leaf-mobile/notices.sh "$notices"
+mkdir -p "$notices/ohos-sdk"
+cp "$native/NOTICE.txt" "$notices/ohos-sdk/"
+cp "$native/llvm/NOTICE" "$notices/ohos-sdk/llvm-NOTICE"
 python3 - <<'PY'
 from pathlib import Path
 import json
@@ -34,3 +38,4 @@ test -s "$hap"
 cp "$hap" out/Leaf-OHOS-arm64-unsigned.hap
 unzip -tq out/*.hap
 "$native/llvm/bin/llvm-readelf" -d build-ohos/libshinki_emu_manager.so | grep NEEDED
+python3 Tools/leaf-ohos/sign-test.py out/Leaf-OHOS-arm64-unsigned.hap out/Leaf-OHOS-arm64-debug-test-signed.hap

@@ -42,16 +42,18 @@ struct Index {
   }
 
   build() {
-    if (this.directory.length > 0) {
-      XComponent({ id: 'leaf', type: XComponentType.SURFACE, libraryname: 'shinki_emu_manager' })
-        .width('100%').height('100%')
-        .onLoad(() => { leaf.start(this.mode + '\n' + this.directory); })
-    } else {
-      Column({ space: 18 }) {
-        Button('WHITE ALBUM2').onClick(() => { this.selectGame('main'); })
-        Button('Special Contents').onClick(() => { this.selectGame('special'); })
-        Text(this.failure.length > 0 ? this.failure : '请选择已解压的游戏目录').fontSize(16)
-      }.width('100%').height('100%').justifyContent(FlexAlign.Center)
-    }
+    Stack() {
+      if (this.directory.length > 0) {
+        XComponent({ id: 'leaf', type: XComponentType.SURFACE, libraryname: 'shinki_emu_manager' })
+          .width('100%').height('100%')
+          .onLoad(() => { leaf.start(this.mode + '\n' + this.directory); })
+      } else {
+        Column({ space: 18 }) {
+          Button('WHITE ALBUM2').onClick(() => { this.selectGame('main'); })
+          Button('Special Contents').onClick(() => { this.selectGame('special'); })
+          Text(this.failure.length > 0 ? this.failure : '请选择已解压的游戏目录').fontSize(16)
+        }.width('100%').height('100%').justifyContent(FlexAlign.Center)
+      }
+    }.width('100%').height('100%')
   }
 }

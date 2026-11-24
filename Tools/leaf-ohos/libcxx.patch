@@ -9,3 +9,14 @@ diff --git a/engine/vorbis_stream.cpp b/engine/vorbis_stream.cpp
  #include <vector>
  #define STB_VORBIS_NO_STDIO
  #define STB_VORBIS_NO_PULLDATA_API
+diff --git a/engine/scene_audio_checkpoint.cpp b/engine/scene_audio_checkpoint.cpp
+--- a/engine/scene_audio_checkpoint.cpp
++++ b/engine/scene_audio_checkpoint.cpp
+@@ -8,6 +8,7 @@
+ void volume_range(std::int32_t value){if(value<0 || value>255)throw Error("Invalid saved audio volume");}
+ template<class Slots>struct PendingAudio {
+     Slots& slots;bool committed{};
++    explicit PendingAudio(Slots& input) : slots(input) {}
+     ~PendingAudio(){if(!committed)for(auto& slot:slots)if(slot.voice)slot.voice->stop();}
+ };
+ }
