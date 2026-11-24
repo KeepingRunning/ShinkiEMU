@@ -1,0 +1,14 @@
+plugins { id 'com.android.application' version '8.7.3' }
+android {
+    namespace 'io.github.keepingrunning.leaftrial'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'io.github.keepingrunning.leaftrial'
+        minSdk 28
+        targetSdk 35
+        versionCode 3
+        versionName '0.1.0-trial.3'
+    }
+    packagingOptions { jniLibs { useLegacyPackaging = true } }
+    sourceSets.main.java.srcDir '../../../upstream/tools/SDL-release-2.32.10/android-project/app/src/main/java'
+}

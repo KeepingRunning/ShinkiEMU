@@ -1,0 +1,81 @@
+name: Leaf mobile builds
+on:
+  push:
+    branches: [build/wa2-leaf-multiplatform]
+    paths: [Tools/leaf/**, Tools/leaf-mobile/**, .github/workflows/leaf-mobile.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: leaf-mobile-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  player:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {target: ios-arm64, runner: macos-15}
+          - {target: ios-sim-arm64, runner: macos-15}
+          - {target: ios-sim-x86_64, runner: macos-15}
+          - {target: android-arm64, runner: ubuntu-24.04}
+          - {target: android-x86_64, runner: ubuntu-24.04}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: dorakyuraduang/whitealbum2-Android
+          ref: e5b9dcd22123fdb51a5c3db24d76f81afbb3ce68
+          path: upstream
+      - if: runner.os == 'Linux'
+        run: |
+          sdkmanager "ndk;28.2.13676358"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - name: Compile application and inspect target binary
+        run: bash Tools/leaf-mobile/build.sh "${{ matrix.target }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Leaf-${{ matrix.target }}
+          path: out/
+          if-no-files-found: error
+  android-apk:
+    needs: player
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: dorakyuraduang/whitealbum2-Android
+          ref: e5b9dcd22123fdb51a5c3db24d76f81afbb3ce68
+          path: upstream
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Leaf-android-*
+          path: Tools/leaf-mobile/android/src/main/jniLibs
+          merge-multiple: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Assemble universal APK and verify both native architectures
+        run: |
+          for abi in arm64-v8a x86_64; do
+            for lib in libmain.so libSDL2.so; do test -s "Tools/leaf-mobile/android/src/main/jniLibs/$abi/$lib"; done
+          done
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          bash Tools/leaf-mobile/notices.sh Tools/leaf-mobile/android/src/main/assets/licenses
+          gradle -p Tools/leaf-mobile/android assembleDebug
+          apk=$(find Tools/leaf-mobile/android/build/outputs/apk/debug -name '*.apk' -print -quit)
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
+          mkdir -p out
+          cp "$apk" out/Leaf-Android-arm64-x86_64-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Leaf-Android-APK
+          path: out/*.apk
