@@ -15,7 +15,7 @@ case "$target" in
     ;;
   ios-*)
     case "$target" in ios-arm64) sdk=iphoneos; arch=arm64;; ios-sim-arm64) sdk=iphonesimulator; arch=arm64;; ios-sim-x86_64) sdk=iphonesimulator; arch=x86_64;; esac
-    args+=(-DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT="$sdk" -DCMAKE_OSX_ARCHITECTURES="$arch"
+    args+=(-DCMAKE_PROJECT_INCLUDE="$root/Tools/leaf-mobile/apple-languages.cmake" -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT="$sdk" -DCMAKE_OSX_ARCHITECTURES="$arch"
            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO)
     ;;
 esac
