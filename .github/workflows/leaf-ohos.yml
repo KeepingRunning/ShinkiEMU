@@ -1,0 +1,40 @@
+name: Leaf OpenHarmony build
+on:
+  push:
+    branches: [build/wa2-leaf-multiplatform]
+    paths: [Tools/leaf-ohos/**, .github/workflows/leaf-ohos.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  hap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: dorakyuraduang/whitealbum2-Android
+          ref: e5b9dcd22123fdb51a5c3db24d76f81afbb3ce68
+          path: upstream
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - name: Install verified Huawei command-line SDK
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fL --connect-timeout 20 --max-time 1000 --retry 2 "https://repo.huaweicloud.com/harmonyos/ohpm/5.1.0/commandline-tools-linux-x64-5.1.0.840.zip" -o ohos.zip
+          echo '1dcefa4741dc289277560b2802040e0c45b433898d8db453d711d5376e0478f1  ohos.zip' | sha256sum -c
+          unzip -q ohos.zip
+          cli="$RUNNER_TEMP/command-line-tools"
+          test -x "$cli/sdk/default/openharmony/native/llvm/bin/clang"
+          echo "OHOS_SDK_NATIVE=$cli/sdk/default/openharmony/native" >> "$GITHUB_ENV"
+          echo "DEVECO_SDK_HOME=$cli/sdk" >> "$GITHUB_ENV"
+          echo "HOS_SDK_HOME=$cli/sdk" >> "$GITHUB_ENV"
+          for dir in "$cli/ohpm/bin" "$cli/hvigor/bin" "$cli/tool/node/bin" "$cli/bin"; do echo "$dir" >> "$GITHUB_PATH"; done
+      - name: Build Leaf with XComponent and OHAudio
+        run: bash Tools/leaf-ohos/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Leaf-OpenHarmony-HAP
+          path: out/*.hap
+          if-no-files-found: error
