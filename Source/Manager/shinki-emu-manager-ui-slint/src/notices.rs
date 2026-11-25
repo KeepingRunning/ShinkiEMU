@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::HashSet};
 
 use slint::{ComponentHandle, Model, ModelTracker, VecModel};
 
-use crate::{ManagerWindow, Notice, NoticeViewModel, Notices, tr};
+use crate::{ManagerWindow, Notice, NoticeViewModel, Notices, NoticesViewModel, tr};
 
 pub struct ErrorText {
     pub title: String,
@@ -329,6 +329,7 @@ fn fallback_title(code: &str) -> &'static str {
 
 pub(crate) struct NoticeModel {
     rows: VecModel<Notice>,
+    core_inventory_error: RefCell<Option<NoticeViewModel>>,
     model_items: RefCell<Vec<NoticeViewModel>>,
     host_items: RefCell<Vec<NoticeViewModel>>,
     dismissed: RefCell<HashSet<String>>,
@@ -338,20 +339,28 @@ impl NoticeModel {
     pub(crate) fn new() -> Self {
         Self {
             rows: VecModel::default(),
+            core_inventory_error: RefCell::new(None),
             model_items: RefCell::new(Vec::new()),
             host_items: RefCell::new(Vec::new()),
             dismissed: RefCell::new(HashSet::new()),
         }
     }
 
-    pub(crate) fn set_model(&self, items: Vec<NoticeViewModel>) {
+    pub(crate) fn set_model(&self, view: &NoticesViewModel) {
         let mut dismissed = self.dismissed.borrow_mut();
         let host = self.host_items.borrow();
         dismissed.retain(|id| {
-            items.iter().any(|item| item.id == *id) || host.iter().any(|item| item.id == *id)
+            view.core_inventory_error
+                .iter()
+                .chain(&view.items)
+                .chain(host.iter())
+                .any(|item| item.id == *id)
         });
         drop(host);
-        *self.model_items.borrow_mut() = items;
+        self.core_inventory_error
+            .borrow_mut()
+            .clone_from(&view.core_inventory_error);
+        self.model_items.borrow_mut().clone_from(&view.items);
         drop(dismissed);
         self.rebuild();
     }
@@ -393,16 +402,19 @@ impl NoticeModel {
 
     fn rebuild(&self) {
         let dismissed = self.dismissed.borrow();
-        let mut rows = Vec::new();
-        for item in self.host_items.borrow().iter() {
-            if !dismissed.contains(&item.id) {
-                rows.push(to_notice(item));
-            }
-        }
-        for item in self.model_items.borrow().iter() {
-            if !dismissed.contains(&item.id) {
-                rows.push(to_notice(item));
-            }
+        let mut rows: Vec<_> = self
+            .host_items
+            .borrow()
+            .iter()
+            .chain(self.model_items.borrow().iter())
+            .filter(|item| !dismissed.contains(&item.id))
+            .map(to_notice)
+            .collect();
+        if let Some(item) = self.core_inventory_error.borrow().as_ref()
+            && !dismissed.contains(&item.id)
+        {
+            // NoticeStack shows three cards. Keep this one low in short windows.
+            rows.insert(rows.len().min(2), to_notice(item));
         }
         self.rows.set_vec(rows);
     }

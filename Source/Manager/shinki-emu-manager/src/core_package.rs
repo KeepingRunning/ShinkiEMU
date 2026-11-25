@@ -448,7 +448,11 @@ pub(crate) fn apply_pending(cores: &Path) -> Vec<(String, String)> {
     let pending = cores.join(PENDING);
     let entries = match pending_entries(cores) {
         Ok(entries) => entries,
-        Err(error) => return vec![("<pending>".into(), error)],
+        Err(error) => {
+            // The live inventory owns directory-read errors; only per-core failures persist.
+            tracing::error!(event = "shinki.emu.manager.core_pending_inventory_failed", %error);
+            return failures;
+        }
     };
     for (stem, kind) in &entries {
         if *kind != PendingKind::Remove {

@@ -204,8 +204,7 @@ impl ShinkiEmuManagerController {
             .map(|root| root.path)
             .collect();
         let profile = self.profile()?;
-        let mut core_notices = Vec::new();
-        let cores = self.cores_model(&mut core_notices)?;
+        let (cores, core_inventory_error) = self.cores_model()?;
         Ok(ManagerViewModel {
             app: AppViewModel {
                 version: shinki_emu_manager::version().into(),
@@ -233,7 +232,8 @@ impl ShinkiEmuManagerController {
             patch,
             cores,
             notices: NoticesViewModel {
-                items: self.notice_views().into_iter().chain(core_notices).collect(),
+                core_inventory_error,
+                items: self.notice_views(),
                 snackbar: self.snackbar.view(),
             },
             settings: SettingsViewModel {
@@ -514,21 +514,20 @@ impl ShinkiEmuManagerController {
         })
     }
 
-    fn cores_model(&mut self, notices: &mut Vec<NoticeViewModel>) -> Result<CoresViewModel, String> {
-        let mut cores = match self.cores_view() {
-            Ok(cores) => cores,
+    fn cores_model(&mut self) -> Result<(CoresViewModel, Option<NoticeViewModel>), String> {
+        let (mut cores, inventory_error) = match self.cores_view() {
+            Ok(cores) => (cores, None),
             Err(error) => {
-                // Keep directory errors visible while the rest of the view remains usable.
                 let text = describe_error(&error);
-                notices.push(NoticeViewModel {
+                let notice = NoticeViewModel {
                     id: format!("core-inventory:{}", &sha256_id(&error)[..12]),
                     severity: "error".into(),
                     title: text.title,
                     detail: format!("{}\n{error}", text.detail),
                     code: text.code,
                     core: String::new(),
-                });
-                CoresViewModel::default()
+                };
+                (CoresViewModel::default(), Some(notice))
             }
         };
         if let Some(plugin) = self.defaults_plugin.clone()
@@ -538,7 +537,7 @@ impl ShinkiEmuManagerController {
             cores.default_fields = self.emulator_default_fields(&plugin)?;
             cores.default_render = self.emulator_render_view(&plugin)?;
         }
-        Ok(cores)
+        Ok((cores, inventory_error))
     }
 
     fn notice_views(&self) -> Vec<NoticeViewModel> {

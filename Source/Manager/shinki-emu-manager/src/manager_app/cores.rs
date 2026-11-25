@@ -512,42 +512,41 @@ mod tests {
             Vec::new(),
         )
         .unwrap();
-        let pending_code = "SHINKI_EMU_CORE_PENDING_APPLY";
-        assert!(
-            app.model()
-                .unwrap()
-                .notices
-                .items
-                .iter()
-                .all(|notice| notice.code != pending_code)
-        );
+        assert!(app.model().unwrap().notices.core_inventory_error.is_none());
         let cores = root.path().join("cores");
         let pending = cores.join(core_package::PENDING);
         fs::create_dir(&cores).unwrap();
         fs::write(&pending, b"blocked").unwrap();
         let error = core_package::pending_entries(&cores).unwrap_err();
+        let pending_code = "SHINKI_EMU_CORE_PENDING_APPLY";
         let other_error = "SHINKI_EMU_NETWORK_PERMISSION_REQUIRED";
         app.diagnostic = other_error.into();
+        let assert_inventory_error = |model: &ManagerViewModel| {
+            let notice = model.notices.core_inventory_error.as_ref().unwrap();
+            assert_eq!(notice.code, pending_code);
+            assert_eq!(notice.severity, "error");
+            assert!(notice.detail.ends_with(&error));
+            assert!(
+                model
+                    .notices
+                    .items
+                    .iter()
+                    .all(|notice| notice.core != "<pending>")
+            );
+            assert!(
+                model
+                    .notices
+                    .items
+                    .iter()
+                    .any(|notice| notice.code == other_error)
+            );
+        };
 
         let model = app.model().unwrap();
         assert_eq!(model.library.prepare_state, "unprepared");
-        let notice = model
-            .notices
-            .items
-            .iter()
-            .find(|notice| notice.code == pending_code)
-            .unwrap();
-        assert_eq!(notice.severity, "error");
-        assert!(notice.detail.contains(&error));
-        assert!(
-            model
-                .notices
-                .items
-                .iter()
-                .any(|notice| notice.code == other_error)
-        );
+        assert_inventory_error(&model);
         assert_eq!(app.diagnostic, other_error);
-        assert_eq!(app.model().unwrap().notices.items, model.notices.items);
+        assert_eq!(app.model().unwrap().notices, model.notices);
 
         let source = root
             .path()
@@ -561,7 +560,36 @@ mod tests {
         assert_eq!(app.uninstall_core("shinki_emu_fixture").unwrap_err(), error);
         assert_eq!(fs::read(&pending).unwrap(), b"blocked");
 
+        // A legacy migration failure belongs to its core, even when the pending scan fails.
+        let legacy_stem = "shinki_emu_legacy";
+        fs::create_dir(cores.join(legacy_stem)).unwrap();
+        let legacy_file = cores.join(format!("{legacy_stem}.{}", env::consts::DLL_EXTENSION));
+        fs::write(legacy_file, b"legacy").unwrap();
+        let loading = app.prepare_library().unwrap();
+        assert_eq!(loading.library.prepare_state, "loading-cores");
+        assert_inventory_error(&loading);
+        super::super::probe_state_tests::settle_background(&mut app);
+        let prepared = app.model().unwrap();
+        assert_eq!(prepared.library.prepare_state, "ready");
+        assert_inventory_error(&prepared);
+        assert!(!app.plugin_errors.contains_key("<pending>"));
+
+        let assert_per_core_failure = |model: &ManagerViewModel| {
+            let pending_notices: Vec<_> = model
+                .notices
+                .items
+                .iter()
+                .filter(|notice| notice.code == pending_code)
+                .map(|notice| notice.core.as_str())
+                .collect();
+            assert_eq!(pending_notices, [legacy_stem]);
+        };
+        assert_per_core_failure(&prepared);
+
         fs::remove_file(&pending).unwrap();
+        let repaired = app.model().unwrap();
+        assert!(repaired.notices.core_inventory_error.is_none());
+        assert_per_core_failure(&repaired);
         let recovered = app.install_core(&source).unwrap();
         assert!(
             recovered
@@ -570,13 +598,8 @@ mod tests {
                 .iter()
                 .any(|core| core.id == "shinki_emu_fixture" && core.state == "pending-install")
         );
-        assert!(
-            recovered
-                .notices
-                .items
-                .iter()
-                .all(|notice| notice.code != pending_code)
-        );
+        assert!(recovered.notices.core_inventory_error.is_none());
+        assert_per_core_failure(&recovered);
         assert!(
             recovered
                 .notices

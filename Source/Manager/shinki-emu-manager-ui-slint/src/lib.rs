@@ -457,6 +457,8 @@ pub struct CoreViewModel {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct NoticesViewModel {
+    /// Live inventory diagnostics reserve a visible slot in the notice stack.
+    pub core_inventory_error: Option<NoticeViewModel>,
     pub items: Vec<NoticeViewModel>,
     pub snackbar: SnackbarViewModel,
 }

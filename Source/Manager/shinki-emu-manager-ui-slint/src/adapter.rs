@@ -516,7 +516,7 @@ impl SlintManagerAdapter {
     }
 
     fn apply_notices(&self, model: &ManagerViewModel) {
-        self.notices.set_model(model.notices.items.clone());
+        self.notices.set_model(&model.notices);
         let snackbar = &model.notices.snackbar;
         if *self.cached_snackbar.borrow() != snackbar.serial {
             *self.cached_snackbar.borrow_mut() = snackbar.serial;
